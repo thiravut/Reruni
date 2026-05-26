@@ -7,12 +7,13 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
-	_ "modernc.org/sqlite"
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 var (
-	db         *sql.DB
+	db         *DB
 	uploadsDir string
 	httpAddr   string
 )
@@ -20,8 +21,12 @@ var (
 func main() {
 	flag.StringVar(&httpAddr, "addr", getenv("PORT_ADDR", ":8080"), "HTTP listen address")
 	flag.StringVar(&uploadsDir, "uploads", getenv("UPLOAD_DIR", "./uploads"), "Directory for uploaded videos")
-	dbPath := flag.String("db", getenv("DB_PATH", "./rerun.db"), "SQLite database path")
+	dsn := flag.String("db", getenv("DATABASE_URL", ""), "Postgres connection string (or set DATABASE_URL)")
 	flag.Parse()
+
+	if *dsn == "" {
+		log.Fatal("DATABASE_URL is required (e.g. postgres://rerun:secret@127.0.0.1:5432/rerun?sslmode=disable)")
+	}
 
 	if err := os.MkdirAll(uploadsDir, 0o755); err != nil {
 		log.Fatalf("create uploads dir: %v", err)
@@ -32,19 +37,25 @@ func main() {
 	}
 	uploadsDir = absUploads
 
-	db, err = sql.Open("sqlite", *dbPath)
+	raw, err := sql.Open("pgx", *dsn)
 	if err != nil {
 		log.Fatalf("open db: %v", err)
 	}
-	defer db.Close()
+	defer raw.Close()
 
-	if _, err := db.Exec("PRAGMA foreign_keys = ON"); err != nil {
-		log.Printf("warn: enable foreign_keys: %v", err)
+	raw.SetMaxOpenConns(25)
+	raw.SetMaxIdleConns(5)
+	raw.SetConnMaxLifetime(30 * time.Minute)
+
+	if err := raw.Ping(); err != nil {
+		log.Fatalf("db ping: %v", err)
 	}
 
-	if err := initSchema(db); err != nil {
-		log.Fatalf("init schema: %v", err)
+	if err := runMigrations(raw); err != nil {
+		log.Fatalf("run migrations: %v", err)
 	}
+
+	db = &DB{DB: raw}
 
 	bootstrapAdmin()
 	initStripe()
@@ -56,7 +67,7 @@ func main() {
 	log.Printf("TiktokRerun server")
 	log.Printf("  http        %s", httpAddr)
 	log.Printf("  uploads dir %s", uploadsDir)
-	log.Printf("  db          %s", *dbPath)
+	log.Printf("  db          (postgres)")
 	log.Fatal(http.ListenAndServe(httpAddr, handler))
 }
 

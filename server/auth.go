@@ -243,20 +243,20 @@ func signupHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res, err := db.Exec(
-		"INSERT INTO users (email, password_hash, role) VALUES (?, ?, 'user')",
+	var id int64
+	err = db.QueryRow(
+		"INSERT INTO users (email, password_hash, role) VALUES (?, ?, 'user') RETURNING id",
 		email, string(hash),
-	)
+	).Scan(&id)
 	if err != nil {
 		// likely UNIQUE constraint
-		if strings.Contains(err.Error(), "UNIQUE") || strings.Contains(err.Error(), "constraint") {
+		if strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "unique") || strings.Contains(err.Error(), "UNIQUE") {
 			writeError(w, http.StatusConflict, "EMAIL_TAKEN", "Email already registered")
 			return
 		}
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
 		return
 	}
-	id, _ := res.LastInsertId()
 
 	user := &User{ID: id, Email: email, Role: "user", CreatedAt: time.Now()}
 	sess, err := createSession(user.ID, sessionScopePortal)
@@ -390,7 +390,7 @@ func changePasswordHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Update password + clear must_change_password flag.
 	if _, err := db.Exec(
-		"UPDATE users SET password_hash=?, must_change_password=0 WHERE id=?",
+		"UPDATE users SET password_hash=?, must_change_password=FALSE WHERE id=?",
 		string(newHash), u.ID,
 	); err != nil {
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
@@ -538,7 +538,7 @@ func adminChangePasswordHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if _, err := db.Exec(
-		"UPDATE users SET password_hash=?, must_change_password=0 WHERE id=?",
+		"UPDATE users SET password_hash=?, must_change_password=FALSE WHERE id=?",
 		string(newHash), u.ID,
 	); err != nil {
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())

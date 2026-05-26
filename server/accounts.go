@@ -144,16 +144,17 @@ func addDeviceAccountHandler(w http.ResponseWriter, r *http.Request) {
 		notes = sql.NullString{String: *body.Notes, Valid: true}
 	}
 
-	res, err := db.Exec(`
+	var id int64
+	err := db.QueryRow(`
 		INSERT INTO tiktok_accounts (device_id, owner_user_id, label, username, notes)
-		VALUES (?, ?, ?, ?, ?)`,
+		VALUES (?, ?, ?, ?, ?)
+		RETURNING id`,
 		deviceID, user.ID, body.Label, username, notes,
-	)
+	).Scan(&id)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
 		return
 	}
-	id, _ := res.LastInsertId()
 	writeJSON(w, http.StatusCreated, map[string]any{"id": id})
 }
 

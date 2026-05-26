@@ -16,7 +16,7 @@ set -euo pipefail
 
 SHA="${1:?usage: deploy.sh <git-sha>}"
 RELEASE_DIR="/opt/rerun/releases/$SHA"
-HEALTH_URL="http://127.0.0.1:8080/api/health"
+HEALTH_URL="http://127.0.0.1:18080/api/health"
 HEALTH_TIMEOUT_S=30
 
 if [[ ! -x "$RELEASE_DIR/server" ]]; then

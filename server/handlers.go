@@ -163,16 +163,16 @@ func uploadVideoHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res, err := db.Exec(
-		"INSERT INTO videos (name, filename, size_bytes, owner_user_id) VALUES (?, ?, ?, ?)",
+	var id int64
+	err = db.QueryRow(
+		"INSERT INTO videos (name, filename, size_bytes, owner_user_id) VALUES (?, ?, ?, ?) RETURNING id",
 		displayName, storedName, n, user.ID,
-	)
+	).Scan(&id)
 	if err != nil {
 		_ = os.Remove(storedPath)
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
 		return
 	}
-	id, _ := res.LastInsertId()
 
 	writeJSON(w, http.StatusCreated, Video{
 		ID:        id,
@@ -504,17 +504,18 @@ func startLiveHandler(w http.ResponseWriter, r *http.Request) {
 
 	for _, did := range onlineDevices {
 		// Create live_session row.
-		res, err := db.Exec(`
+		var liveID int64
+		err := db.QueryRow(`
 			INSERT INTO live_sessions (device_id, owner_user_id, video_id, title, caption, hashtags, pinned_sku)
-			VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			VALUES (?, ?, ?, ?, ?, ?, ?)
+			RETURNING id`,
 			did, user.ID, body.VideoID, body.Title, body.Caption,
 			strings.Join(body.Hashtags, ","), body.PinnedSKU,
-		)
+		).Scan(&liveID)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
 			return
 		}
-		liveID, _ := res.LastInsertId()
 
 		payload := map[string]any{
 			"video_url":     "/uploads/" + filename,
@@ -898,17 +899,18 @@ func createBannerHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	res, err := db.Exec(`
+	var id int64
+	err := db.QueryRow(`
 		INSERT INTO banners (owner_user_id, video_id, live_session_id, slot, text, bg_color, text_color, font_size, deadline)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		RETURNING id`,
 		user.ID, body.VideoID, body.LiveSessionID, body.Slot, body.Text,
 		body.BgColor, body.TextColor, body.FontSize, body.Deadline,
-	)
+	).Scan(&id)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
 		return
 	}
-	id, _ := res.LastInsertId()
 	b, _ := getBanner(id, user.ID)
 
 	// Dynamic banner attached to a live session: push to device + portals.

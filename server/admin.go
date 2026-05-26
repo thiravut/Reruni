@@ -25,7 +25,7 @@ func adminListUsersHandler(w http.ResponseWriter, r *http.Request) {
 	where := ""
 	args := []any{}
 	if q != "" {
-		where = " WHERE email LIKE ?"
+		where = " WHERE email ILIKE ?"
 		args = append(args, "%"+strings.ToLower(q)+"%")
 	}
 
@@ -125,7 +125,7 @@ func adminResetPasswordHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	res, err := db.Exec(
-		"UPDATE users SET password_hash=?, must_change_password=1 WHERE id=?",
+		"UPDATE users SET password_hash=?, must_change_password=TRUE WHERE id=?",
 		string(hash), id,
 	)
 	if err != nil {
@@ -313,10 +313,7 @@ func adminMetricsHandler(w http.ResponseWriter, r *http.Request) {
 	var broadcastSecs sql.NullFloat64
 	_ = db.QueryRow(`
 		SELECT COALESCE(SUM(
-			CASE
-				WHEN ended_at IS NULL THEN (julianday('now') - julianday(started_at)) * 86400.0
-				ELSE (julianday(ended_at) - julianday(started_at)) * 86400.0
-			END
+			EXTRACT(EPOCH FROM (COALESCE(ended_at, NOW()) - started_at))
 		), 0)
 		FROM live_sessions WHERE started_at >= ?`, since).Scan(&broadcastSecs)
 

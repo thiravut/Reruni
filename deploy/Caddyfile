@@ -17,17 +17,17 @@ api.reruni.com {
 
 	# Stripe webhook — keep raw body, no encoding rewrites
 	@stripe path /api/billing/webhook
-	reverse_proxy @stripe 127.0.0.1:8080 {
+	reverse_proxy @stripe 127.0.0.1:18080 {
 		header_up Host {host}
 		flush_interval -1
 	}
 
-	reverse_proxy @websocket 127.0.0.1:8080 {
+	reverse_proxy @websocket 127.0.0.1:18080 {
 		header_up Host {host}
 		header_up X-Real-IP {remote_host}
 	}
 
-	reverse_proxy 127.0.0.1:8080 {
+	reverse_proxy 127.0.0.1:18080 {
 		header_up Host {host}
 		header_up X-Real-IP {remote_host}
 	}
@@ -60,7 +60,19 @@ admin.reruni.com {
 }
 
 # -----------------------------------------------------------------------------
-# reruni.com (apex) → redirect to app.reruni.com for now
+# db.reruni.com — Adminer (Postgres UI). Behind basic auth.
+# Connect with host=127.0.0.1  user=rerun  db=rerun  password=<from /etc/rerun/env>
+# -----------------------------------------------------------------------------
+db.reruni.com {
+	encode zstd gzip
+	root * /var/www/adminer
+	php_fastcgi unix//run/php-fpm/adminer.sock
+	file_server
+	import /etc/caddy/adminer.basicauth
+}
+
+# -----------------------------------------------------------------------------
+# reruni.com (apex) → redirect to app.reruni.com
 # -----------------------------------------------------------------------------
 reruni.com, www.reruni.com {
 	redir https://app.reruni.com{uri} permanent

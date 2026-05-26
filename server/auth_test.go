@@ -14,13 +14,24 @@ import (
 	"testing"
 	"time"
 
-	_ "modernc.org/sqlite"
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
-// setupTestServer creates a fresh in-memory style SQLite DB + temp uploads
-// dir, returns a configured http test server, and a teardown func.
+// setupTestServer opens the Postgres DB pointed at by TEST_DATABASE_URL,
+// runs migrations, truncates all tables, and returns a configured test
+// server + teardown. If TEST_DATABASE_URL is empty the test is skipped so
+// machines without a local Postgres still pass `go test`.
+//
+// Example:
+//   docker run --rm -d -p 5433:5432 -e POSTGRES_PASSWORD=test -e POSTGRES_DB=rerun_test postgres:16
+//   TEST_DATABASE_URL=postgres://postgres:test@127.0.0.1:5433/rerun_test?sslmode=disable go test ./...
 func setupTestServer(t *testing.T) (*httptest.Server, func()) {
 	t.Helper()
+
+	dsn := os.Getenv("TEST_DATABASE_URL")
+	if dsn == "" {
+		t.Skip("TEST_DATABASE_URL not set — skipping integration test")
+	}
 
 	tmpDir, err := os.MkdirTemp("", "tkrtest-")
 	if err != nil {
@@ -29,15 +40,22 @@ func setupTestServer(t *testing.T) (*httptest.Server, func()) {
 	uploadsDir = filepath.Join(tmpDir, "uploads")
 	_ = os.MkdirAll(uploadsDir, 0o755)
 
-	dbPath := filepath.Join(tmpDir, "test.db")
-	d, err := sql.Open("sqlite", dbPath)
+	raw, err := sql.Open("pgx", dsn)
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
-	db = d
-	if err := initSchema(db); err != nil {
-		t.Fatalf("init schema: %v", err)
+	if err := runMigrations(raw); err != nil {
+		t.Fatalf("run migrations: %v", err)
 	}
+	if _, err := raw.Exec(`
+		TRUNCATE TABLE
+			tiktok_accounts, stripe_events, subscriptions, commands,
+			banners, live_sessions, pair_tokens, devices, videos,
+			sessions, users
+		RESTART IDENTITY CASCADE`); err != nil {
+		t.Fatalf("truncate: %v", err)
+	}
+	db = &DB{DB: raw}
 
 	// Reset rate limiter so prior tests don't bleed in.
 	rateBucketsMu.Lock()
@@ -47,7 +65,7 @@ func setupTestServer(t *testing.T) (*httptest.Server, func()) {
 	srv := httptest.NewServer(buildRouter())
 	return srv, func() {
 		srv.Close()
-		db.Close()
+		raw.Close()
 		os.RemoveAll(tmpDir)
 	}
 }

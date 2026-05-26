@@ -9,7 +9,7 @@ User=rerun
 Group=rerun
 WorkingDirectory=/opt/rerun
 EnvironmentFile=/etc/rerun/env
-ExecStart=/opt/rerun/bin/tiktokrerun-server -addr=127.0.0.1:8080 -db=/opt/rerun/data/rerun.db -uploads=/opt/rerun/data/uploads
+ExecStart=/opt/rerun/bin/tiktokrerun-server -addr=127.0.0.1:18080 -uploads=/opt/rerun/data/uploads
 Restart=on-failure
 RestartSec=3s
 LimitNOFILE=65536

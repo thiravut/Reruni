@@ -1,207 +1,97 @@
 package main
 
 import (
+	"context"
 	"database/sql"
-	"log"
+	"embed"
+	"fmt"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/pressly/goose/v3"
 )
 
-// initSchema creates the tables and applies any additive migrations.
-// All DDL is idempotent: CREATE TABLE IF NOT EXISTS, and ALTER TABLE ADD COLUMN
-// statements swallow "duplicate column" errors so subsequent runs are safe.
-func initSchema(db *sql.DB) error {
-	// Base CREATE TABLE — safe to re-run.
-	stmts := []string{
-		// Legacy POC tables (kept as-is for backward compat).
-		`CREATE TABLE IF NOT EXISTS videos (
-			id           INTEGER PRIMARY KEY AUTOINCREMENT,
-			name         TEXT NOT NULL,
-			filename     TEXT NOT NULL,
-			size_bytes   INTEGER NOT NULL,
-			created_at   DATETIME DEFAULT CURRENT_TIMESTAMP
-		)`,
-		`CREATE TABLE IF NOT EXISTS devices (
-			id           TEXT PRIMARY KEY,
-			name         TEXT,
-			paired_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
-			last_seen    DATETIME
-		)`,
+//go:embed migrations/*.sql
+var migrationsFS embed.FS
 
-		// New v1 tables per tech-spec.md §5
-		`CREATE TABLE IF NOT EXISTS users (
-			id                    INTEGER PRIMARY KEY AUTOINCREMENT,
-			email                 TEXT NOT NULL UNIQUE,
-			password_hash         TEXT NOT NULL,
-			role                  TEXT NOT NULL DEFAULT 'user',
-			must_change_password  BOOLEAN NOT NULL DEFAULT 0,
-			created_at            DATETIME DEFAULT CURRENT_TIMESTAMP
-		)`,
-		`CREATE TABLE IF NOT EXISTS sessions (
-			token       TEXT PRIMARY KEY,
-			user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-			scope       TEXT NOT NULL DEFAULT 'portal',
-			created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
-			expires_at  DATETIME NOT NULL
-		)`,
-		`CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)`,
-		// idx_sessions_scope is created AFTER addCol below so it works on legacy DBs.
-
-		`CREATE TABLE IF NOT EXISTS pair_tokens (
-			token         TEXT PRIMARY KEY,
-			owner_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-			created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
-			expires_at    DATETIME NOT NULL,
-			used_at       DATETIME
-		)`,
-		`CREATE INDEX IF NOT EXISTS idx_pair_tokens_owner ON pair_tokens(owner_user_id)`,
-
-		`CREATE TABLE IF NOT EXISTS live_sessions (
-			id              INTEGER PRIMARY KEY AUTOINCREMENT,
-			device_id       TEXT NOT NULL,
-			owner_user_id   INTEGER NOT NULL REFERENCES users(id),
-			video_id        INTEGER REFERENCES videos(id),
-			title           TEXT,
-			caption         TEXT,
-			hashtags        TEXT,
-			pinned_sku      TEXT,
-			started_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
-			ended_at        DATETIME,
-			end_reason      TEXT
-		)`,
-		`CREATE INDEX IF NOT EXISTS idx_lives_device ON live_sessions(device_id)`,
-		`CREATE INDEX IF NOT EXISTS idx_lives_owner  ON live_sessions(owner_user_id)`,
-
-		`CREATE TABLE IF NOT EXISTS banners (
-			id              INTEGER PRIMARY KEY AUTOINCREMENT,
-			owner_user_id   INTEGER NOT NULL REFERENCES users(id),
-			video_id        INTEGER REFERENCES videos(id),
-			live_session_id INTEGER REFERENCES live_sessions(id),
-			slot            TEXT NOT NULL,
-			text            TEXT NOT NULL,
-			bg_color        TEXT NOT NULL DEFAULT '#000000',
-			text_color      TEXT NOT NULL DEFAULT '#FFFFFF',
-			font_size       TEXT NOT NULL DEFAULT 'M',
-			deadline        DATETIME,
-			created_at      DATETIME DEFAULT CURRENT_TIMESTAMP
-		)`,
-		`CREATE INDEX IF NOT EXISTS idx_banners_video ON banners(video_id)`,
-		`CREATE INDEX IF NOT EXISTS idx_banners_live  ON banners(live_session_id)`,
-
-		`CREATE TABLE IF NOT EXISTS commands (
-			id              TEXT PRIMARY KEY,
-			owner_user_id   INTEGER NOT NULL REFERENCES users(id),
-			device_id       TEXT NOT NULL,
-			type            TEXT NOT NULL,
-			payload_json    TEXT,
-			issued_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
-			ack_at          DATETIME,
-			status          TEXT NOT NULL DEFAULT 'pending',
-			error_code      TEXT,
-			error_message   TEXT
-		)`,
-		`CREATE INDEX IF NOT EXISTS idx_commands_device ON commands(device_id)`,
-		`CREATE INDEX IF NOT EXISTS idx_commands_owner  ON commands(owner_user_id)`,
-
-		// Subscriptions — Stripe-backed billing (tech-spec §5).
-		`CREATE TABLE IF NOT EXISTS subscriptions (
-			id                      INTEGER PRIMARY KEY AUTOINCREMENT,
-			user_id                 INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-			stripe_customer_id      TEXT NOT NULL,
-			stripe_subscription_id  TEXT,
-			stripe_price_id         TEXT,
-			tier                    TEXT NOT NULL,
-			status                  TEXT NOT NULL,
-			current_period_start    DATETIME,
-			current_period_end      DATETIME,
-			cancel_at_period_end    BOOLEAN NOT NULL DEFAULT 0,
-			created_at              DATETIME DEFAULT CURRENT_TIMESTAMP,
-			updated_at              DATETIME DEFAULT CURRENT_TIMESTAMP
-		)`,
-		`CREATE UNIQUE INDEX IF NOT EXISTS idx_subscriptions_user      ON subscriptions(user_id)`,
-		`CREATE INDEX        IF NOT EXISTS idx_subscriptions_stripe_sub ON subscriptions(stripe_subscription_id)`,
-
-		// Stripe webhook event log — idempotency + audit.
-		`CREATE TABLE IF NOT EXISTS stripe_events (
-			id                INTEGER PRIMARY KEY AUTOINCREMENT,
-			stripe_event_id   TEXT NOT NULL UNIQUE,
-			event_type        TEXT NOT NULL,
-			payload_json      TEXT,
-			processed_at      DATETIME DEFAULT CURRENT_TIMESTAMP
-		)`,
-
-		// TikTok account pool — burner accounts the operator has logged into on
-		// a specific broadcast device. The autopilot rotates among these to
-		// keep livestream throughput up when individual accounts get rate-
-		// limited / banned. V1 Lite uses TikTok's built-in switcher (cap 3-5);
-		// V3 Pro uses Magisk data-dir-swap to support much larger pools.
-		//
-		// snapshot_path: V3 only — where /data/data/<tiktok>/* is backed up so
-		// the rotator can swap login state without going through TikTok's UI.
-		// Empty/null for V1 accounts (just stored as metadata for the operator).
-		`CREATE TABLE IF NOT EXISTS tiktok_accounts (
-			id              INTEGER PRIMARY KEY AUTOINCREMENT,
-			device_id       TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
-			owner_user_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-			label           TEXT NOT NULL,
-			username        TEXT,
-			status          TEXT NOT NULL DEFAULT 'active',
-			snapshot_path   TEXT,
-			last_used_at    DATETIME,
-			banned_at       DATETIME,
-			captcha_count   INTEGER NOT NULL DEFAULT 0,
-			notes           TEXT,
-			created_at      DATETIME DEFAULT CURRENT_TIMESTAMP
-		)`,
-		`CREATE INDEX IF NOT EXISTS idx_tiktok_accounts_device ON tiktok_accounts(device_id)`,
-		`CREATE INDEX IF NOT EXISTS idx_tiktok_accounts_owner  ON tiktok_accounts(owner_user_id)`,
-		`CREATE INDEX IF NOT EXISTS idx_tiktok_accounts_status ON tiktok_accounts(status)`,
-	}
-	for _, s := range stmts {
-		if _, err := db.Exec(s); err != nil {
-			return err
-		}
-	}
-
-	// Additive migrations on legacy tables (error-tolerant).
-	// users.must_change_password — forced password change after admin reset.
-	addCol(db, "users", "must_change_password", "BOOLEAN NOT NULL DEFAULT 0")
-	// sessions.scope — separates Portal ('portal') vs Backoffice ('admin') sessions
-	// so two cookies can coexist for the same user in the same browser.
-	addCol(db, "sessions", "scope", "TEXT NOT NULL DEFAULT 'portal'")
-	addCol(db, "videos", "owner_user_id", "INTEGER NOT NULL DEFAULT 0")
-	addCol(db, "videos", "duration_sec", "INTEGER")
-	addCol(db, "videos", "size_bytes_v2", "INTEGER") // unused; placeholder ignored if already 'size_bytes' exists
-	addCol(db, "devices", "owner_user_id", "INTEGER NOT NULL DEFAULT 0")
-	addCol(db, "devices", "device_token", "TEXT")
-	addCol(db, "devices", "status", "TEXT NOT NULL DEFAULT 'idle'")
-	addCol(db, "devices", "current_video_id", "INTEGER")
-	addCol(db, "devices", "current_pinned_sku", "TEXT")
-	// SKU tier — 'v1_lite' = screen-share + Mobile Gaming + Smart Overlay;
-	// 'v3_pro' = rooted device + Magisk VCam + Device camera Go LIVE + data-dir-swap rotation.
-	addCol(db, "devices", "sku_tier", "TEXT NOT NULL DEFAULT 'v1_lite'")
-	// Active TikTok account from tiktok_accounts pool (null when no rotation
-	// has happened yet). Updated by the rotator after a successful switch.
-	addCol(db, "devices", "current_account_id", "INTEGER")
-
-	_, _ = db.Exec(`CREATE INDEX IF NOT EXISTS idx_videos_owner  ON videos(owner_user_id)`)
-	_, _ = db.Exec(`CREATE INDEX IF NOT EXISTS idx_devices_owner ON devices(owner_user_id)`)
-	_, _ = db.Exec(`CREATE INDEX IF NOT EXISTS idx_devices_token ON devices(device_token)`)
-	_, _ = db.Exec(`CREATE INDEX IF NOT EXISTS idx_sessions_scope ON sessions(scope)`)
-
-	return nil
+// DB wraps *sql.DB so we can keep writing `?` placeholders everywhere in the
+// codebase while pgx requires `$1, $2, ...`. The rebind step is cheap and only
+// runs on cache misses inside the driver — keep query strings constant.
+type DB struct {
+	*sql.DB
 }
 
-// addCol attempts to add a column. SQLite returns "duplicate column name" if
-// it already exists; that error is suppressed so init remains idempotent.
-func addCol(db *sql.DB, table, column, decl string) {
-	q := "ALTER TABLE " + table + " ADD COLUMN " + column + " " + decl
-	if _, err := db.Exec(q); err != nil {
-		// silent on "duplicate column" — already migrated
-		if !strings.Contains(err.Error(), "duplicate column") {
-			log.Printf("schema warn: %s — %v", q, err)
-		}
+func (d *DB) Exec(query string, args ...any) (sql.Result, error) {
+	return d.DB.Exec(rebind(query), args...)
+}
+
+func (d *DB) Query(query string, args ...any) (*sql.Rows, error) {
+	return d.DB.Query(rebind(query), args...)
+}
+
+func (d *DB) QueryRow(query string, args ...any) *sql.Row {
+	return d.DB.QueryRow(rebind(query), args...)
+}
+
+func (d *DB) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
+	return d.DB.ExecContext(ctx, rebind(query), args...)
+}
+
+func (d *DB) QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
+	return d.DB.QueryContext(ctx, rebind(query), args...)
+}
+
+func (d *DB) QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row {
+	return d.DB.QueryRowContext(ctx, rebind(query), args...)
+}
+
+// rebind converts MySQL/SQLite-style `?` placeholders to Postgres `$N`.
+// Ignores `?` inside single-quoted string literals.
+func rebind(q string) string {
+	if !strings.ContainsRune(q, '?') {
+		return q
 	}
+	var b strings.Builder
+	b.Grow(len(q) + 8)
+	inStr := false
+	n := 0
+	for i := 0; i < len(q); i++ {
+		c := q[i]
+		if c == '\'' {
+			// handle '' escape inside string literal
+			if inStr && i+1 < len(q) && q[i+1] == '\'' {
+				b.WriteByte(c)
+				b.WriteByte(c)
+				i++
+				continue
+			}
+			inStr = !inStr
+			b.WriteByte(c)
+			continue
+		}
+		if c == '?' && !inStr {
+			n++
+			b.WriteByte('$')
+			b.WriteString(strconv.Itoa(n))
+			continue
+		}
+		b.WriteByte(c)
+	}
+	return b.String()
+}
+
+// runMigrations applies all pending goose migrations under migrations/.
+// Safe to run on every boot — goose tracks applied versions in goose_db_version.
+func runMigrations(rawDB *sql.DB) error {
+	goose.SetBaseFS(migrationsFS)
+	if err := goose.SetDialect("postgres"); err != nil {
+		return fmt.Errorf("goose set dialect: %w", err)
+	}
+	if err := goose.UpContext(context.Background(), rawDB, "migrations"); err != nil {
+		return fmt.Errorf("goose up: %w", err)
+	}
+	return nil
 }
 
 // -----------------------------------------------------------------------------
@@ -280,7 +170,7 @@ type TikTokAccount struct {
 	OwnerUserID   int64      `json:"-"`
 	Label         string     `json:"label"`
 	Username      *string    `json:"username,omitempty"`
-	Status        string     `json:"status"`        // active | cooldown | banned | disabled
+	Status        string     `json:"status"` // active | cooldown | banned | disabled
 	SnapshotPath  *string    `json:"snapshot_path,omitempty"`
 	LastUsedAt    *time.Time `json:"last_used_at,omitempty"`
 	BannedAt      *time.Time `json:"banned_at,omitempty"`
@@ -297,17 +187,17 @@ type PairToken struct {
 }
 
 type LiveSession struct {
-	ID               int64      `json:"id"`
-	DeviceID         string     `json:"device_id"`
-	OwnerUserID      int64      `json:"owner_user_id,omitempty"`
-	VideoID          *int64     `json:"video_id,omitempty"`
-	Title            string     `json:"title,omitempty"`
-	Caption          string     `json:"caption,omitempty"`
-	Hashtags         []string   `json:"hashtags,omitempty"`
-	PinnedSKU        string     `json:"pinned_sku,omitempty"`
-	StartedAt        time.Time  `json:"started_at"`
-	EndedAt          *time.Time `json:"ended_at,omitempty"`
-	EndReason        string     `json:"end_reason,omitempty"`
+	ID          int64      `json:"id"`
+	DeviceID    string     `json:"device_id"`
+	OwnerUserID int64      `json:"owner_user_id,omitempty"`
+	VideoID     *int64     `json:"video_id,omitempty"`
+	Title       string     `json:"title,omitempty"`
+	Caption     string     `json:"caption,omitempty"`
+	Hashtags    []string   `json:"hashtags,omitempty"`
+	PinnedSKU   string     `json:"pinned_sku,omitempty"`
+	StartedAt   time.Time  `json:"started_at"`
+	EndedAt     *time.Time `json:"ended_at,omitempty"`
+	EndReason   string     `json:"end_reason,omitempty"`
 }
 
 type Banner struct {

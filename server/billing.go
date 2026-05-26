@@ -430,7 +430,7 @@ func cancelSubscriptionHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_, _ = db.Exec(
-		"UPDATE subscriptions SET cancel_at_period_end=1, updated_at=? WHERE user_id=?",
+		"UPDATE subscriptions SET cancel_at_period_end=TRUE, updated_at=? WHERE user_id=?",
 		time.Now().UTC(), u.ID,
 	)
 	// Reflect Stripe's authoritative period_end in case it differs.
@@ -487,9 +487,11 @@ func stripeWebhookHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Idempotency — INSERT OR IGNORE on stripe_events(stripe_event_id UNIQUE).
+	// Idempotency — ON CONFLICT DO NOTHING on stripe_events(stripe_event_id UNIQUE).
 	res, err := db.Exec(
-		`INSERT OR IGNORE INTO stripe_events (stripe_event_id, event_type, payload_json) VALUES (?, ?, ?)`,
+		`INSERT INTO stripe_events (stripe_event_id, event_type, payload_json)
+		 VALUES (?, ?, ?)
+		 ON CONFLICT (stripe_event_id) DO NOTHING`,
 		event.ID, string(event.Type), string(payload),
 	)
 	if err != nil {
