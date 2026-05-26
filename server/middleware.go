@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"log"
 	"net"
 	"net/http"
@@ -206,6 +208,18 @@ type statusRecorder struct {
 func (s *statusRecorder) WriteHeader(code int) {
 	s.status = code
 	s.ResponseWriter.WriteHeader(code)
+}
+
+// Hijack forwards to the underlying ResponseWriter so WebSocket upgrades
+// (gorilla/websocket type-asserts w.(http.Hijacker)) keep working even when
+// loggingMiddleware wraps the writer. Without this, every /ws/* request
+// returns 500 "Internal Server Error".
+func (s *statusRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	h, ok := s.ResponseWriter.(http.Hijacker)
+	if !ok {
+		return nil, nil, errors.New("upstream ResponseWriter does not implement http.Hijacker")
+	}
+	return h.Hijack()
 }
 
 func loggingMiddleware(next http.Handler) http.Handler {
