@@ -1,0 +1,19 @@
+# Continuous SQLite replication.
+# Recommended target: Backblaze B2 (S3-compatible, very cheap for this volume).
+# Credentials are loaded from /etc/rerun/litestream.env via the systemd unit.
+#
+# To restore on a fresh box (before starting rerun-server):
+#   litestream restore -config /etc/litestream.yml /opt/rerun/data/rerun.db
+
+dbs:
+  - path: /opt/rerun/data/rerun.db
+    replicas:
+      - type: s3
+        # For Backblaze B2: endpoint = s3.<region>.backblazeb2.com
+        endpoint: s3.us-west-002.backblazeb2.com
+        bucket: reruni-sqlite-backup
+        path: rerun.db
+        region: us-west-002
+        retention: 168h          # keep 7 days of WAL snapshots
+        snapshot-interval: 24h   # full snapshot once a day
+        sync-interval: 10s

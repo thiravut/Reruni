@@ -1,0 +1,27 @@
+[Unit]
+Description=Rerun API server (Go)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=rerun
+Group=rerun
+WorkingDirectory=/opt/rerun
+EnvironmentFile=/etc/rerun/env
+ExecStart=/opt/rerun/bin/tiktokrerun-server -addr=127.0.0.1:8080 -db=/opt/rerun/data/rerun.db -uploads=/opt/rerun/data/uploads
+Restart=on-failure
+RestartSec=3s
+LimitNOFILE=65536
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/rerun/data
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+
+[Install]
+WantedBy=multi-user.target

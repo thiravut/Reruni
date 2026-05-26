@@ -1,0 +1,446 @@
+# TiktokRerun — System Overview
+
+**สำหรับ:** Executive Presentation (pre-PRD)
+**วันที่:** 2026-05-24
+**สถานะ:** Draft — รอ POC findings (section 9) เพื่อ finalize
+**Owner:** [ทีม TiktokRerun]
+
+---
+
+## 1. Executive Summary
+
+TiktokRerun คือ **web-based control plane** ที่ช่วยให้ **solo seller / reseller ที่ run TikTok Shop หลายบัญชี** จัดการ live commerce ของทุกบัญชีจากเว็บเดียว — broadcast วิดีโอ + ปักตะกร้าสินค้า + **เพิ่ม banner/promo/countdown ทับวิดีโอแบบ real-time** โดยไม่ต้องจ้างทีม ไม่ต้องเดินไปแตะเครื่อง
+
+**Smart Overlay broadcast technology** — Companion App วาด video + banner เป็น overlay บน TikTok screen-share → TikTok UI ซ่อนใต้ overlay → pin product, switch product, เปลี่ยน promo banner ทำได้กลาง live โดยไม่มี flicker, ไม่ต้อง root device, ลูกค้าใช้ phone อะไรก็ได้
+
+**ปัญหาที่แก้:** TikTok Shop seller ในไทยต้องการ live presence 24/7 เพื่อ algorithm boost + sales conversion แต่ live สดเองไม่ไหว และเครื่องมือปัจจุบัน (TikMatrix, PRISM, MOD APK) ขาด web UX, ขาด broadcast capability, หรือผิด ToS
+
+**โอกาส:** Live commerce ในไทยโต 40%+ ปี 2025-2026, TikMatrix charge $29-$149/เดือนต่อ user มีฐานลูกค้าจริง, แต่ไม่มีใครครอบคลุม web + broadcast + Shop integration พร้อมกัน
+
+**POC status:** ✅ Validated — broadcast, audio control, remote command, device pairing, start/stop live, pin/unpin product, video switching — ทำงานครบ พร้อมเข้า MVP
+
+**Ask:** approval ในการเข้า MVP phase (3 เดือน, team 4 คน, infra ~30-50K บาท/เดือน)
+
+---
+
+## 2. The Opportunity
+
+### Market context
+- **TikTok Shop Thailand GMV** เติบโตต่อเนื่อง, seller จำนวนมากย้ายจาก Shopee/Lazada เป็น TikTok-first
+- **Live commerce penetration** สูงกว่า e-commerce ปกติ (conversion rate 5-10x)
+- **ครีเอเตอร์ + seller** ต้องการ presence 24/7 แต่ live สดต้องใช้คน → bottleneck สำคัญ
+- **TikTok Algorithm 2026** ให้ priority กับ live ที่ active → ไม่ live = ไม่มี distribution
+
+### Competitive gap
+
+| Player | สิ่งที่ทำ | สิ่งที่ขาด |
+|---|---|---|
+| **TikMatrix** (desktop, $29-149/mo, ตลาด global) | engagement farm, multi-account mgmt | ไม่มี broadcast, ไม่มี web, ไม่มี Shop |
+| **PRISM Live Studio** (mobile, free) | live streaming + playlist | ไม่ scale, ไม่มี remote control, ไม่มี Shop |
+| **OBS + LIVE Studio** (desktop) | RTMP + stream key | desktop-only, 1 broadcast/เครื่อง, ต้องการ stream key |
+| **MOD APK** | unlock features | malware risk, account ban, illegal |
+| **TiktokRerun (เรา)** | web + broadcast + Shop + fleet | — |
+
+### Why now
+- TikTok Shop ในไทยเข้าสู่ scale phase → ลูกค้า ready
+- POC ของเราพิสูจน์ technical feasibility แล้ว
+- Direct competitor (TikMatrix) แสดงให้เห็นว่า market มีจริงและจ่ายเงินจริง
+- ก่อน TikTok ออก policy ที่ tighter — first-mover advantage
+
+---
+
+## 3. What We're Building
+
+### Product vision
+> **"Operations cockpit for TikTok Live Commerce ที่หนึ่งคนคุมร้านได้ 100 ร้านพร้อมกัน"**
+
+### Core value proposition
+1. **Centralized control** — จัดการ 100 phones จาก web เดียว
+2. **Broadcast automation** — เล่นวิดีโอที่ตัดต่อไว้ใน live โดยไม่ต้องมีคน on-cam
+3. **Commerce integration** — ปักตะกร้า / สลับสินค้า remotely กลาง live
+4. **Dynamic Composition** — เพิ่ม/เปลี่ยน banner, countdown, price tag ทับวิดีโอ real-time จาก web (1 วิดีโอ base = 100 campaigns ไม่ต้องตัดใหม่)
+5. **Operational visibility** — สถานะทุก live, สลับ video on-demand
+
+### Customer profile (primary)
+- **Solo TikTok Shop seller** ที่มีหลายบัญชี (3-15 accounts) — full-time หรือ side-hustle
+- **Multi-account reseller / drop-shipper** ที่ run TikTok Shop หลาย category — คนเดียว
+- **Small business owner** ที่ใช้ TikTok เป็นช่องทางหลัก, ไม่มีงบจ้างทีม
+
+→ **Not targeting:** agency, brand with internal team, enterprise — defer to Phase 2+ if demand emerges
+
+### Not building (สำคัญสำหรับ scope discipline)
+- ❌ Fake engagement / bot viewers / fake comments
+- ❌ Account creation automation / verification bypass
+- ❌ Detection evasion tooling (IP rotation as a feature)
+- ❌ MOD APK / TikTok app modification
+
+---
+
+## 4. System Architecture
+
+### 4.1 Logical View (3-tier)
+
+```
+┌────────────────────────────────────────────────────┐
+│  TIER 1: CONTROL PLANE                             │
+│  Web Dashboard (Browser)                           │
+│  - User UI: fleet view, video lib, commands    │
+│  - Admin UI: user mgmt, billing, analytics         │
+└──────────────────┬─────────────────────────────────┘
+                   │ HTTPS + WSS
+                   ▼
+┌────────────────────────────────────────────────────┐
+│  TIER 2: ORCHESTRATION                             │
+│  Backend Services (Cloud)                          │
+│  - API Gateway + Auth                              │
+│  - Device Registry & Pairing                       │
+│  - Command Router (web → device)                   │
+│  - Video CDN & metadata                            │
+│  - Telemetry collector                             │
+│  - Storage: Postgres + Redis + S3                  │
+└──────────────────┬─────────────────────────────────┘
+                   │ WSS (persistent)
+                   ▼
+┌────────────────────────────────────────────────────┐
+│  TIER 3: DATA PLANE                                │
+│  Device Fleet (Android phones at customer site)    │
+│  - Companion app (Kotlin)                          │
+│  - Video player (foreground full-screen)           │
+│  - Accessibility automation                        │
+│  - TikTok native app (per-account login)           │
+└────────────────────────────────────────────────────┘
+```
+
+### 4.2 Physical Topology
+
+```
+┌─────────────┐       ┌──────────────────────┐
+│  User   │──────▶│  Cloud (Bangkok)     │
+│  Browser    │  WSS  │  - 1 LB              │
+│  (anywhere) │       │  - 2-4 API nodes     │
+└─────────────┘       │  - Postgres primary  │
+                      │  - Redis cluster     │
+                      │  - S3 + CDN          │
+                      └──────────┬───────────┘
+                                 │ WSS (mTLS)
+                                 │
+              ┌──────────────────┴──────────────────┐
+              ▼                                      ▼
+       Customer Site A                       Customer Site B
+       (10-100 phones)                       (10-100 phones)
+       - Cooling rack                        - Cooling rack
+       - Wi-Fi / SIM 4G                      - Wi-Fi / SIM 4G
+       - Each phone: 1 TikTok account
+       - Each phone: companion app installed
+```
+
+### 4.3 Component Responsibilities
+
+| Component | Tech | Owns |
+|---|---|---|
+| **Web Dashboard** | Next.js + tRPC + Tailwind | User UX, real-time fleet state |
+| **API Gateway** | Go (Fiber/Echo) | Auth, routing, rate limit |
+| **Device Registry** | Postgres | Device identity, pairing tokens |
+| **Command Router** | Go + Redis pub/sub | Web → device command dispatch |
+| **WebSocket Gateway** | Go (gorilla/websocket) | Persistent device connections |
+| **Video Service** | Go + S3 + CDN | Upload, transcode, delivery to devices |
+| **Telemetry** | Go + Postgres + Grafana | Device status, live metrics, audit log |
+| **Companion App** | Kotlin + ExoPlayer + AccessibilityService | Device-side execution |
+
+---
+
+## 5. Core User Journeys
+
+### Journey 1: Onboard a new phone (one-time, ~3 นาที)
+```
+User                    Backend                Phone
+   │                           │                     │
+   ├─ "Add device" ───────────▶│                     │
+   │  (web dashboard)          │                     │
+   │                           ├─ Generate QR + token│
+   │◀──── Show QR ─────────────┤                     │
+   │                           │                     │
+   │                           │       Scan QR ─────▶│
+   │                           │                     │
+   │                           │◀──── Pair request ──┤
+   │                           ├──── Register ──────▶│
+   │                           │                     │
+   │◀──── Device online ───────┤                     │
+```
+
+### Journey 2: Start live with looped video
+```
+User              Backend               Phone
+   │                     │                    │
+   ├─ Pick device ──────▶│                    │
+   ├─ Pick video         │                    │
+   ├─ "Start Live" ─────▶│                    │
+   │                     ├─ Cmd: start_live ─▶│
+   │                     │                    ├─ Acc.Svc: open TikTok
+   │                     │                    ├─ Acc.Svc: tap "Go Live"
+   │                     │                    ├─ Acc.Svc: select Screen Share
+   │                     │                    ├─ Switch foreground → video player
+   │                     │                    ├─ Play video (loop)
+   │                     │◀── Status: LIVE ───┤
+   │◀── Live confirmed ──┤                    │
+```
+
+### Journey 3: Pin a product mid-stream
+```
+User              Backend               Phone
+   │                     │                    │
+   ├─ "Pin product X" ──▶│                    │
+   │                     ├─ Cmd: pin(X) ─────▶│
+   │                     │                    ├─ [POC-validated method]
+   │                     │                    │  (will be filled per Q1 POC)
+   │                     │◀── Status: pinned ─┤
+   │◀── Pin confirmed ───┤                    │
+```
+
+---
+
+## 6. Capability Pillars
+
+| Pillar | What it does | MVP / Phase 2 |
+|---|---|---|
+| **Fleet Management** | Onboard, pair, status, group devices | MVP |
+| **Video Broadcasting** | Upload, assign, loop, switch on-demand | MVP |
+| **Smart Overlay** | SAW-based composition, no root, BYOD-friendly | MVP |
+| **Live Lifecycle** | Start/stop/restart live remotely | MVP |
+| **TikTok Shop Control** | Pin/unpin/switch products | MVP |
+| **Banner Composition** | Static + Dynamic banner, countdown, price tag | MVP |
+| **Scheduling** | Time-based start/stop, playlist rotation | Phase 2 |
+| **Comment Monitoring** | Real-time feed, basic moderation | Phase 2 |
+| **User account + billing** | Self-serve signup, payment, subscription tier | Phase 2 |
+| **Banner Library/Editor** | Templates, drag-drop, animations | Phase 2 |
+| **Pre-rooted Hardware (Pro tier)** | True VCAM via bundled rooted devices | Phase 2+ |
+| **Analytics** | Aggregate viewer, GMV, retention | Phase 3 |
+| **Interactive Overlays** | Comment ticker, order alert, gift react | Phase 3 |
+| **Hybrid Live** | Human takeover (creator joins live realtime) | Phase 3 |
+
+---
+
+## 7. Tech Foundation
+
+| Layer | Choice | Why |
+|---|---|---|
+| Mobile | Kotlin + ExoPlayer + AccessibilityService | Native control needed |
+| Backend | Go (Fiber/Echo) | 100+ concurrent WebSocket connections, low mem |
+| Realtime | WSS (gorilla/websocket) | Mature, simple |
+| DB | PostgreSQL | Relational, reliable |
+| Cache/Queue | Redis | Command queue + pub/sub |
+| Storage | S3-compatible (Cloudflare R2) + CDN | Cheap video delivery |
+| Frontend | Next.js + tRPC + Tailwind | Fast dev velocity |
+| Infra (POC→MVP) | Hetzner / Railway → Docker | Cheap, scales |
+| Infra (V1+) | K8s on Hetzner / GKE | When scale demands |
+| Monitoring | Grafana + Loki + Prometheus | Self-hostable, no vendor lock |
+
+---
+
+## 8. Operational Model
+
+### Where things live
+- **Cloud (Bangkok region):** all backend, all storage
+- **Customer site:** phone fleet + Wi-Fi/4G + cooling rack
+- **User:** anywhere with browser
+
+### Who operates what
+- **Customer ops team:** physical phones (charging, cleaning, TikTok login)
+- **Our SaaS:** all software, monitoring, updates
+- **Hybrid responsibility:** TikTok account health (we provide guidelines, customer maintains accounts)
+
+### Update mechanism
+- **Web dashboard:** standard SaaS deploy (continuous)
+- **Backend:** rolling deploy, zero downtime
+- **Companion app:** auto-update via in-app mechanism (we control update cadence; critical for TikTok UI changes)
+
+### Customer site logistics (per 100-phone deployment)
+- Power: ~300W (3W per phone average)
+- Network: 100 Mbps minimum (1 Mbps per live stream)
+- Cooling: rack + fan setup, ambient < 28°C
+- SIM: 100 SIM cards if not Wi-Fi (~500 บาท/เดือน × 100 = 50K)
+
+---
+
+## 9. POC Findings — All Core Capabilities Validated
+
+### ✅ Core Broadcast Pipeline
+- **Screen-share live** — Companion app เล่นวิดีโอเต็มจอ + TikTok Live screen-share จับและ broadcast ได้จริง
+- **Audio routing** — เสียงจากวิดีโอออกใน broadcast พร้อม volume control ปรับ remote ได้ผ่าน dashboard
+- **Loop playback** — วิดีโอ loop ต่อเนื่องไม่มี gap
+
+### ✅ Remote Control
+- **WebSocket command pipeline** — Web → backend → device latency < 1s
+- **Device pairing via QR** — onboard phone ใหม่ใน < 3 นาที
+- **Multi-device fanout** — สั่งหลายเครื่องพร้อมกันได้
+
+### ✅ TikTok Automation
+- **Start/stop live** — Accessibility Service เปิด TikTok → Go Live → Screen Share ได้
+- **Pin/unpin product** — สลับสินค้าระหว่าง live ได้จาก web, ผู้ชมเห็น product anchor update real-time
+- **Switch video on-demand** — operator เปลี่ยนวิดีโอที่กำลัง broadcast ได้โดยไม่ต้องปิด live
+
+### 🟡 Smart Overlay Verification — POC Extension Gate (ก่อน MVP build)
+
+**Decision:** ย้าย default broadcast mode จาก plain screen-share → **Smart Overlay**
+- Companion App วาด video เป็น SYSTEM_ALERT_WINDOW overlay บน TikTok app
+- TikTok screen-share จับ overlay layer (MediaProjection capture)
+- TikTok UI ยังคงอยู่ใต้ overlay → pin product ไม่ต้องสลับ foreground
+- **Banner layer = overlay layer เดียวกัน** → render banner/countdown/price บนวิดีโอได้
+
+**3 verification ต้องผ่านก่อน MVP build commit:**
+1. ☐ TikTok screen-share จับ SAW overlay จริงในทุก Android version target (10+)
+2. ☐ TikTok app ไม่ block live เมื่อ detect overlay running
+3. ☐ Touch passthrough ให้ Accessibility Service tap TikTok UI ใต้ overlay ได้สำเร็จ
+
+**Effort:** POC extension 1-2 สัปดาห์ — must-do gate
+
+**Fallback ถ้าไม่ผ่าน:** stay กับ plain screen-share + ใช้ overlay trick เฉพาะ pin product moment (degraded UX แต่ functional)
+
+### 📋 Customer-Managed Risk (by ToS)
+
+#### Account Safety / Ban Risk
+- **Policy:** ลูกค้ารับ risk เรื่อง TikTok account ban เอง ผ่าน Terms of Service
+- **เหตุผล:** TikTok policy เปลี่ยนแปลงตลอด, ลูกค้าควบคุมเนื้อหา/account ของตัวเอง
+- **Product responsibility:**
+  - ToS acknowledgement flow ตอน signup
+  - Documentation: best practices ลด ban risk
+  - Aggregate telemetry เพื่อ improve product (ไม่ identify ลูกค้า)
+- **Legal:** Customer ToS ต้องผ่าน legal review ก่อน GA
+
+### POC Exit Status
+| # | Item | สถานะ |
+|---|---|---|
+| 1 | Screen-share broadcast | ✅ |
+| 2 | Audio routing + volume | ✅ |
+| 3 | Remote WebSocket control | ✅ |
+| 4 | Device pairing (QR) | ✅ |
+| 5 | Start/stop live automation | ✅ |
+| 6 | Pin/unpin product | ✅ |
+| 7 | Switch video on-demand | ✅ |
+| 8 | Multi-device concurrent control | ✅ |
+| 9 | Smart Overlay broadcast (SAW + MediaProjection capture) | 🟡 POC extension |
+| 10 | Banner layer render on overlay | 🟡 POC extension |
+| ~~Ban rate baseline~~ | ~~Customer-managed via ToS~~ | N/A |
+
+**Conclusion: POC core successful — pending Smart Overlay verification (1-2 wks) ก่อน MVP build**
+
+### Open Risks for MVP
+- TikTok app version changes → Accessibility selectors break (mitigation: selector versioning + auto-update)
+- TikTok may detect/block overlay during screen-share (mitigation: POC verify; fallback to plain screen-share)
+- Scale 10 → 100 phones (mitigation: load test ใน MVP)
+- Long-run stability 24/7 operation (mitigation: instrumentation + auto-recovery)
+- Banner rendering performance @ overlay layer (mitigation: hardware-accelerated rendering, fps monitoring)
+
+---
+
+## 10. Roadmap
+
+```
+─── 2026 ──────────────────────────────────────────────────────────────▶
+
+Q2  │ POC (5-10 phones, in-house)         ✅ Complete
+    │ ─────────────────────────────────────────
+Q3  │ MVP (3 เดือน)                       ◀── ขอ approval ที่นี่
+    │  • Smart Overlay broadcast mode     │
+    │  • Banner composition (Tier 1+2)    │
+    │  • User account web (signup/login)  │
+    │  • Onboarding flow                  │
+    │  • Pin product (POC-validated path) │
+    │  • Beta with 2-3 design partners    │
+    │  • Target: 50 phones / 500 lives    │
+    │ ─────────────────────────────────────────
+Q4  │ V1 GA — Paid launch                 │
+    │  • Pricing tiers ($X-$Y per phone)  │
+    │  • Self-serve signup                │
+    │  • Scheduling + comment monitoring  │
+    │ ─────────────────────────────────────────
+
+─── 2027 ──────────────────────────────────────────────────────────────▶
+
+Q1  │ Scale + Analytics                   │
+    │  • 1,000+ phones across customers   │
+    │  • GMV / retention dashboards       │
+Q2  │ Hybrid Live + AI assist             │
+    │  • Human takeover                   │
+    │  • AI comment reply suggestions     │
+Q3  │ International (SEA)                 │
+    │  • Vietnam, Indonesia, Philippines  │
+```
+
+---
+
+## 11. Resource & Investment
+
+### Team (MVP → V1) — AI-leveraged
+
+| Role | MVP (8 wk) | V1 (3 mo) | Notes |
+|---|---|---|---|
+| Pond (founder + full-stack) | 1 (50K/mo) | 1 | leverages Claude as co-pilot |
+| Hire: 1 full-stack engineer | – | 1 | reduces single-person risk for V1 |
+| Customer Success | – | 1 | when 10+ paying Users |
+| **Total MVP** | **1 FTE** | **3 FTE** | AI tools = headcount multiplier |
+
+### Infrastructure (REVISED — Tier A scrappy MVP, Cloudflare R2 + Hetzner)
+| Phase | Concurrent phones | Tier | Infra cost/เดือน | บาท/device |
+|---|---|---|---|---|
+| POC | 10 | Tier A | < 1.5K บาท | 150 |
+| MVP | 100-300 | Tier A | 1.5-3K บาท | 5-15 |
+| V1 | 500-2,000 | Tier B (DO managed) | 5-15K บาท | 5-15 |
+| Scale | 5,000+ | Tier B + optimize | 30-50K บาท | 6-10 |
+| Enterprise (per customer) | varies | Tier C/D (GCP) | premium, quoted | 40-100 |
+
+→ Full breakdown in `docs/planning-artifacts/cost-analysis-gcp.md`
+→ **Cloudflare R2 + Cloudflare CDN = $0 egress** (sidesteps biggest variable cost in GCP)
+→ **Server cost ratio < 10% revenue** at MVP scale = healthy SaaS economics
+
+### Non-infra opex (all tiers)
+- Email (Resend), Sentry, Linear, GitHub: ~6-12K บาท/เดือน at V1 maturity
+- Customer support tool, payment processing: variable
+
+### Customer-side cost (per 100-phone deployment)
+- Phones: 100 × ~5K = 500K บาท (one-time, can use refurbished)
+- SIM (if not Wi-Fi): 50K/เดือน
+- Cooling rack: 30K (one-time)
+- Power + space: 5-10K/เดือน
+
+### Pricing (FINAL — close Open Q #1)
+**4-tier subscription, value-based:**
+
+| Tier | Devices | บาท/เดือน | บาท/device |
+|---|---|---|---|
+| **Starter** | up to 10 | **3,990** | 399 |
+| **Growth** | up to 30 | **8,990** | 300 |
+| **Pro** | up to 100 | **19,990** | 199 |
+| **Enterprise** | 100+ | quote (120-140 บาท/device) | 120-140 |
+
+- **ไม่มี free trial** — signup → choose tier → pay → use
+- **20% annual discount** if pay yearly
+
+### Revenue projection
+| Stage | Customers | Avg devices | MRR | ARR | Server cost % |
+|---|---|---|---|---|---|
+| V1 6-mo | 30 | 20 | 192K บาท | 2.3M บาท | 1.6% |
+| V1 12-mo | 80 | 25 | 524K บาท | 6.3M บาท | 1.9% |
+| Year 2 | 300 | 30 | 2.28M บาท | 27.3M บาท | 1.3% |
+
+→ Gross margin > 95% achievable (vertical SaaS leader level)
+
+---
+
+## 12. Decisions Needed from Executive
+
+| # | Decision | Recommendation | Impact |
+|---|---|---|---|
+| 1 | Approve MVP phase | ✅ Approve | Unlock 8-week build, **~200K บาท investment** |
+| 2 | Team structure | Pond solo full-stack + Claude (50K/mo) | AI-leveraged, no hire for MVP |
+| 3 | Infra budget | 30K/mo MVP cap | Hetzner + R2 → low commitment |
+| 4 | Public positioning | Live Commerce Ops Platform (A1) | Avoid MOD APK / fraud association |
+| 5 | Design partners | Onboard 2-3 friendly agencies | Validation + early revenue |
+| 6 | Legal review | TikTok ToS + Thai PDPA + Computer Crime Act + **customer ToS (ban risk transfer)** | Before GA |
+| 7 | Hosting region | Bangkok-first | Latency + data residency |
+
+---
+
+## Appendix: Related docs
+- [Market Research](./market-research-tiktok-live-rerun.md)
+- [Technical Architecture Draft](./technical-architecture-draft.md)

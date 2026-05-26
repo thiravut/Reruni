@@ -1,0 +1,67 @@
+{
+	email admin@reruni.com
+}
+
+# -----------------------------------------------------------------------------
+# api.reruni.com — Go server (REST + WebSocket + Stripe webhook + /uploads)
+# Stripe webhook needs the raw body, so no compression / no body modification.
+# -----------------------------------------------------------------------------
+api.reruni.com {
+	encode zstd gzip
+
+	@websocket {
+		path /ws/*
+		header Connection *Upgrade*
+		header Upgrade websocket
+	}
+
+	# Stripe webhook — keep raw body, no encoding rewrites
+	@stripe path /api/billing/webhook
+	reverse_proxy @stripe 127.0.0.1:8080 {
+		header_up Host {host}
+		flush_interval -1
+	}
+
+	reverse_proxy @websocket 127.0.0.1:8080 {
+		header_up Host {host}
+		header_up X-Real-IP {remote_host}
+	}
+
+	reverse_proxy 127.0.0.1:8080 {
+		header_up Host {host}
+		header_up X-Real-IP {remote_host}
+	}
+}
+
+# -----------------------------------------------------------------------------
+# app.reruni.com — portal SPA (operator-facing)
+# -----------------------------------------------------------------------------
+app.reruni.com {
+	encode zstd gzip
+	root * /opt/rerun/portal
+	try_files {path} /index.html
+	file_server
+
+	@assets path /assets/*
+	header @assets Cache-Control "public, max-age=31536000, immutable"
+}
+
+# -----------------------------------------------------------------------------
+# admin.reruni.com — backoffice SPA (Rerun staff)
+# -----------------------------------------------------------------------------
+admin.reruni.com {
+	encode zstd gzip
+	root * /opt/rerun/backoffice
+	try_files {path} /index.html
+	file_server
+
+	@assets path /assets/*
+	header @assets Cache-Control "public, max-age=31536000, immutable"
+}
+
+# -----------------------------------------------------------------------------
+# reruni.com (apex) → redirect to app.reruni.com for now
+# -----------------------------------------------------------------------------
+reruni.com, www.reruni.com {
+	redir https://app.reruni.com{uri} permanent
+}

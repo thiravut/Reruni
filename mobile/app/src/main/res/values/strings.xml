@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TiktokRerun</string>
+    <string name="hero_title">TiktokRerun</string>
+    <string name="hero_subtitle">Live ขายของแบบ autopilot — กดปุ่มเดียวจบ</string>
+    <string name="section_quick_start">วิธีใช้แบบเร็ว</string>
+    <string name="section_playlist">Playlist</string>
+    <string name="section_autopilot">Autopilot Live</string>
+    <string name="section_autopilot_subtitle">เปิด TikTok และตั้งค่าให้เสร็จเองในคลิกเดียว</string>
+    <string name="pick_video">＋ เพิ่มวิดีโอ</string>
+    <string name="clear_list">ล้าง</string>
+    <string name="start_broadcast">เล่น Playlist (สำหรับ Screen Share)</string>
+    <string name="hint_workflow">1. เพิ่มวิดีโอหลายตัว → ระบบจะวนเล่นต่อเนื่อง (ลด pattern detection)\n2. เปิด TikTok → + → LIVE → Mobile Gaming → Screen Share\n3. กลับมาแอปนี้ → กด \"เริ่ม Playlist Loop\"\n4. กลับ TikTok เพื่อ pin product / ตอบคอมเม้นต์ตามปกติ</string>
+    <string name="no_video_selected">ยังไม่ได้เพิ่มวิดีโอ — แตะ \"เพิ่มวิดีโอ\" เพื่อเริ่ม</string>
+    <string name="selected_videos_count">มี %1$d วิดีโอใน playlist:</string>
+
+    <!-- Web control -->
+    <string name="settings_title">ตั้งค่า</string>
+    <string name="nav_back">กลับ</string>
+    <string name="connect_status_inline">สถานะ: %1$s</string>
+    <string name="connect_started">✓ เริ่ม service แล้ว — รอเชื่อมต่อ…</string>
+    <string name="settings_hint">เชื่อมต่อแอปเข้ากับ TiktokRerun Control panel เพื่อสั่งจากระยะไกล — เปิด dashboard บน laptop → กด "สร้าง Pair QR" → สแกนด้วยปุ่มข้างล่าง</string>
+    <string name="section_server">การเชื่อมต่อ Server</string>
+    <string name="section_autopilot_perm">สิทธิ์ Autopilot</string>
+    <string name="section_autopilot_perm_subtitle">Accessibility service สำหรับกดปุ่มใน TikTok</string>
+    <string name="section_autopin">Auto-pin Product</string>
+    <string name="section_autopin_subtitle">รายชื่อสินค้าที่บอทจะปักตะกร้าให้อัตโนมัติ</string>
+    <string name="label_or_manual">หรือกรอกเอง</string>
+    <string name="scan_qr">📷 สแกน QR จาก dashboard</string>
+    <string name="server_url_hint">Server URL (เช่น http://192.168.1.100:8080)</string>
+    <string name="pair_token_hint">Pair Token (จาก dashboard)</string>
+    <string name="device_name_hint">Device Name (สำหรับ identify ใน dashboard)</string>
+    <string name="save_and_connect">บันทึก + เชื่อมต่อ</string>
+    <string name="disconnect">ตัดการเชื่อมต่อ</string>
+    <string name="open_settings">ตั้งค่า</string>
+    <string name="conn_disconnected">ยังไม่เชื่อมต่อ Server</string>
+    <string name="conn_connecting">กำลังเชื่อมต่อ…</string>
+    <string name="conn_connected">เชื่อมต่อ %1$s</string>
+    <string name="conn_error">ผิดพลาด · %1$s</string>
+    <string name="receiving_video">⏬ กำลังโหลด \"%1$s\" จาก server…</string>
+
+    <!-- Notification (foreground service) -->
+    <string name="notif_channel_name">Server Connection</string>
+    <string name="notif_channel_desc">WebSocket ที่เชื่อมต่อกับ TiktokRerun Control panel</string>
+    <string name="notif_online">● Online — %1$s</string>
+    <string name="notif_connecting">● กำลังเชื่อมต่อ…</string>
+    <string name="notif_error">● Error: %1$s</string>
+    <string name="notif_disconnected">● ตัดการเชื่อมต่อ</string>
+
+    <!-- SKU tier -->
+    <string name="section_sku_tier">โหมดใช้งาน (SKU)</string>
+    <string name="section_sku_subtitle">เลือกตามชนิดเครื่อง broadcaster — V3 ต้อง root + Magisk + GhostCam</string>
+    <string name="sku_v1_title">V1 Lite — Screen Share</string>
+    <string name="sku_v1_desc">ใช้ Mobile Gaming + Screen Share. ไม่ต้อง root. ภาพออก landscape 16:9 (มี letterbox). บัญชี max 3-5 / เครื่อง. เปิดด้วย stock TikTok.</string>
+    <string name="sku_v2_title">V2 Standard — Modded TikTok</string>
+    <string name="sku_v2_desc">Device camera + VCam ใน TikTok modded (จาก partner). ไม่ต้อง root. ภาพ portrait 9:16 native. บัญชี ~10/เครื่อง (TikTok in-app switcher). ลูกค้าต้อง sideload modded TikTok เอง.</string>
+    <string name="sku_v3_title">V3 Pro — VCam (Rooted)</string>
+    <string name="sku_v3_desc">Device camera + Magisk GhostCam. ต้อง root + Magisk + GhostCam module. ภาพ portrait 9:16 native. รองรับ account rotation 50+ บัญชี/เครื่อง (data-dir swap).</string>
+
+    <!-- Accessibility / Autopilot -->
+    <string name="product_keywords_hint">Auto-pin product keywords (บรรทัดละ 1 product)</string>
+    <string name="product_keywords_help">Substring match (case-insensitive) — keyword สั้นๆ ที่ unique ใน product name ก็พอ เช่น "G.K SNACK" หรือ "ธัญพืช"</string>
+
+    <string name="accessibility_label">TiktokRerun Autopilot</string>
+    <string name="accessibility_summary">เปิดเพื่อให้ TiktokRerun ทำ Go Live → Mobile Gaming → Screen Share ให้อัตโนมัติ</string>
+    <string name="accessibility_description">Accessibility service ใช้สำหรับ tap ปุ่มใน TikTok app เพื่อเริ่ม Mobile Gaming Live + Screen Share โดยอัตโนมัติ\n\nไม่อ่าน หรือบันทึก content ในหน้าจอเพื่อวัตถุประสงค์อื่นนอกจากการ navigate UI ของ TikTok</string>
+    <string name="open_accessibility_settings">⚙ เปิด Accessibility</string>
+    <string name="accessibility_status_on">✓ Autopilot พร้อม</string>
+    <string name="accessibility_status_off">⚠ ยังไม่เปิด Accessibility</string>
+    <string name="autopilot_start">หรือเริ่ม Personal Live (ไม่ pin)</string>
+    <string name="autopilot_start_shoppable">▶ ไลฟ์ขายของ (Auto-pin)</string>
+    <string name="autopilot_cancel">⏹ ยกเลิก autopilot</string>
+    <string name="autopilot_cancel_mode">⏹ ยกเลิก %1$s Live</string>
+    <string name="autopilot_mode_personal">Personal</string>
+    <string name="autopilot_mode_shoppable">Shoppable</string>
+    <string name="autopilot_running">🤖 %1$s</string>
+    <string name="debug_dump_ui">🔍 Dump TikTok UI (debug selectors)</string>
+    <string name="dump_saved">บันทึก UI dump ที่ %1$s</string>
+
+    <!-- Smart Overlay POC (tech-arch §3.5) -->
+    <string name="section_overlay">Smart Overlay POC</string>
+    <string name="section_overlay_subtitle">ทดสอบ: TikTok screen-share จับ overlay window ได้ไหม?</string>
+    <string name="overlay_start">▶ เปิด Test Overlay</string>
+    <string name="overlay_stop">⏹ ปิด Test Overlay</string>
+    <string name="overlay_needs_permission">ต้องอนุญาต \"แสดงทับแอปอื่น\" ก่อน — เปิด Settings</string>
+    <string name="overlay_status_idle">Idle</string>
+    <string name="overlay_status_running">กำลังทำงาน (test pattern) — สลับไป TikTok → Go Live → Screen Share</string>
+    <string name="overlay_status_running_video">กำลังเล่นวิดีโอใน overlay — สลับไป TikTok → Go Live → Screen Share</string>
+    <string name="overlay_hint_test_pattern">ยังไม่มีวิดีโอใน playlist → เปิดเป็น test pattern</string>
+    <string name="overlay_hint_first_video">จะเล่นวิดีโอแรก: %1$s</string>
+</resources>

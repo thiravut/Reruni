@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>TiktokRerun Control</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>🎬 TiktokRerun Control</h1>
+    <p class="muted">Layer 1 — Web → Backend → Device (manual TikTok Live start)</p>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>📤 Upload Video</h2>
+      <form id="uploadForm">
+        <input type="file" name="video" accept="video/*" required>
+        <button type="submit">Upload</button>
+        <progress id="uploadProgress" value="0" max="100" hidden></progress>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>🎞️ Videos</h2>
+      <ul id="videoList" class="list"><li class="muted">loading…</li></ul>
+    </section>
+
+    <section class="card">
+      <h2>📱 Devices</h2>
+      <div class="pair-row">
+        <button id="pairBtn">+ สร้าง Pair QR</button>
+        <code id="pairToken" class="muted">กด "สร้าง Pair QR" → สแกนด้วยแอปมือถือ</code>
+      </div>
+      <div id="pairQrWrap" hidden>
+        <img id="pairQr" alt="Pair QR" />
+        <p class="muted">สแกน QR นี้ในแอป TiktokRerun → "⚙ ตั้งค่า Server" → "📷 สแกน QR"</p>
+      </div>
+      <ul id="deviceList" class="list"><li class="muted">loading…</li></ul>
+    </section>
+
+    <section class="card">
+      <h2>▶ Play on Device</h2>
+      <p class="muted">เลือก device + video → backend ส่ง command ผ่าน WebSocket → device download + เล่น (TikTok Live ยังต้อง start manual)</p>
+      <div class="play-row">
+        <select id="playDevice"><option value="">— select device —</option></select>
+        <select id="playVideo"><option value="">— select video —</option></select>
+        <button id="playBtn">Play ▶</button>
+        <button id="startLiveBtn" class="alt">🛍 Start Shoppable Live</button>
+        <label class="muted" style="display:flex;align-items:center;gap:6px;">
+          <input id="autoStartCheck" type="checkbox" />
+          auto-start live ก่อนเล่น
+        </label>
+        <label class="muted" style="display:flex;align-items:center;gap:6px;">
+          <input id="useOverlayCheck" type="checkbox" />
+          🧪 Smart Overlay (POC §3.5)
+        </label>
+      </div>
+      <div style="margin-top:12px;">
+        <label class="muted" style="display:block; margin-bottom:6px;">
+          📝 Live title (จะ replace title ใน Device camera setup)
+        </label>
+        <input id="liveTitle" type="text"
+          placeholder="เช่น โปรพิเศษวันนี้! ลด 50%"
+          style="width:100%; font-family:inherit; font-size:13px;
+                 background:#0e0f12; color:var(--text); border:1px solid var(--border);
+                 border-radius:6px; padding:8px; margin-bottom:12px;" />
+
+        <label class="muted" style="display:block; margin-bottom:6px;">
+          🛍 Product keywords (auto-pin) — 1 product per line, substring match
+        </label>
+        <textarea id="productKeywords" rows="3"
+          placeholder="ธัญพืช&#10;G.K SNACK"
+          style="width:100%; font-family:ui-monospace,monospace; font-size:12px;
+                 background:#0e0f12; color:var(--text); border:1px solid var(--border);
+                 border-radius:6px; padding:8px;"></textarea>
+      </div>
+      <pre id="playLog" class="log"></pre>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
