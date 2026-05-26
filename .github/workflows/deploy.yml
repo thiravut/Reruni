@@ -1,13 +1,13 @@
 name: deploy
 
-# Push to main triggers a pull on the production VPS. The VPS itself owns
-# building + restarting — this workflow is just the doorbell.
+# Push to main triggers a build + restart on the production VPS. CI is the
+# doorbell — actual build, migrate, restart, and health-check run on the box
+# itself via `deploy/server-deploy.sh`.
 #
 # Required repo secrets:
 #   DEPLOY_HOST        — VPS IP or hostname
 #   DEPLOY_USER        — reruni
-#   DEPLOY_SSH_KEY     — private key (the GH-Actions → server side, NOT the
-#                        GitHub Deploy Key used by the server to pull from GitHub)
+#   DEPLOY_SSH_KEY     — private key (GH-Actions → server side)
 #   DEPLOY_KNOWN_HOSTS — output of `ssh-keyscan -t ed25519 <VPS-IP>`
 
 on:
@@ -21,9 +21,9 @@ concurrency:
 
 jobs:
   deploy:
-    name: pull on server
+    name: pull + build + restart on server
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 15
     steps:
       - name: configure ssh
         env:
@@ -36,7 +36,7 @@ jobs:
           printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
-      - name: pull latest on server
+      - name: deploy
         env:
           SSH_USER: ${{ secrets.DEPLOY_USER }}
           SSH_HOST: ${{ secrets.DEPLOY_HOST }}
@@ -46,5 +46,5 @@ jobs:
           cd ~/rerun-src
           git fetch --prune
           git pull --ff-only
-          echo "deployed: $(git rev-parse --short HEAD) — $(git log -1 --format='%s')"
+          bash deploy/server-deploy.sh
           EOSSH
