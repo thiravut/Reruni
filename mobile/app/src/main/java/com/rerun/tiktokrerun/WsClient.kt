@@ -99,11 +99,16 @@ object WsClient {
         socket = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 reconnectAttempt = 0
-                Log.i(TAG, "ws open — sending ${if (prefs.deviceToken.isNotEmpty()) "hello" else "pair"} frame")
-                if (prefs.deviceToken.isNotEmpty()) {
-                    sendHello(webSocket, prefs)
-                } else {
+                // A freshly-scanned QR (pairToken non-empty) wins over a stale
+                // deviceToken — without this, deleting the device from the
+                // portal and re-pairing without reinstalling the app would try
+                // `hello` with a now-invalid token and the server closes us.
+                val usePair = prefs.pairToken.isNotEmpty()
+                Log.i(TAG, "ws open — sending ${if (usePair) "pair" else "hello"} frame")
+                if (usePair) {
                     sendPair(webSocket, prefs)
+                } else {
+                    sendHello(webSocket, prefs)
                 }
             }
 
@@ -236,12 +241,15 @@ object WsClient {
         }
         prefs.deviceId = deviceId
         prefs.deviceToken = deviceToken
+        val ownerEmail = payload.optString("owner_email")
+        if (ownerEmail.isNotEmpty()) prefs.ownerEmail = ownerEmail
         // Pair token is single-use — clear so a stale one can't accidentally
         // re-pair (and create a duplicate device row).
         prefs.pairToken = ""
         WsBus.state.value = ConnState.Connected
         WsBus.statusLine.value = "$serverOrigin · paired as $deviceId"
-        Log.i(TAG, "paired: device_id=$deviceId")
+        WsBus.ownerEmail.value = prefs.ownerEmail
+        Log.i(TAG, "paired: device_id=$deviceId owner=$ownerEmail")
     }
 
     private fun handleWelcome(payload: JSONObject, prefs: AppPrefs) {
@@ -249,9 +257,12 @@ object WsClient {
         if (deviceId.isNotEmpty() && prefs.deviceId != deviceId) {
             prefs.deviceId = deviceId
         }
+        val ownerEmail = payload.optString("owner_email")
+        if (ownerEmail.isNotEmpty()) prefs.ownerEmail = ownerEmail
         WsBus.state.value = ConnState.Connected
         WsBus.statusLine.value = serverOrigin
-        Log.i(TAG, "welcome: device_id=$deviceId")
+        WsBus.ownerEmail.value = prefs.ownerEmail
+        Log.i(TAG, "welcome: device_id=$deviceId owner=$ownerEmail")
     }
 
     private fun handleStartLive(payload: JSONObject, prefs: AppPrefs) {
