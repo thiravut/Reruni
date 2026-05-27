@@ -40,7 +40,7 @@ export async function apiFetch<T>(
 
   let res: Response;
   try {
-    res = await fetch(`/api${path}`, {
+    res = await fetch(`${import.meta.env.VITE_API_BASE_URL ?? ''}/api${path}`, {
       credentials: 'include',
       headers: finalHeaders,
       body: requestBody,

@@ -25,7 +25,9 @@ export interface ApiFetchInit extends Omit<RequestInit, 'body'> {
 }
 
 function buildUrl(path: string, query?: ApiFetchInit['query']): string {
-  const base = path.startsWith('/api') ? path : `/api${path.startsWith('/') ? '' : '/'}${path}`
+  const apiBase = import.meta.env.VITE_API_BASE_URL ?? ''
+  const apiPath = path.startsWith('/api') ? path : `/api${path.startsWith('/') ? '' : '/'}${path}`
+  const base = `${apiBase}${apiPath}`
   if (!query) return base
   const usp = new URLSearchParams()
   for (const [k, v] of Object.entries(query)) {

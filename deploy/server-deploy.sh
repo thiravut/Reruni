@@ -32,6 +32,11 @@ CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.gitSHA=${GIT_SHA}" \
 # -----------------------------------------------------------------------------
 # 2. Build SPAs (portal + backoffice) — install + build in parallel
 # -----------------------------------------------------------------------------
+# VITE_API_BASE_URL tells the SPAs which origin to fetch from. Without it the
+# bundled fetch hits the SPA's own host (app/admin.reruni.com) which only
+# serves static files — every API call returns nginx 405 / SPA index.html.
+export VITE_API_BASE_URL="https://api.reruni.com"
+
 echo "--- building portal ---"
 cd "$REPO_DIR/portal"
 bun install --frozen-lockfile --no-progress

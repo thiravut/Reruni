@@ -48,8 +48,16 @@ export function useWebSocket({
 
     function connect() {
       if (cancelled) return;
-      const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-      const url = `${proto}://${location.host}/ws/portal`;
+      const apiBase = import.meta.env.VITE_API_BASE_URL ?? '';
+      let url: string;
+      if (apiBase) {
+        // https://api.reruni.com → wss://api.reruni.com/ws/portal
+        url = apiBase.replace(/^http/, 'ws') + '/ws/portal';
+      } else {
+        // Dev: vite proxy forwards /ws/* to the Go backend.
+        const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+        url = `${proto}://${location.host}/ws/portal`;
+      }
       try {
         ws = new WebSocket(url);
       } catch {
