@@ -249,13 +249,9 @@ export function DevicesPage() {
           <div className="flex flex-col items-center gap-4">
             <div className="bg-slate-100 rounded p-3">
               <img
-                src={`/api${pairToken.qr_url.replace(/^\/api/, '')}`}
+                src={`${import.meta.env.VITE_API_BASE_URL ?? ''}${pairToken.qr_url}`}
                 alt="QR pair token"
                 className="w-56 h-56 object-contain"
-                onError={(e) => {
-                  // fall back to absolute URL if proxy not yet ready
-                  (e.target as HTMLImageElement).src = pairToken.qr_url;
-                }}
               />
             </div>
             <div className="w-full text-center">
