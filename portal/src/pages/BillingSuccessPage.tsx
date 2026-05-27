@@ -44,14 +44,15 @@ export function BillingSuccessPage() {
   }, [refresh]);
 
   // When state.user becomes active → navigate.
+  // `phase` is intentionally NOT in the dep array: setPhase('active') below
+  // would otherwise re-run this effect, hit the cleanup, and clearTimeout()
+  // before navigate() fires — leaving the user stuck on this page.
   useEffect(() => {
-    if (state.user?.subscription_status === 'active' && phase !== 'active') {
-      setPhase('active');
-      // Short delay so user sees the confirmation before navigation.
-      const t = window.setTimeout(() => navigate('/dashboard', { replace: true }), 1200);
-      return () => window.clearTimeout(t);
-    }
-  }, [state.user?.subscription_status, navigate, phase]);
+    if (state.user?.subscription_status !== 'active') return;
+    setPhase('active');
+    const t = window.setTimeout(() => navigate('/dashboard', { replace: true }), 1200);
+    return () => window.clearTimeout(t);
+  }, [state.user?.subscription_status, navigate]);
 
   return (
     <div className="min-h-full bg-slate-50 flex items-center justify-center p-6">
