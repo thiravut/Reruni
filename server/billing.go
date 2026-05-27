@@ -677,7 +677,7 @@ func upsertSubscriptionFromStripe(userID int64, customerID string, sub *stripe.S
 		tier,
 		status,
 		cpStart, cpEnd,
-		boolToInt(sub.CancelAtPeriodEnd), now,
+		sub.CancelAtPeriodEnd, now,
 		userID,
 	)
 	if err != nil {
@@ -699,7 +699,7 @@ func upsertSubscriptionFromStripe(userID int64, customerID string, sub *stripe.S
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		userID, customerID, sub.ID, priceID,
 		tierToInsert, status, cpStart, cpEnd,
-		boolToInt(sub.CancelAtPeriodEnd), now, now,
+		sub.CancelAtPeriodEnd, now, now,
 	)
 	return err
 }
@@ -760,12 +760,6 @@ func parseInt64(s string) int64 {
 	return out
 }
 
-func boolToInt(b bool) int {
-	if b {
-		return 1
-	}
-	return 0
-}
 
 func customerIDFromSub(sub *stripe.Subscription) string {
 	if sub == nil || sub.Customer == nil {
