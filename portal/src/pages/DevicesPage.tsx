@@ -199,7 +199,6 @@ export function DevicesPage() {
                   <Th>ชื่ออุปกรณ์</Th>
                   <Th>สถานะ</Th>
                   <Th>ออนไลน์ล่าสุด</Th>
-                  <Th>SKU ที่ปัก</Th>
                   <Th className="text-right">การจัดการ</Th>
                 </tr>
               </thead>
@@ -219,13 +218,6 @@ export function DevicesPage() {
                       <span title={formatDateTime(d.last_seen_at)}>
                         {relativeFromNow(d.last_seen_at)}
                       </span>
-                    </Td>
-                    <Td>
-                      {d.current_pinned_sku ? (
-                        <span className="font-mono text-xs">{d.current_pinned_sku}</span>
-                      ) : (
-                        <span className="text-slate-400">—</span>
-                      )}
                     </Td>
                     <Td className="text-right space-x-1 whitespace-nowrap">
                       <Button
