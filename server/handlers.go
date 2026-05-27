@@ -413,11 +413,19 @@ func pairQRHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "INVALID_INPUT", "missing token")
 		return
 	}
-	scheme := "http"
-	if r.TLS != nil {
-		scheme = "https"
+	// We sit behind nginx (CWP) which terminates TLS, so r.TLS is always nil
+	// here. Prefer the explicit PUBLIC_BASE_URL env (set in /etc/rerun/env),
+	// then X-Forwarded-Proto, and only fall back to r.TLS as a last resort.
+	baseURL := strings.TrimRight(os.Getenv("PUBLIC_BASE_URL"), "/")
+	if baseURL == "" {
+		scheme := "http"
+		if proto := r.Header.Get("X-Forwarded-Proto"); proto != "" {
+			scheme = proto
+		} else if r.TLS != nil {
+			scheme = "https"
+		}
+		baseURL = scheme + "://" + r.Host
 	}
-	baseURL := scheme + "://" + r.Host
 	payload, _ := json.Marshal(map[string]string{
 		"url":   baseURL,
 		"token": token,
