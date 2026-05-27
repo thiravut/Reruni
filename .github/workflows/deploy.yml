@@ -44,6 +44,8 @@ jobs:
           ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes "$SSH_USER@$SSH_HOST" bash -s <<'EOSSH'
           set -euo pipefail
           cd ~/rerun-src
+          # Keep sparse-checkout list in sync with what deploy actually needs.
+          git sparse-checkout set server portal backoffice deploy landing
           git fetch --prune
           git pull --ff-only
           bash deploy/server-deploy.sh

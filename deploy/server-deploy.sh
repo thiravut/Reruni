@@ -56,6 +56,14 @@ mv -f /tmp/rerun-server.new /home/reruni/rerun-bin/server
 # -----------------------------------------------------------------------------
 # 4. Rsync static SPA bundles into CWP-served folders
 # -----------------------------------------------------------------------------
+if [[ -d "$REPO_DIR/landing" ]]; then
+    echo "--- syncing landing → /home/reruni/public_html ---"
+    rsync -a --delete --exclude='backupcwp/' --exclude='cwp_stats/' \
+        "$REPO_DIR/landing/" /home/reruni/public_html/
+else
+    echo "--- landing/ not in sparse-checkout, skipping ---"
+fi
+
 echo "--- syncing portal → /home/reruni/app.reruni.com ---"
 rsync -a --delete "$REPO_DIR/portal/dist/"     /home/reruni/app.reruni.com/
 
