@@ -26,7 +26,10 @@ const (
 	maxVideoBytes      int64 = 500 * 1024 * 1024
 	defaultPageLimit         = 50
 	maxPageLimit             = 200
-	pairTokenTTL             = 5 * time.Minute
+	// 5 min was too tight for real-world flow (open QR on laptop → walk to phone
+	// → grant camera/scan → first WS attempt). Bumped to 30 min so a single
+	// setup session always fits inside one token.
+	pairTokenTTL             = 30 * time.Minute
 	commandHistoryDays       = 90
 )
 

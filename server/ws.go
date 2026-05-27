@@ -66,8 +66,7 @@ func deviceWsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	var env wsEnvelope
 	if err := json.Unmarshal(raw, &env); err != nil {
-		writeWsError(conn, "INVALID_INPUT", "bad first frame")
-		_ = conn.Close()
+		writeWsErrorAndClose(conn, "INVALID_INPUT", "bad first frame")
 		return
 	}
 
@@ -87,8 +86,7 @@ func deviceWsHandler(w http.ResponseWriter, r *http.Request) {
 		_ = json.Unmarshal(env.Payload, &p)
 		if p.Token == "" {
 			log.Printf("ws pair: missing token in payload")
-			writeWsError(conn, "INVALID_INPUT", "missing token")
-			_ = conn.Close()
+			writeWsErrorAndClose(conn, "INVALID_INPUT", "missing token")
 			return
 		}
 		var (
@@ -102,14 +100,12 @@ func deviceWsHandler(w http.ResponseWriter, r *http.Request) {
 		).Scan(&owner, &exp, &used)
 		if err != nil {
 			log.Printf("ws pair: token lookup failed (token=%q): %v", p.Token, err)
-			writeWsError(conn, "UNAUTHORIZED", "invalid pair token")
-			_ = conn.Close()
+			writeWsErrorAndClose(conn, "UNAUTHORIZED", "invalid pair token")
 			return
 		}
 		if time.Now().After(exp) {
 			log.Printf("ws pair: token expired at %v (now=%v)", exp, time.Now())
-			writeWsError(conn, "UNAUTHORIZED", "pair token expired")
-			_ = conn.Close()
+			writeWsErrorAndClose(conn, "UNAUTHORIZED", "pair token expired")
 			return
 		}
 		if used.Valid {
@@ -132,8 +128,7 @@ func deviceWsHandler(w http.ResponseWriter, r *http.Request) {
 		)
 		if err != nil {
 			log.Printf("device insert: %v", err)
-			writeWsError(conn, "INTERNAL_ERROR", err.Error())
-			_ = conn.Close()
+			writeWsErrorAndClose(conn, "INTERNAL_ERROR", err.Error())
 			return
 		}
 		_, _ = db.Exec("UPDATE pair_tokens SET used_at=? WHERE token=?", time.Now(), p.Token)
@@ -155,8 +150,7 @@ func deviceWsHandler(w http.ResponseWriter, r *http.Request) {
 		_ = json.Unmarshal(env.Payload, &p)
 		if p.DeviceToken == "" {
 			log.Printf("ws hello: missing device_token")
-			writeWsError(conn, "UNAUTHORIZED", "missing device_token")
-			_ = conn.Close()
+			writeWsErrorAndClose(conn, "UNAUTHORIZED", "missing device_token")
 			return
 		}
 		err := db.QueryRow(
@@ -166,8 +160,7 @@ func deviceWsHandler(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			log.Printf("ws hello: unknown device_token (len=%d, first8=%.8s): %v",
 				len(p.DeviceToken), p.DeviceToken, err)
-			writeWsError(conn, "UNAUTHORIZED", "unknown device_token")
-			_ = conn.Close()
+			writeWsErrorAndClose(conn, "UNAUTHORIZED", "unknown device_token")
 			return
 		}
 		ownerEmail := lookupUserEmail(ownerID)
@@ -176,8 +169,7 @@ func deviceWsHandler(w http.ResponseWriter, r *http.Request) {
 			"owner_email": ownerEmail,
 		})
 	default:
-		writeWsError(conn, "INVALID_INPUT", "expected pair or hello")
-		_ = conn.Close()
+		writeWsErrorAndClose(conn, "INVALID_INPUT", "expected pair or hello")
 		return
 	}
 
@@ -422,6 +414,26 @@ func writeWsError(conn *websocket.Conn, code, msg string) {
 		"code":    code,
 		"message": msg,
 	})
+}
+
+// writeWsErrorAndClose sends an error envelope, then a polite WS close frame,
+// then waits briefly so the OS flushes everything before we slam the TCP
+// connection shut. Without the close frame + flush window, gorilla's bare
+// conn.Close() races with the last WriteMessage and the client often only
+// sees the TCP RST — losing the error code that tells it to clear stale
+// auth state.
+func writeWsErrorAndClose(conn *websocket.Conn, code, msg string) {
+	_ = sendEnvelope(conn, "error", map[string]string{
+		"code":    code,
+		"message": msg,
+	})
+	_ = conn.WriteControl(
+		websocket.CloseMessage,
+		websocket.FormatCloseMessage(websocket.CloseNormalClosure, code),
+		time.Now().Add(time.Second),
+	)
+	time.Sleep(100 * time.Millisecond)
+	_ = conn.Close()
 }
 
 func pingLoop(wc *wsConn) {
