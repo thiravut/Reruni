@@ -21,6 +21,7 @@ import {
 import type { Device, DeviceStatus, PairToken } from '../types/api';
 import { formatDateTime, relativeFromNow } from '../utils/format';
 import { validateDeviceName } from '../utils/validation';
+import { DeviceReadiness } from '../components/DeviceReadiness';
 
 export function DevicesPage() {
   const toast = useToast();
@@ -198,6 +199,7 @@ export function DevicesPage() {
                 <tr>
                   <Th>ชื่ออุปกรณ์</Th>
                   <Th>สถานะ</Th>
+                  <Th>ความพร้อม</Th>
                   <Th>ออนไลน์ล่าสุด</Th>
                   <Th className="text-right">การจัดการ</Th>
                 </tr>
@@ -213,6 +215,9 @@ export function DevicesPage() {
                     </Td>
                     <Td>
                       <StatusBadge status={d.status as DeviceStatus} />
+                    </Td>
+                    <Td>
+                      <DeviceReadiness caps={d.caps} reportedAt={d.caps_reported_at} />
                     </Td>
                     <Td>
                       <span title={formatDateTime(d.last_seen_at)}>

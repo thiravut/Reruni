@@ -240,7 +240,7 @@ func listDevicesHandler(w http.ResponseWriter, r *http.Request) {
 
 	rows, err := db.Query(`
 		SELECT id, name, paired_at, last_seen, COALESCE(status,'idle'),
-		       current_video_id, current_pinned_sku
+		       current_video_id, current_pinned_sku, caps_json, caps_reported_at
 		FROM devices WHERE owner_user_id = ?
 		ORDER BY paired_at DESC LIMIT ? OFFSET ?`, user.ID, limit, offset)
 	if err != nil {
@@ -256,7 +256,9 @@ func listDevicesHandler(w http.ResponseWriter, r *http.Request) {
 		var ls sql.NullTime
 		var vid sql.NullInt64
 		var sku sql.NullString
-		if err := rows.Scan(&d.ID, &name, &d.PairedAt, &ls, &d.Status, &vid, &sku); err != nil {
+		var caps sql.NullString
+		var capsAt sql.NullTime
+		if err := rows.Scan(&d.ID, &name, &d.PairedAt, &ls, &d.Status, &vid, &sku, &caps, &capsAt); err != nil {
 			writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
 			return
 		}
@@ -274,6 +276,13 @@ func listDevicesHandler(w http.ResponseWriter, r *http.Request) {
 		if sku.Valid {
 			s := sku.String
 			d.CurrentPinnedSKU = &s
+		}
+		if caps.Valid && caps.String != "" {
+			d.Caps = json.RawMessage(caps.String)
+		}
+		if capsAt.Valid {
+			t := capsAt.Time
+			d.CapsReportedAt = &t
 		}
 		d.Online = isDeviceOnline(d.ID)
 		// Coalesce online/offline based on websocket presence

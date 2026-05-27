@@ -55,6 +55,21 @@ export interface Device {
   current_video_id?: number | null;
   current_pinned_sku?: string | null;
   last_seen_at: string | null;
+  caps?: DeviceCaps | null;
+  caps_reported_at?: string | null;
+}
+
+export interface DeviceCaps {
+  app_version?: string;
+  android_sdk?: number;
+  device_model?: string;
+  sku_tier?: string;
+  overlay_permission?: boolean;
+  notification_permission?: boolean;
+  battery_unrestricted?: boolean;
+  accessibility_enabled?: boolean;
+  tiktok_installed?: boolean;
+  [k: string]: unknown;
 }
 
 export interface Video {

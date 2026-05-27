@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"embed"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -145,17 +146,19 @@ type Video struct {
 }
 
 type Device struct {
-	ID                string     `json:"id"`
-	Name              string     `json:"name"`
-	OwnerUserID       int64      `json:"owner_user_id,omitempty"`
-	Status            string     `json:"status"`
-	CurrentVideoID    *int64     `json:"current_video_id,omitempty"`
-	CurrentPinnedSKU  *string    `json:"current_pinned_sku,omitempty"`
-	SkuTier           string     `json:"sku_tier,omitempty"`
-	CurrentAccountID  *int64     `json:"current_account_id,omitempty"`
-	PairedAt          time.Time  `json:"paired_at"`
-	LastSeen          *time.Time `json:"last_seen_at,omitempty"`
-	Online            bool       `json:"online,omitempty"`
+	ID                string          `json:"id"`
+	Name              string          `json:"name"`
+	OwnerUserID       int64           `json:"owner_user_id,omitempty"`
+	Status            string          `json:"status"`
+	CurrentVideoID    *int64          `json:"current_video_id,omitempty"`
+	CurrentPinnedSKU  *string         `json:"current_pinned_sku,omitempty"`
+	SkuTier           string          `json:"sku_tier,omitempty"`
+	CurrentAccountID  *int64          `json:"current_account_id,omitempty"`
+	PairedAt          time.Time       `json:"paired_at"`
+	LastSeen          *time.Time      `json:"last_seen_at,omitempty"`
+	Online            bool            `json:"online,omitempty"`
+	Caps              json.RawMessage `json:"caps,omitempty"`
+	CapsReportedAt    *time.Time      `json:"caps_reported_at,omitempty"`
 }
 
 // TikTokAccount is one burner account in a device's rotation pool.

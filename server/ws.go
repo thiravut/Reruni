@@ -287,6 +287,22 @@ func handleDeviceMessage(deviceID string, ownerID int64, raw []byte) {
 			markCommandAck(p.CommandID, false, p.Code, p.Message)
 		}
 
+	case "device_caps":
+		// Mobile companion reports its permission/install state.
+		// Store as raw JSON so portal can render arbitrary fields without
+		// the server needing to know every key the mobile adds.
+		_, err := db.Exec(
+			"UPDATE devices SET caps_json=?, caps_reported_at=? WHERE id=?",
+			string(env.Payload), time.Now(), deviceID,
+		)
+		if err != nil {
+			log.Printf("[%s] device_caps update: %v", deviceID, err)
+		}
+		broadcastToPortal(ownerID, "device_caps_changed", map[string]any{
+			"device_id": deviceID,
+			"caps":      json.RawMessage(env.Payload),
+		})
+
 	case "pong":
 		// no-op; SetPongHandler covers control-frame pongs
 	default:
