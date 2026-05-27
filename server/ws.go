@@ -423,6 +423,7 @@ func writeWsError(conn *websocket.Conn, code, msg string) {
 // sees the TCP RST — losing the error code that tells it to clear stale
 // auth state.
 func writeWsErrorAndClose(conn *websocket.Conn, code, msg string) {
+	log.Printf("ws closing politely: code=%s msg=%s", code, msg)
 	_ = sendEnvelope(conn, "error", map[string]string{
 		"code":    code,
 		"message": msg,
@@ -430,9 +431,18 @@ func writeWsErrorAndClose(conn *websocket.Conn, code, msg string) {
 	_ = conn.WriteControl(
 		websocket.CloseMessage,
 		websocket.FormatCloseMessage(websocket.CloseNormalClosure, code),
-		time.Now().Add(time.Second),
+		time.Now().Add(2*time.Second),
 	)
-	time.Sleep(100 * time.Millisecond)
+	// Wait for the client to echo the close (or time out) — gorilla's
+	// ReadMessage returns once the peer's close frame arrives. This is the
+	// only way to guarantee the OS has flushed our error envelope before we
+	// tear the TCP socket down; a fixed sleep was racy on slow networks.
+	_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	for {
+		if _, _, err := conn.ReadMessage(); err != nil {
+			break
+		}
+	}
 	_ = conn.Close()
 }
 
