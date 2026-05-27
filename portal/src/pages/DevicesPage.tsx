@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PageHeader } from '../components/PageHeader';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
@@ -35,6 +35,9 @@ export function DevicesPage() {
   const [pairLoading, setPairLoading] = useState(false);
   const [pairErr, setPairErr] = useState<string | null>(null);
   const [pairCountdown, setPairCountdown] = useState<number>(0);
+  // Snapshot of device IDs at the moment the pair modal opens, so we can
+  // detect when the QR has been scanned and a new device just appeared.
+  const baselineDeviceIds = useRef<Set<number>>(new Set());
 
   // Rename modal
   const [renameDevice, setRenameDevice] = useState<Device | null>(null);
@@ -99,6 +102,9 @@ export function DevicesPage() {
     setPairErr(null);
     try {
       const token = await createPairToken();
+      // Snapshot current device IDs so the auto-close watcher knows what
+      // counts as "new" once the user scans the QR.
+      baselineDeviceIds.current = new Set(devices.map((d) => d.id));
       setPairToken(token);
       setPairOpen(true);
     } catch (e) {
@@ -108,6 +114,21 @@ export function DevicesPage() {
       setPairLoading(false);
     }
   }
+
+  // Auto-close the pair modal once the just-paired device shows up in our
+  // device list. Server broadcasts device_status_changed → onDeviceStatus
+  // listener reloads → devices state updates → this effect fires.
+  useEffect(() => {
+    if (!pairOpen) return;
+    const newDevice = devices.find((d) => !baselineDeviceIds.current.has(d.id));
+    if (newDevice) {
+      setPairOpen(false);
+      setPairToken(null);
+      toast.success(
+        `เชื่อมอุปกรณ์สำเร็จ: ${newDevice.name || `#${newDevice.id}`}`,
+      );
+    }
+  }, [devices, pairOpen, toast]);
 
   async function handleRename(e: React.FormEvent) {
     e.preventDefault();
