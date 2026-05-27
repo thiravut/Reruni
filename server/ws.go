@@ -77,6 +77,7 @@ func deviceWsHandler(w http.ResponseWriter, r *http.Request) {
 		deviceToken string
 	)
 
+	log.Printf("ws first frame: type=%s remote=%s", env.Type, r.RemoteAddr)
 	switch env.Type {
 	case "pair":
 		var p struct {
@@ -85,6 +86,7 @@ func deviceWsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		_ = json.Unmarshal(env.Payload, &p)
 		if p.Token == "" {
+			log.Printf("ws pair: missing token in payload")
 			writeWsError(conn, "INVALID_INPUT", "missing token")
 			_ = conn.Close()
 			return
@@ -99,14 +101,21 @@ func deviceWsHandler(w http.ResponseWriter, r *http.Request) {
 			p.Token,
 		).Scan(&owner, &exp, &used)
 		if err != nil {
+			log.Printf("ws pair: token lookup failed (token=%q): %v", p.Token, err)
 			writeWsError(conn, "UNAUTHORIZED", "invalid pair token")
 			_ = conn.Close()
 			return
 		}
 		if time.Now().After(exp) {
+			log.Printf("ws pair: token expired at %v (now=%v)", exp, time.Now())
 			writeWsError(conn, "UNAUTHORIZED", "pair token expired")
 			_ = conn.Close()
 			return
+		}
+		if used.Valid {
+			log.Printf("ws pair: token already used at %v", used.Time)
+			// Allow re-pair (existing behaviour preserves), but warn so we can
+			// see in production if this is happening unexpectedly.
 		}
 		ownerID = owner
 		// Mint device id + device token.
@@ -128,9 +137,14 @@ func deviceWsHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		_, _ = db.Exec("UPDATE pair_tokens SET used_at=? WHERE token=?", time.Now(), p.Token)
+		// Look up the owner email so the mobile companion can show
+		// "paired with <user>" on its home screen — operator confirmation
+		// that the phone is talking to the right portal account.
+		ownerEmail := lookupUserEmail(ownerID)
 		_ = sendEnvelope(conn, "paired", map[string]any{
 			"device_id":    deviceID,
 			"device_token": deviceToken,
+			"owner_email":  ownerEmail,
 		})
 
 	case "hello":
@@ -140,6 +154,7 @@ func deviceWsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		_ = json.Unmarshal(env.Payload, &p)
 		if p.DeviceToken == "" {
+			log.Printf("ws hello: missing device_token")
 			writeWsError(conn, "UNAUTHORIZED", "missing device_token")
 			_ = conn.Close()
 			return
@@ -149,12 +164,16 @@ func deviceWsHandler(w http.ResponseWriter, r *http.Request) {
 			p.DeviceToken,
 		).Scan(&deviceID, &ownerID)
 		if err != nil {
+			log.Printf("ws hello: unknown device_token (len=%d, first8=%.8s): %v",
+				len(p.DeviceToken), p.DeviceToken, err)
 			writeWsError(conn, "UNAUTHORIZED", "unknown device_token")
 			_ = conn.Close()
 			return
 		}
+		ownerEmail := lookupUserEmail(ownerID)
 		_ = sendEnvelope(conn, "welcome", map[string]any{
-			"device_id": deviceID,
+			"device_id":   deviceID,
+			"owner_email": ownerEmail,
 		})
 	default:
 		writeWsError(conn, "INVALID_INPUT", "expected pair or hello")
@@ -367,6 +386,21 @@ type wsEnvelope struct {
 	Type      string          `json:"type"`
 	Payload   json.RawMessage `json:"payload"`
 	Timestamp time.Time       `json:"timestamp"`
+}
+
+// lookupUserEmail returns the email for a given user id, or empty string if
+// the row is missing / lookup fails. Used to put a human-readable owner on
+// the paired/welcome envelopes so the mobile companion can show "paired
+// with <user>" without having to make a separate REST round-trip.
+func lookupUserEmail(userID int64) string {
+	if userID == 0 {
+		return ""
+	}
+	var email string
+	if err := db.QueryRow("SELECT email FROM users WHERE id=?", userID).Scan(&email); err != nil {
+		return ""
+	}
+	return email
 }
 
 func sendEnvelope(conn *websocket.Conn, typ string, payload any) error {
