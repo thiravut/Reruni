@@ -142,7 +142,10 @@ export interface CommandRef {
 
 export interface StartLiveRequest {
   device_ids: number[];
-  video_id: number;
+  // Preferred — list of video IDs. Server assigns round-robin per device.
+  video_ids?: number[];
+  // Legacy — single video; ignored if video_ids is set.
+  video_id?: number;
   title: string;
   caption?: string;
   hashtags?: string[];

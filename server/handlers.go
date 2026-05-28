@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -509,6 +510,11 @@ func pairQRHandler(w http.ResponseWriter, r *http.Request) {
 
 type startLiveReq struct {
 	DeviceIDs []string `json:"device_ids"`
+	// VideoIDs is the canonical field — devices are assigned a video by
+	// round-robin index (dev[i] → video_ids[i % len(video_ids)]). VideoID is
+	// the legacy single-video field kept for backward compat; if VideoIDs is
+	// empty we fall back to [VideoID].
+	VideoIDs  []int64  `json:"video_ids"`
 	VideoID   int64    `json:"video_id"`
 	Title     string   `json:"title"`
 	Caption   string   `json:"caption"`
@@ -538,15 +544,34 @@ func startLiveHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Look up video and ensure ownership.
-	var filename, videoName string
-	err := db.QueryRow(
-		"SELECT filename, name FROM videos WHERE id=? AND owner_user_id=?",
-		body.VideoID, user.ID,
-	).Scan(&filename, &videoName)
-	if err != nil {
-		writeError(w, http.StatusNotFound, "VIDEO_NOT_FOUND", "video not found")
+	// Resolve video list: prefer VideoIDs[], fall back to legacy single VideoID.
+	videoIDs := body.VideoIDs
+	if len(videoIDs) == 0 && body.VideoID != 0 {
+		videoIDs = []int64{body.VideoID}
+	}
+	if len(videoIDs) == 0 {
+		writeError(w, http.StatusBadRequest, "INVALID_INPUT", "video_ids required")
 		return
+	}
+
+	// Validate every video — bail on first miss with the specific id so the
+	// portal can surface it accurately.
+	type videoMeta struct {
+		filename string
+		name     string
+	}
+	videos := make(map[int64]videoMeta, len(videoIDs))
+	for _, vid := range videoIDs {
+		var fn, nm string
+		if err := db.QueryRow(
+			"SELECT filename, name FROM videos WHERE id=? AND owner_user_id=?",
+			vid, user.ID,
+		).Scan(&fn, &nm); err != nil {
+			writeError(w, http.StatusNotFound, "VIDEO_NOT_FOUND",
+				fmt.Sprintf("video %d not found", vid))
+			return
+		}
+		videos[vid] = videoMeta{filename: fn, name: nm}
 	}
 
 	// Verify ownership of every requested device, build the online subset.
@@ -576,14 +601,20 @@ func startLiveHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	out := []cmdResp{}
 
-	for _, did := range onlineDevices {
-		// Create live_session row.
+	for i, did := range onlineDevices {
+		// Round-robin: device i gets video_ids[i % len(video_ids)]. With one
+		// video this collapses to the legacy single-video behaviour; with
+		// many it diversifies broadcasts across the fleet so TikTok's
+		// dedupe heuristics see distinct streams per phone.
+		vid := videoIDs[i%len(videoIDs)]
+		meta := videos[vid]
+
 		var liveID int64
 		err := db.QueryRow(`
 			INSERT INTO live_sessions (device_id, owner_user_id, video_id, title, caption, hashtags, pinned_sku)
 			VALUES (?, ?, ?, ?, ?, ?, ?)
 			RETURNING id`,
-			did, user.ID, body.VideoID, body.Title, body.Caption,
+			did, user.ID, vid, body.Title, body.Caption,
 			strings.Join(body.Hashtags, ","), body.PinnedSKU,
 		).Scan(&liveID)
 		if err != nil {
@@ -592,22 +623,22 @@ func startLiveHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		payload := map[string]any{
-			"video_url":     "/uploads/" + filename,
-			"video_id":      body.VideoID,
-			"video_name":    videoName,
-			"title":         body.Title,
-			"caption":       body.Caption,
-			"hashtags":      body.Hashtags,
-			"pinned_sku":    body.PinnedSKU,
-			"live_session":  liveID,
-			"banners":       fetchBannersForLiveStart(user.ID, body.VideoID),
+			"video_url":    "/uploads/" + meta.filename,
+			"video_id":     vid,
+			"video_name":   meta.name,
+			"title":        body.Title,
+			"caption":      body.Caption,
+			"hashtags":     body.Hashtags,
+			"pinned_sku":   body.PinnedSKU,
+			"live_session": liveID,
+			"banners":      fetchBannersForLiveStart(user.ID, vid),
 		}
 		cid, err := issueCommand(user.ID, did, "start_live", payload)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
 			return
 		}
-		_, _ = db.Exec("UPDATE devices SET status='live', current_video_id=? WHERE id=?", body.VideoID, did)
+		_, _ = db.Exec("UPDATE devices SET status='live', current_video_id=? WHERE id=?", vid, did)
 		broadcastToPortal(user.ID, "live_started", map[string]any{
 			"live_session_id": liveID,
 			"device_id":       did,

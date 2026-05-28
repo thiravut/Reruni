@@ -360,13 +360,28 @@ Start a live session on one or more devices.
 ```json
 {
   "device_ids": [11, 12, 13],
-  "video_id": 5,
+  "video_ids": [5, 7, 9],
   "title": "Flash Sale 11AM",
   "caption": "ส่งฟรีวันนี้!",
   "hashtags": ["flashsale", "ส่งฟรี"],
   "pinned_sku": "SKU-2024"
 }
 ```
+
+- `video_ids` (preferred) — list of video IDs to broadcast. The server
+  assigns one video per device using round-robin indexing
+  `device_ids[i] → video_ids[i % len(video_ids)]`:
+  - 1 video, N devices → every device plays the same video (legacy behaviour)
+  - K videos, N devices (K ≤ N) → videos cycle, diversifying the fleet so
+    TikTok's duplicate-stream heuristics see distinct content per phone
+  - K videos, N devices (K > N) → first N videos play, extras unused
+- `video_id` (legacy) — single integer, accepted for backward compatibility.
+  Equivalent to `video_ids: [video_id]`. When both are sent, `video_ids`
+  wins.
+
+The mobile companion still receives one `start_live` envelope per device
+carrying a single `video_url`/`video_id` — the playlist split is purely
+server-side, so this endpoint can ship without a mobile rebuild.
 
 **Response 202:**
 ```json
@@ -382,8 +397,9 @@ Start a live session on one or more devices.
 Async — device may report success via WS status. Use `GET /api/commands/:id` to poll.
 
 **Errors:**
+- `400 INVALID_INPUT` — neither `video_ids` nor `video_id` supplied
 - `400 NO_DEVICES_ONLINE` — none of the device_ids currently online
-- `404 VIDEO_NOT_FOUND`
+- `404 VIDEO_NOT_FOUND` — error message includes the offending video id
 - `403 DEVICE_NOT_OWNED` — at least one device not owned by current user
 
 ---

@@ -31,7 +31,9 @@ export function LiveConfigPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [selectedDeviceIds, setSelectedDeviceIds] = useState<Set<number>>(new Set());
-  const [videoId, setVideoId] = useState<number | ''>('');
+  // Ordered list so the server's round-robin assignment is predictable from
+  // the operator's click sequence — first clicked → device 0, etc.
+  const [selectedVideoIds, setSelectedVideoIds] = useState<number[]>([]);
   const [title, setTitle] = useState('');
   const [caption, setCaption] = useState('');
   const [hashtagInput, setHashtagInput] = useState('');
@@ -108,7 +110,7 @@ export function LiveConfigPage() {
     const cErr = validateLiveCaption(caption);
     const hashtags = parseHashtags(hashtagInput);
     const hErr = validateHashtags(hashtags);
-    const vErr = videoId === '' ? 'กรุณาเลือกวิดีโอ' : null;
+    const vErr = selectedVideoIds.length === 0 ? 'กรุณาเลือกวิดีโออย่างน้อย 1 รายการ' : null;
     const dErr = selectedDeviceIds.size === 0 ? 'กรุณาเลือกอุปกรณ์อย่างน้อย 1 เครื่อง' : null;
 
     setTitleErr(tErr);
@@ -122,7 +124,7 @@ export function LiveConfigPage() {
     try {
       const res = await startLive({
         device_ids: [...selectedDeviceIds],
-        video_id: Number(videoId),
+        video_ids: selectedVideoIds,
         title: title.trim(),
         caption: caption.trim() || undefined,
         hashtags: hashtags.length ? hashtags : undefined,
@@ -226,22 +228,60 @@ export function LiveConfigPage() {
           <h2 className="font-semibold text-slate-800">ตั้งค่า Live</h2>
           <ErrorBanner message={formErr} onDismiss={() => setFormErr(null)} />
 
-          <FieldWrapper label="วิดีโอ broadcast" error={videoErr} required>
-            <select
-              value={videoId}
-              onChange={(e) => {
-                setVideoId(e.target.value ? Number(e.target.value) : '');
-                setVideoErr(null);
-              }}
-              className="rounded border border-slate-300 px-3 py-2 text-sm bg-white"
-            >
-              <option value="">— เลือกวิดีโอ —</option>
-              {videos.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.filename}
-                </option>
-              ))}
-            </select>
+          <FieldWrapper
+            label="วิดีโอ broadcast"
+            error={videoErr}
+            required
+            hint="เลือกได้มากกว่า 1 — server จะแจกจ่ายให้แต่ละ device แบบ round-robin"
+          >
+            {videos.length === 0 ? (
+              <p className="text-sm text-slate-500 py-2">
+                ยังไม่มีวิดีโอ — กรุณาอัพโหลดที่หน้าคลังวิดีโอก่อน
+              </p>
+            ) : (
+              <ul className="divide-y divide-slate-100 border border-slate-200 rounded max-h-56 overflow-y-auto">
+                {videos.map((v) => {
+                  const idx = selectedVideoIds.indexOf(v.id);
+                  const checked = idx !== -1;
+                  return (
+                    <li
+                      key={v.id}
+                      className="py-2 px-3 flex items-center gap-3"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => {
+                          setSelectedVideoIds((prev) =>
+                            checked
+                              ? prev.filter((id) => id !== v.id)
+                              : [...prev, v.id],
+                          );
+                          setVideoErr(null);
+                        }}
+                        className="w-4 h-4"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-slate-800 truncate">
+                          {v.name || v.filename}
+                        </div>
+                        <div className="text-xs text-slate-500 truncate">
+                          {v.filename}
+                        </div>
+                      </div>
+                      {checked && (
+                        <span className="text-xs text-brand-600 font-mono">
+                          #{idx + 1}
+                        </span>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            <p className="text-xs text-slate-500 mt-2">
+              เลือกแล้ว {selectedVideoIds.length} รายการ
+            </p>
           </FieldWrapper>
 
           <TextField
