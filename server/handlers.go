@@ -246,6 +246,55 @@ func patchVideoHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, v)
 }
 
+// sweepOrphanLiveSessions runs once at startup. Closes any live_sessions
+// row whose device_id no longer exists in the devices table — these are
+// orphans from device deletions that happened before deleteDeviceHandler
+// learned to close the live first. Without this, the rows linger as
+// "active" forever and the operator can't stop them through the UI
+// (the device_id path lookup 404s).
+//
+// Also feeds the affected video_ids through ephemeral cleanup so any
+// merged file the orphaned device was the last reference of gets GC'd.
+func sweepOrphanLiveSessions() {
+	rows, err := db.Query(`
+		SELECT id, video_id
+		FROM live_sessions
+		WHERE ended_at IS NULL
+		  AND device_id NOT IN (SELECT id FROM devices)`)
+	if err != nil {
+		log.Printf("orphan sweep: query failed: %v", err)
+		return
+	}
+	type orphan struct {
+		id      int64
+		videoID sql.NullInt64
+	}
+	var orphans []orphan
+	for rows.Next() {
+		var o orphan
+		if err := rows.Scan(&o.id, &o.videoID); err == nil {
+			orphans = append(orphans, o)
+		}
+	}
+	rows.Close()
+	if len(orphans) == 0 {
+		return
+	}
+	now := time.Now()
+	for _, o := range orphans {
+		_, _ = db.Exec(
+			"UPDATE live_sessions SET ended_at=?, end_reason='device_deleted' WHERE id=? AND ended_at IS NULL",
+			now, o.id,
+		)
+	}
+	for _, o := range orphans {
+		if o.videoID.Valid {
+			cleanupEphemeralVideoIfUnreferenced(o.videoID.Int64)
+		}
+	}
+	log.Printf("orphan sweep: closed %d orphan live_sessions", len(orphans))
+}
+
 // cleanupEphemeralVideoIfUnreferenced deletes an ephemeral merged-video
 // file + DB row, but only when:
 //   - the row is flagged is_ephemeral (regular operator uploads are skipped)
@@ -442,20 +491,70 @@ func deleteDeviceHandler(w http.ResponseWriter, r *http.Request) {
 	user := userFromCtx(r)
 	id := r.PathValue("id")
 
-	res, err := db.Exec(
-		"DELETE FROM devices WHERE id=? AND owner_user_id=?",
-		id, user.ID,
-	)
-	if err != nil {
+	// Ownership pre-check so the close-any-open-live step below can't be
+	// abused against someone else's device id.
+	var owner int64
+	if err := db.QueryRow("SELECT owner_user_id FROM devices WHERE id=?", id).Scan(&owner); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			writeError(w, http.StatusNotFound, "DEVICE_NOT_FOUND", "device not found")
+			return
+		}
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
 		return
 	}
-	if n, _ := res.RowsAffected(); n == 0 {
+	if owner != user.ID {
 		writeError(w, http.StatusNotFound, "DEVICE_NOT_FOUND", "device not found")
+		return
+	}
+
+	// Auto-stop any live broadcasting on this device — otherwise the
+	// live_sessions row would orphan (the device row is about to vanish)
+	// and the operator would have no way to close it. Also collect the
+	// video_ids we're closing so the ephemeral GC runs after.
+	closingVideoIDs := []int64{}
+	if rows, err := db.Query(
+		"SELECT DISTINCT video_id FROM live_sessions WHERE device_id=? AND ended_at IS NULL",
+		id,
+	); err == nil {
+		for rows.Next() {
+			var vid sql.NullInt64
+			if err := rows.Scan(&vid); err == nil && vid.Valid {
+				closingVideoIDs = append(closingVideoIDs, vid.Int64)
+			}
+		}
+		rows.Close()
+	}
+	hadLive := len(closingVideoIDs) > 0
+	if hadLive {
+		// Best-effort tell the device to stop too — if it's still online
+		// the autopilot can clean up local state.
+		_, _ = issueCommand(user.ID, id, "stop_live", map[string]any{})
+		_, _ = db.Exec(
+			"UPDATE live_sessions SET ended_at=?, end_reason='device_deleted' WHERE device_id=? AND ended_at IS NULL",
+			time.Now(), id,
+		)
+		broadcastToPortal(user.ID, "live_ended", map[string]any{
+			"device_id":  id,
+			"end_reason": "device_deleted",
+		})
+	}
+
+	if _, err := db.Exec(
+		"DELETE FROM devices WHERE id=? AND owner_user_id=?",
+		id, user.ID,
+	); err != nil {
+		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
 		return
 	}
 	// Force-disconnect websocket if connected.
 	disconnectDevice(id, "unpaired")
+
+	// Now that the sessions are closed and the device row is gone, run
+	// ephemeral cleanup — the ref count will hit 0 for any merged video
+	// that this device was the last broadcaster of.
+	for _, vid := range closingVideoIDs {
+		cleanupEphemeralVideoIfUnreferenced(vid)
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 

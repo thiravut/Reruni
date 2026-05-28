@@ -59,6 +59,7 @@ func main() {
 
 	bootstrapAdmin()
 	initStripe()
+	sweepOrphanLiveSessions()
 
 	mux := buildRouter()
 
