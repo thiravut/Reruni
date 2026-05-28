@@ -952,6 +952,8 @@ Force-stop a specific live session (any user).
 | `status` | `{ stream_status, current_video_id?, current_pinned_sku?, viewer_count?, fps?, battery_pct? }` | Periodic status push (~10s interval) |
 | `ack` | `{ command_id, success, error_code?, error_message? }` | Acknowledge a server command |
 | `error` | `{ command_id?, code, message }` | Async error report |
+| `live_ended` | `{ live_session_id, reason }` | Mobile finished broadcasting on its own — fired when the configured `loop_count` passes complete, on a fatal playback error, or on a local user-stop. Server closes the `live_sessions` row, flips the device back to `idle`, and fans `live_ended` + `device_status_changed` out to the portal. `reason` is free-form; common values: `loop_completed`, `playback_error`, `device_stopped`. Omitted/empty → server defaults to `loop_completed`. |
+| `device_caps` | `{ overlay_permission, notification_permission, battery_unrestricted, accessibility_enabled, tiktok_installed, app_version, android_sdk, device_model, sku_tier, ... }` | Permission + install state snapshot. Sent right after pair/hello; portal renders readiness badges + setup hints from this. |
 | `pong` | `{}` | Response to ping |
 
 ### 3.5 `/ws/portal` — Server → Browser messages

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -286,6 +287,49 @@ func handleDeviceMessage(deviceID string, ownerID int64, raw []byte) {
 		if p.CommandID != "" {
 			markCommandAck(p.CommandID, false, p.Code, p.Message)
 		}
+
+	case "live_ended":
+		// Mobile reports it finished broadcasting on its own — typically
+		// after completing the configured loop_count, but also fired on
+		// playback errors or local user-initiated stops.
+		var p struct {
+			LiveSessionID int64  `json:"live_session_id"`
+			Reason        string `json:"reason"`
+		}
+		_ = json.Unmarshal(env.Payload, &p)
+		reason := strings.TrimSpace(p.Reason)
+		if reason == "" {
+			reason = "loop_completed"
+		}
+		now := time.Now()
+		// Close ALL open lives for this device (defensive: a stale row from
+		// before reconnect should also get cleaned up). Match the specific
+		// session id when provided so the "right" reason lands on the row.
+		if p.LiveSessionID > 0 {
+			_, _ = db.Exec(
+				"UPDATE live_sessions SET ended_at=?, end_reason=? WHERE id=? AND device_id=? AND ended_at IS NULL",
+				now, reason, p.LiveSessionID, deviceID,
+			)
+		}
+		_, _ = db.Exec(
+			"UPDATE live_sessions SET ended_at=?, end_reason=COALESCE(end_reason, ?) WHERE device_id=? AND ended_at IS NULL",
+			now, reason, deviceID,
+		)
+		_, _ = db.Exec(
+			"UPDATE devices SET status='idle', current_video_id=NULL, current_pinned_sku=NULL WHERE id=?",
+			deviceID,
+		)
+		broadcastToPortal(ownerID, "live_ended", map[string]any{
+			"device_id":       deviceID,
+			"live_session_id": p.LiveSessionID,
+			"end_reason":      reason,
+		})
+		broadcastToPortal(ownerID, "device_status_changed", map[string]any{
+			"device_id":    deviceID,
+			"status":       "idle",
+			"last_seen_at": now.UTC(),
+		})
+		log.Printf("[%s] live_ended session=%d reason=%s", deviceID, p.LiveSessionID, reason)
 
 	case "device_caps":
 		// Mobile companion reports its permission/install state.
