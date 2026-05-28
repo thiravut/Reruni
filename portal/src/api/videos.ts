@@ -16,6 +16,13 @@ export function uploadVideo(file: File, name?: string): Promise<Video> {
   });
 }
 
+export function renameVideo(id: number, name: string): Promise<Video> {
+  return apiFetch<Video>(`/videos/${id}`, {
+    method: 'PATCH',
+    body: { name },
+  });
+}
+
 export function deleteVideo(id: number): Promise<void> {
   return apiFetch<void>(`/videos/${id}`, { method: 'DELETE' });
 }

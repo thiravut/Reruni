@@ -74,10 +74,12 @@ export interface DeviceCaps {
 
 export interface Video {
   id: number;
+  name: string;
   filename: string;
   duration_sec: number | null;
   size_bytes: number | null;
   uploaded_at: string;
+  url?: string;
 }
 
 export interface PairToken {

@@ -112,6 +112,7 @@ func buildRouter() *http.ServeMux {
 	// -------------------------------------------------------------------------
 	mux.HandleFunc("GET /api/videos", requireActiveSubscription(listVideosHandler))
 	mux.HandleFunc("POST /api/videos", requireActiveSubscription(uploadVideoHandler))
+	mux.HandleFunc("PATCH /api/videos/{id}", requireActiveSubscription(patchVideoHandler))
 	mux.HandleFunc("DELETE /api/videos/{id}", requireActiveSubscription(deleteVideoHandler))
 
 	// -------------------------------------------------------------------------

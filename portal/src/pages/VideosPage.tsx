@@ -9,7 +9,9 @@ import { Confirm } from '../components/Confirm';
 import { ErrorBanner } from '../components/ErrorBanner';
 import { ApiError } from '../api/client';
 import { useToast } from '../contexts/ToastContext';
-import { deleteVideo, listVideos, uploadVideo } from '../api/videos';
+import { deleteVideo, listVideos, renameVideo, uploadVideo } from '../api/videos';
+import { Modal } from '../components/Modal';
+import { TextField } from '../components/Field';
 import type { Video } from '../types/api';
 import { formatBytes, formatDateTime, formatDuration } from '../utils/format';
 import { validateVideoFile } from '../utils/validation';
@@ -24,6 +26,10 @@ export function VideosPage() {
   const [uploadProgress, setUploadProgress] = useState(0); // 0..100
   const [deleteTarget, setDeleteTarget] = useState<Video | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [renameTarget, setRenameTarget] = useState<Video | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [renameErr, setRenameErr] = useState<string | null>(null);
+  const [renameLoading, setRenameLoading] = useState(false);
 
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -80,6 +86,28 @@ export function VideosPage() {
         setUploading(false);
         setUploadProgress(0);
       }, 500);
+    }
+  }
+
+  async function handleRename(e: React.FormEvent) {
+    e.preventDefault();
+    if (!renameTarget) return;
+    const name = renameValue.trim();
+    if (name.length === 0 || name.length > 100) {
+      setRenameErr('ชื่อต้อง 1-100 ตัวอักษร');
+      return;
+    }
+    setRenameLoading(true);
+    setRenameErr(null);
+    try {
+      const updated = await renameVideo(renameTarget.id, name);
+      setVideos((prev) => prev.map((v) => (v.id === updated.id ? updated : v)));
+      toast.success('เปลี่ยนชื่อวิดีโอเรียบร้อย');
+      setRenameTarget(null);
+    } catch (e2) {
+      toast.error(e2 instanceof ApiError ? e2.message : 'เปลี่ยนชื่อไม่สำเร็จ');
+    } finally {
+      setRenameLoading(false);
     }
   }
 
@@ -154,7 +182,7 @@ export function VideosPage() {
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-slate-600 text-left">
                 <tr>
-                  <Th>ชื่อไฟล์</Th>
+                  <Th>ชื่อวิดีโอ</Th>
                   <Th>ความยาว</Th>
                   <Th>ขนาด</Th>
                   <Th>อัปโหลดเมื่อ</Th>
@@ -166,9 +194,11 @@ export function VideosPage() {
                   <tr key={v.id} className="border-t border-slate-100">
                     <Td>
                       <div className="font-medium text-slate-800 truncate max-w-xs">
+                        {v.name || v.filename}
+                      </div>
+                      <div className="text-xs text-slate-500 truncate max-w-xs">
                         {v.filename}
                       </div>
-                      <div className="text-xs text-slate-500">ID: {v.id}</div>
                     </Td>
                     <Td>{formatDuration(v.duration_sec)}</Td>
                     <Td>{formatBytes(v.size_bytes)}</Td>
@@ -176,6 +206,17 @@ export function VideosPage() {
                       {formatDateTime(v.uploaded_at)}
                     </Td>
                     <Td className="text-right space-x-1 whitespace-nowrap">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => {
+                          setRenameTarget(v);
+                          setRenameValue(v.name || v.filename);
+                          setRenameErr(null);
+                        }}
+                      >
+                        เปลี่ยนชื่อ
+                      </Button>
                       <Link
                         to={`/videos/${v.id}/banners`}
                         className="inline-block"
@@ -203,13 +244,47 @@ export function VideosPage() {
       <Confirm
         open={!!deleteTarget}
         title="ยืนยันลบวิดีโอ"
-        message={`ต้องการลบ "${deleteTarget?.filename}" หรือไม่? หากวิดีโอกำลัง broadcast อยู่จะไม่สามารถลบได้`}
+        message={`ต้องการลบ "${deleteTarget?.name || deleteTarget?.filename}" หรือไม่? หากวิดีโอกำลัง broadcast อยู่จะไม่สามารถลบได้`}
         confirmLabel="ลบ"
         danger
         loading={deleteLoading}
         onConfirm={handleDelete}
         onCancel={() => setDeleteTarget(null)}
       />
+
+      <Modal
+        open={!!renameTarget}
+        title="เปลี่ยนชื่อวิดีโอ"
+        onClose={() => setRenameTarget(null)}
+      >
+        <form onSubmit={handleRename} className="space-y-4">
+          <TextField
+            label="ชื่อใหม่"
+            value={renameValue}
+            onChange={(e) => setRenameValue(e.target.value)}
+            placeholder="เช่น live เปิดตัวสินค้า มี.ค."
+            autoFocus
+            maxLength={100}
+            error={renameErr ?? undefined}
+          />
+          <div className="text-xs text-slate-500">
+            ชื่อไฟล์ต้นฉบับ: <span className="font-mono">{renameTarget?.filename}</span>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setRenameTarget(null)}
+              disabled={renameLoading}
+            >
+              ยกเลิก
+            </Button>
+            <Button type="submit" loading={renameLoading}>
+              บันทึก
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

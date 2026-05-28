@@ -187,6 +187,60 @@ func uploadVideoHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+type patchVideoReq struct {
+	Name string `json:"name"`
+}
+
+func patchVideoHandler(w http.ResponseWriter, r *http.Request) {
+	user := userFromCtx(r)
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_INPUT", "bad id")
+		return
+	}
+
+	var body patchVideoReq
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_INPUT", err.Error())
+		return
+	}
+	name := strings.TrimSpace(body.Name)
+	if len(name) == 0 || len(name) > 100 {
+		writeError(w, http.StatusBadRequest, "INVALID_INPUT", "name must be 1-100 chars")
+		return
+	}
+
+	res, err := db.Exec(
+		"UPDATE videos SET name=? WHERE id=? AND owner_user_id=?",
+		name, id, user.ID,
+	)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
+		return
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		writeError(w, http.StatusNotFound, "VIDEO_NOT_FOUND", "video not found")
+		return
+	}
+
+	var v Video
+	var dur sql.NullInt64
+	err = db.QueryRow(`
+		SELECT id, name, filename, size_bytes, duration_sec, created_at
+		FROM videos WHERE id=? AND owner_user_id=?`, id, user.ID,
+	).Scan(&v.ID, &v.Name, &v.Filename, &v.SizeBytes, &dur, &v.CreatedAt)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
+		return
+	}
+	if dur.Valid {
+		d := dur.Int64
+		v.DurationSec = &d
+	}
+	v.URL = "/uploads/" + v.Filename
+	writeJSON(w, http.StatusOK, v)
+}
+
 func deleteVideoHandler(w http.ResponseWriter, r *http.Request) {
 	user := userFromCtx(r)
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
