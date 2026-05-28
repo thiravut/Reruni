@@ -171,9 +171,19 @@ export function DevicesPage() {
         title="อุปกรณ์"
         description="จัดการ Android phone ใน fleet ของคุณ"
         actions={
-          <Button onClick={handleCreatePairToken} loading={pairLoading}>
-            + เชื่อมอุปกรณ์ใหม่
-          </Button>
+          <div className="flex items-center gap-2">
+            <a
+              href="/setup-guide"
+              target="_blank"
+              rel="noreferrer"
+              className="text-sm text-slate-600 hover:text-slate-900 underline"
+            >
+              คู่มือเตรียมเครื่อง ↗
+            </a>
+            <Button onClick={handleCreatePairToken} loading={pairLoading}>
+              + เชื่อมอุปกรณ์ใหม่
+            </Button>
+          </div>
         }
       />
 

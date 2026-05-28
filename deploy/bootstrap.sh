@@ -115,6 +115,7 @@ install -d -o rerun -g rerun -m 0755 /opt/rerun/portal
 install -d -o rerun -g rerun -m 0755 /opt/rerun/backoffice
 install -d -o rerun -g rerun -m 0750 /opt/rerun/data
 install -d -o rerun -g rerun -m 0750 /opt/rerun/data/uploads
+install -d -o rerun -g rerun -m 0755 /opt/rerun/data/downloads
 install -d -o rerun -g rerun -m 0750 /opt/rerun/backups
 
 # -----------------------------------------------------------------------------

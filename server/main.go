@@ -21,6 +21,7 @@ var (
 func main() {
 	flag.StringVar(&httpAddr, "addr", getenv("PORT_ADDR", ":8080"), "HTTP listen address")
 	flag.StringVar(&uploadsDir, "uploads", getenv("UPLOAD_DIR", "./uploads"), "Directory for uploaded videos")
+	flag.StringVar(&downloadsDir, "downloads", getenv("DOWNLOADS_DIR", "./downloads"), "Directory for setup-guide artifacts (Reruni APK, GhostCam, etc.)")
 	dsn := flag.String("db", getenv("DATABASE_URL", ""), "Postgres connection string (or set DATABASE_URL)")
 	flag.Parse()
 
@@ -30,6 +31,12 @@ func main() {
 
 	if err := os.MkdirAll(uploadsDir, 0o755); err != nil {
 		log.Fatalf("create uploads dir: %v", err)
+	}
+	if err := os.MkdirAll(downloadsDir, 0o755); err != nil {
+		log.Fatalf("create downloads dir: %v", err)
+	}
+	if abs, err := filepath.Abs(downloadsDir); err == nil {
+		downloadsDir = abs
 	}
 	absUploads, err := filepath.Abs(uploadsDir)
 	if err != nil {
@@ -84,6 +91,12 @@ func buildRouter() *http.ServeMux {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"status":"ok"}`))
 	})
+
+	// Setup-guide downloads — public, no auth. Manifest tells the portal
+	// what's available; /downloads/* serves the actual files (Reruni APK,
+	// mirrored GhostCam .zip, etc).
+	mux.HandleFunc("GET /api/downloads/manifest", downloadsManifestHandler)
+	mux.Handle("/downloads/", http.StripPrefix("/downloads/", http.FileServer(http.Dir(downloadsDir))))
 
 	// -------------------------------------------------------------------------
 	// Auth (public, except logout/me which need a session)

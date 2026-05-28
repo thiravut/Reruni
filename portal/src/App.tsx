@@ -19,6 +19,7 @@ import { BillingPage } from './pages/BillingPage';
 import { BillingSuccessPage } from './pages/BillingSuccessPage';
 import { BillingCancelPage } from './pages/BillingCancelPage';
 import { NotFoundPage } from './pages/NotFoundPage';
+import { SetupGuidePage } from './pages/SetupGuidePage';
 
 export default function App() {
   return (
@@ -28,6 +29,8 @@ export default function App() {
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/signup" element={<SignupPage />} />
+            {/* Public — operators need this before they have an account. */}
+            <Route path="/setup-guide" element={<SetupGuidePage />} />
 
             {/* Auth-required but without AppLayout — usable while
                 must_change_password forces redirect away from main app. */}
