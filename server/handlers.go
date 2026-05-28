@@ -514,12 +514,20 @@ type startLiveReq struct {
 	// round-robin index (dev[i] → video_ids[i % len(video_ids)]). VideoID is
 	// the legacy single-video field kept for backward compat; if VideoIDs is
 	// empty we fall back to [VideoID].
-	VideoIDs  []int64  `json:"video_ids"`
-	VideoID   int64    `json:"video_id"`
-	Title     string   `json:"title"`
-	Caption   string   `json:"caption"`
-	Hashtags  []string `json:"hashtags"`
-	PinnedSKU string   `json:"pinned_sku"`
+	VideoIDs []int64 `json:"video_ids"`
+	VideoID  int64   `json:"video_id"`
+	// LoopCount controls how many full passes through the playlist the
+	// device should play. nil → loop forever; non-nil → play that many
+	// times. Omitted entirely defaults to 1 (play once) — matches the
+	// pre-feature behaviour.
+	LoopCount *int `json:"loop_count,omitempty"`
+	// LoopForever is a convenience flag from the portal UI; when true,
+	// LoopCount is forced to nil regardless of what was sent.
+	LoopForever bool     `json:"loop_forever,omitempty"`
+	Title       string   `json:"title"`
+	Caption     string   `json:"caption"`
+	Hashtags    []string `json:"hashtags"`
+	PinnedSKU   string   `json:"pinned_sku"`
 }
 
 func startLiveHandler(w http.ResponseWriter, r *http.Request) {
@@ -549,9 +557,29 @@ func startLiveHandler(w http.ResponseWriter, r *http.Request) {
 	if len(videoIDs) == 0 && body.VideoID != 0 {
 		videoIDs = []int64{body.VideoID}
 	}
+
 	if len(videoIDs) == 0 {
 		writeError(w, http.StatusBadRequest, "INVALID_INPUT", "video_ids required")
 		return
+	}
+
+	// Resolve loop count. LoopForever wins; otherwise default to 1 when the
+	// field is missing, validate range when supplied.
+	var loopCount *int
+	switch {
+	case body.LoopForever:
+		loopCount = nil
+	case body.LoopCount == nil:
+		one := 1
+		loopCount = &one
+	case *body.LoopCount <= 0:
+		writeError(w, http.StatusBadRequest, "INVALID_INPUT", "loop_count must be >= 1")
+		return
+	case *body.LoopCount > 1000:
+		writeError(w, http.StatusBadRequest, "INVALID_INPUT", "loop_count too large (max 1000)")
+		return
+	default:
+		loopCount = body.LoopCount
 	}
 
 	// Validate every video — bail on first miss with the specific id so the
@@ -611,11 +639,11 @@ func startLiveHandler(w http.ResponseWriter, r *http.Request) {
 
 		var liveID int64
 		err := db.QueryRow(`
-			INSERT INTO live_sessions (device_id, owner_user_id, video_id, title, caption, hashtags, pinned_sku)
-			VALUES (?, ?, ?, ?, ?, ?, ?)
+			INSERT INTO live_sessions (device_id, owner_user_id, video_id, title, caption, hashtags, pinned_sku, loop_count)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 			RETURNING id`,
 			did, user.ID, vid, body.Title, body.Caption,
-			strings.Join(body.Hashtags, ","), body.PinnedSKU,
+			strings.Join(body.Hashtags, ","), body.PinnedSKU, loopCount,
 		).Scan(&liveID)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
@@ -632,6 +660,9 @@ func startLiveHandler(w http.ResponseWriter, r *http.Request) {
 			"pinned_sku":   body.PinnedSKU,
 			"live_session": liveID,
 			"banners":      fetchBannersForLiveStart(user.ID, vid),
+			// loop_count: nil → loop forever, int → finite passes. Mobile
+			// today ignores this; reserved for the playlist-aware update.
+			"loop_count": loopCount,
 		}
 		cid, err := issueCommand(user.ID, did, "start_live", payload)
 		if err != nil {

@@ -34,6 +34,9 @@ export function LiveConfigPage() {
   // Ordered list so the server's round-robin assignment is predictable from
   // the operator's click sequence — first clicked → device 0, etc.
   const [selectedVideoIds, setSelectedVideoIds] = useState<number[]>([]);
+  const [loopForever, setLoopForever] = useState(false);
+  const [loopCount, setLoopCount] = useState<number>(1);
+  const [loopErr, setLoopErr] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [caption, setCaption] = useState('');
   const [hashtagInput, setHashtagInput] = useState('');
@@ -112,19 +115,25 @@ export function LiveConfigPage() {
     const hErr = validateHashtags(hashtags);
     const vErr = selectedVideoIds.length === 0 ? 'กรุณาเลือกวิดีโออย่างน้อย 1 รายการ' : null;
     const dErr = selectedDeviceIds.size === 0 ? 'กรุณาเลือกอุปกรณ์อย่างน้อย 1 เครื่อง' : null;
+    const lErr = !loopForever && (!Number.isInteger(loopCount) || loopCount < 1 || loopCount > 1000)
+      ? 'จำนวนรอบต้องเป็น 1–1000'
+      : null;
 
     setTitleErr(tErr);
     setCaptionErr(cErr);
     setHashtagErr(hErr);
     setVideoErr(vErr);
     setDevicesErr(dErr);
-    if (tErr || cErr || hErr || vErr || dErr) return;
+    setLoopErr(lErr);
+    if (tErr || cErr || hErr || vErr || dErr || lErr) return;
 
     setSubmitting(true);
     try {
       const res = await startLive({
         device_ids: [...selectedDeviceIds],
         video_ids: selectedVideoIds,
+        loop_forever: loopForever || undefined,
+        loop_count: loopForever ? undefined : loopCount,
         title: title.trim(),
         caption: caption.trim() || undefined,
         hashtags: hashtags.length ? hashtags : undefined,
@@ -281,6 +290,48 @@ export function LiveConfigPage() {
             )}
             <p className="text-xs text-slate-500 mt-2">
               เลือกแล้ว {selectedVideoIds.length} รายการ
+            </p>
+          </FieldWrapper>
+
+          <FieldWrapper label="การวนลูปวิดีโอ" error={loopErr}>
+            <div className="flex items-center gap-3 flex-wrap">
+              <label className="inline-flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={loopForever}
+                  onChange={(e) => {
+                    setLoopForever(e.target.checked);
+                    setLoopErr(null);
+                  }}
+                  className="w-4 h-4"
+                />
+                วนต่อเนื่องไม่จำกัด
+              </label>
+              <div className="flex items-center gap-2 text-sm">
+                <span className={loopForever ? 'text-slate-400' : 'text-slate-700'}>
+                  จำนวนรอบ
+                </span>
+                <input
+                  type="number"
+                  min={1}
+                  max={1000}
+                  value={loopCount}
+                  disabled={loopForever}
+                  onChange={(e) => {
+                    setLoopCount(Number(e.target.value));
+                    setLoopErr(null);
+                  }}
+                  className="w-20 rounded border border-slate-300 px-2 py-1 text-sm disabled:bg-slate-100 disabled:text-slate-400"
+                />
+                <span className={loopForever ? 'text-slate-400' : 'text-slate-500'}>รอบ</span>
+              </div>
+            </div>
+            <p className="text-xs text-slate-500 mt-2">
+              {loopForever
+                ? 'วิดีโอจะวนต่อเนื่องจนกว่าจะกดหยุด'
+                : selectedVideoIds.length > 1
+                  ? `เล่นไล่ตามลำดับวิดีโอที่เลือกครบ ${loopCount} รอบแล้วหยุด`
+                  : `เล่น ${loopCount} ครั้งแล้วหยุด`}
             </p>
           </FieldWrapper>
 

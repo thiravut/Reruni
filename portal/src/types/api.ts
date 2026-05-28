@@ -146,6 +146,9 @@ export interface StartLiveRequest {
   video_ids?: number[];
   // Legacy — single video; ignored if video_ids is set.
   video_id?: number;
+  // Playback repetition. loop_forever wins if both are sent.
+  loop_count?: number;
+  loop_forever?: boolean;
   title: string;
   caption?: string;
   hashtags?: string[];

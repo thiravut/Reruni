@@ -361,6 +361,8 @@ Start a live session on one or more devices.
 {
   "device_ids": [11, 12, 13],
   "video_ids": [5, 7, 9],
+  "loop_count": 3,
+  "loop_forever": false,
   "title": "Flash Sale 11AM",
   "caption": "ส่งฟรีวันนี้!",
   "hashtags": ["flashsale", "ส่งฟรี"],
@@ -378,10 +380,17 @@ Start a live session on one or more devices.
 - `video_id` (legacy) — single integer, accepted for backward compatibility.
   Equivalent to `video_ids: [video_id]`. When both are sent, `video_ids`
   wins.
+- `loop_count` (optional, integer, 1–1000) — how many full passes through
+  the assigned video the device should play. Default `1` (play once).
+- `loop_forever` (optional, bool) — when `true`, overrides `loop_count`
+  and tells the device to keep looping until explicitly stopped. The
+  server persists this as `loop_count: null` in `live_sessions`.
 
 The mobile companion still receives one `start_live` envelope per device
-carrying a single `video_url`/`video_id` — the playlist split is purely
-server-side, so this endpoint can ship without a mobile rebuild.
+carrying a single `video_url`/`video_id` plus a `loop_count` field
+(`null` for forever, `N` for finite). The playlist split + loop policy
+are purely server-side state — this endpoint can ship without a mobile
+rebuild; older mobile clients ignore the new field and play once.
 
 **Response 202:**
 ```json
@@ -397,7 +406,8 @@ server-side, so this endpoint can ship without a mobile rebuild.
 Async — device may report success via WS status. Use `GET /api/commands/:id` to poll.
 
 **Errors:**
-- `400 INVALID_INPUT` — neither `video_ids` nor `video_id` supplied
+- `400 INVALID_INPUT` — neither `video_ids` nor `video_id` supplied, or
+  `loop_count` is < 1 / > 1000
 - `400 NO_DEVICES_ONLINE` — none of the device_ids currently online
 - `404 VIDEO_NOT_FOUND` — error message includes the offending video id
 - `403 DEVICE_NOT_OWNED` — at least one device not owned by current user
