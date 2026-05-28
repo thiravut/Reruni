@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -82,11 +83,14 @@ func listVideosHandler(w http.ResponseWriter, r *http.Request) {
 	limit, offset := parsePagination(r)
 
 	var total int
-	_ = db.QueryRow("SELECT COUNT(*) FROM videos WHERE owner_user_id = ?", user.ID).Scan(&total)
+	_ = db.QueryRow(
+		"SELECT COUNT(*) FROM videos WHERE owner_user_id = ? AND is_ephemeral = FALSE",
+		user.ID,
+	).Scan(&total)
 
 	rows, err := db.Query(`
 		SELECT id, name, filename, size_bytes, duration_sec, created_at
-		FROM videos WHERE owner_user_id = ?
+		FROM videos WHERE owner_user_id = ? AND is_ephemeral = FALSE
 		ORDER BY id DESC LIMIT ? OFFSET ?`, user.ID, limit, offset)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
@@ -242,95 +246,49 @@ func patchVideoHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, v)
 }
 
-type concatVideosReq struct {
-	VideoIDs []int64 `json:"video_ids"`
-	Name     string  `json:"name"`
-}
-
-// concatVideosHandler joins multiple uploaded videos into one re-encoded
-// MP4. Synchronous: blocks the HTTP request for up to ffmpegConcatTimeout.
-// Re-encodes via libx264/aac so mismatched input codecs/resolutions still
-// produce a clean output that the mobile companion can play unchanged.
-func concatVideosHandler(w http.ResponseWriter, r *http.Request) {
-	user := userFromCtx(r)
-
-	var body concatVideosReq
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeError(w, http.StatusBadRequest, "INVALID_INPUT", err.Error())
+// cleanupEphemeralVideoIfUnreferenced deletes an ephemeral merged-video
+// file + DB row, but only when:
+//   - the row is flagged is_ephemeral (regular operator uploads are skipped)
+//   - no live_sessions row still references it with ended_at IS NULL
+//
+// Multiple devices broadcasting the same merged file end at different
+// times; the last one closing is the one that actually triggers cleanup.
+// Safe to call from any closure path (mobile live_ended, user stop, admin
+// force-stop). Logs but does not surface errors — best-effort GC.
+func cleanupEphemeralVideoIfUnreferenced(videoID int64) {
+	if videoID == 0 {
 		return
 	}
-	if len(body.VideoIDs) < 2 {
-		writeError(w, http.StatusBadRequest, "INVALID_INPUT", "need at least 2 videos to concat")
+	var isEphemeral bool
+	var filename string
+	if err := db.QueryRow(
+		"SELECT is_ephemeral, filename FROM videos WHERE id=?",
+		videoID,
+	).Scan(&isEphemeral, &filename); err != nil {
 		return
 	}
-	if len(body.VideoIDs) > 20 {
-		writeError(w, http.StatusBadRequest, "INVALID_INPUT", "max 20 videos per concat")
+	if !isEphemeral {
 		return
 	}
-
-	// Resolve absolute paths in the requested order; bail on first missing/non-owned.
-	inputs := make([]string, 0, len(body.VideoIDs))
-	for _, vid := range body.VideoIDs {
-		var fn string
-		if err := db.QueryRow(
-			"SELECT filename FROM videos WHERE id=? AND owner_user_id=?",
-			vid, user.ID,
-		).Scan(&fn); err != nil {
-			writeError(w, http.StatusNotFound, "VIDEO_NOT_FOUND",
-				fmt.Sprintf("video %d not found", vid))
-			return
-		}
-		path := filepath.Join(uploadsDir, fn)
-		if _, err := os.Stat(path); err != nil {
-			writeError(w, http.StatusInternalServerError, "VIDEO_FILE_MISSING",
-				fmt.Sprintf("video %d file gone from disk", vid))
-			return
-		}
-		inputs = append(inputs, path)
-	}
-
-	displayName := strings.TrimSpace(body.Name)
-	if displayName == "" {
-		displayName = fmt.Sprintf("Concat %d videos", len(inputs))
-	}
-	if len(displayName) > 100 {
-		displayName = displayName[:100]
-	}
-
-	storedName := time.Now().Format("20060102-150405") + "-" + randomHex(6) + ".mp4"
-	storedPath := filepath.Join(uploadsDir, storedName)
-
-	if err := runFFmpegConcat(r.Context(), inputs, storedPath); err != nil {
-		_ = os.Remove(storedPath)
-		writeError(w, http.StatusInternalServerError, "CONCAT_FAILED", err.Error())
+	var openCount int
+	if err := db.QueryRow(
+		"SELECT COUNT(*) FROM live_sessions WHERE video_id=? AND ended_at IS NULL",
+		videoID,
+	).Scan(&openCount); err != nil {
+		log.Printf("ephemeral cleanup: ref count for video %d: %v", videoID, err)
 		return
 	}
-
-	stat, err := os.Stat(storedPath)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
+	if openCount > 0 {
 		return
 	}
-
-	var id int64
-	err = db.QueryRow(
-		"INSERT INTO videos (name, filename, size_bytes, owner_user_id) VALUES (?, ?, ?, ?) RETURNING id",
-		displayName, storedName, stat.Size(), user.ID,
-	).Scan(&id)
-	if err != nil {
-		_ = os.Remove(storedPath)
-		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
+	if _, err := db.Exec("DELETE FROM videos WHERE id=?", videoID); err != nil {
+		log.Printf("ephemeral cleanup: delete video row %d: %v", videoID, err)
 		return
 	}
-
-	writeJSON(w, http.StatusCreated, Video{
-		ID:        id,
-		Name:      displayName,
-		Filename:  storedName,
-		SizeBytes: stat.Size(),
-		CreatedAt: time.Now().UTC(),
-		URL:       "/uploads/" + storedName,
-	})
+	if err := os.Remove(filepath.Join(uploadsDir, filename)); err != nil && !os.IsNotExist(err) {
+		log.Printf("ephemeral cleanup: remove file %s: %v", filename, err)
+	}
+	log.Printf("ephemeral cleanup: removed merged video %d (%s)", videoID, filename)
 }
 
 func deleteVideoHandler(w http.ResponseWriter, r *http.Request) {
@@ -674,23 +632,71 @@ func startLiveHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate every video — bail on first miss with the specific id so the
-	// portal can surface it accurately.
+	// portal can surface it accurately. Source videos (operator uploads)
+	// must NOT be ephemeral; we don't allow re-merging an already-merged
+	// asset.
 	type videoMeta struct {
 		filename string
 		name     string
 	}
-	videos := make(map[int64]videoMeta, len(videoIDs))
+	sources := make([]videoMeta, 0, len(videoIDs))
 	for _, vid := range videoIDs {
 		var fn, nm string
 		if err := db.QueryRow(
-			"SELECT filename, name FROM videos WHERE id=? AND owner_user_id=?",
+			"SELECT filename, name FROM videos WHERE id=? AND owner_user_id=? AND is_ephemeral=FALSE",
 			vid, user.ID,
 		).Scan(&fn, &nm); err != nil {
 			writeError(w, http.StatusNotFound, "VIDEO_NOT_FOUND",
 				fmt.Sprintf("video %d not found", vid))
 			return
 		}
-		videos[vid] = videoMeta{filename: fn, name: nm}
+		sources = append(sources, videoMeta{filename: fn, name: nm})
+	}
+
+	// Resolve the broadcast asset:
+	//   - 1 video → use as-is (no merge, no ephemeral row, no cleanup)
+	//   - N videos → ffmpeg-concat into a new ephemeral Video row. All
+	//     devices share this single merged file; live_ended ref-counts and
+	//     deletes when the LAST referencing session closes.
+	var (
+		broadcastVideoID   int64
+		broadcastFilename  string
+		broadcastVideoName string
+	)
+	if len(sources) == 1 {
+		broadcastVideoID = videoIDs[0]
+		broadcastFilename = sources[0].filename
+		broadcastVideoName = sources[0].name
+	} else {
+		inputs := make([]string, 0, len(sources))
+		for _, s := range sources {
+			inputs = append(inputs, filepath.Join(uploadsDir, s.filename))
+		}
+		storedName := time.Now().Format("20060102-150405") + "-live" + randomHex(4) + ".mp4"
+		storedPath := filepath.Join(uploadsDir, storedName)
+		if err := runFFmpegConcat(r.Context(), inputs, storedPath); err != nil {
+			_ = os.Remove(storedPath)
+			writeError(w, http.StatusInternalServerError, "MERGE_FAILED", err.Error())
+			return
+		}
+		stat, statErr := os.Stat(storedPath)
+		if statErr != nil {
+			_ = os.Remove(storedPath)
+			writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", statErr.Error())
+			return
+		}
+		mergedName := fmt.Sprintf("Live merge (%d clips)", len(sources))
+		if insErr := db.QueryRow(
+			`INSERT INTO videos (name, filename, size_bytes, owner_user_id, is_ephemeral)
+			 VALUES (?, ?, ?, ?, TRUE) RETURNING id`,
+			mergedName, storedName, stat.Size(), user.ID,
+		).Scan(&broadcastVideoID); insErr != nil {
+			_ = os.Remove(storedPath)
+			writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", insErr.Error())
+			return
+		}
+		broadcastFilename = storedName
+		broadcastVideoName = mergedName
 	}
 
 	// Verify ownership of every requested device, build the online subset.
@@ -720,20 +726,16 @@ func startLiveHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	out := []cmdResp{}
 
-	for i, did := range onlineDevices {
-		// Round-robin: device i gets video_ids[i % len(video_ids)]. With one
-		// video this collapses to the legacy single-video behaviour; with
-		// many it diversifies broadcasts across the fleet so TikTok's
-		// dedupe heuristics see distinct streams per phone.
-		vid := videoIDs[i%len(videoIDs)]
-		meta := videos[vid]
-
+	for _, did := range onlineDevices {
+		// All devices broadcast the SAME asset — either the single source
+		// video or the freshly-merged ephemeral file. live_ended ref-counts
+		// open sessions referencing this video_id to clean up.
 		var liveID int64
 		err := db.QueryRow(`
 			INSERT INTO live_sessions (device_id, owner_user_id, video_id, title, caption, hashtags, pinned_sku, loop_count)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 			RETURNING id`,
-			did, user.ID, vid, body.Title, body.Caption,
+			did, user.ID, broadcastVideoID, body.Title, body.Caption,
 			strings.Join(body.Hashtags, ","), body.PinnedSKU, loopCount,
 		).Scan(&liveID)
 		if err != nil {
@@ -742,17 +744,16 @@ func startLiveHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		payload := map[string]any{
-			"video_url":    "/uploads/" + meta.filename,
-			"video_id":     vid,
-			"video_name":   meta.name,
+			"video_url":    "/uploads/" + broadcastFilename,
+			"video_id":     broadcastVideoID,
+			"video_name":   broadcastVideoName,
 			"title":        body.Title,
 			"caption":      body.Caption,
 			"hashtags":     body.Hashtags,
 			"pinned_sku":   body.PinnedSKU,
 			"live_session": liveID,
-			"banners":      fetchBannersForLiveStart(user.ID, vid),
-			// loop_count: nil → loop forever, int → finite passes. Mobile
-			// today ignores this; reserved for the playlist-aware update.
+			"banners":      fetchBannersForLiveStart(user.ID, broadcastVideoID),
+			// loop_count: nil → loop forever, int → finite passes.
 			"loop_count": loopCount,
 		}
 		cid, err := issueCommand(user.ID, did, "start_live", payload)
@@ -760,11 +761,11 @@ func startLiveHandler(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
 			return
 		}
-		_, _ = db.Exec("UPDATE devices SET status='live', current_video_id=? WHERE id=?", vid, did)
+		_, _ = db.Exec("UPDATE devices SET status='live', current_video_id=? WHERE id=?", broadcastVideoID, did)
 		broadcastToPortal(user.ID, "live_started", map[string]any{
 			"live_session_id": liveID,
 			"device_id":       did,
-			"video_id":        body.VideoID,
+			"video_id":        broadcastVideoID,
 		})
 		out = append(out, cmdResp{CommandID: cid, DeviceID: did})
 	}
@@ -783,7 +784,21 @@ func stopLiveHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
 		return
 	}
-	// Close any active live_session for this device.
+	// Snapshot video_ids on still-open sessions before we close them so
+	// the ephemeral GC pass below has accurate ref data.
+	closingVideoIDs := []int64{}
+	if rows, err := db.Query(
+		"SELECT DISTINCT video_id FROM live_sessions WHERE device_id=? AND ended_at IS NULL",
+		did,
+	); err == nil {
+		for rows.Next() {
+			var vid sql.NullInt64
+			if err := rows.Scan(&vid); err == nil && vid.Valid {
+				closingVideoIDs = append(closingVideoIDs, vid.Int64)
+			}
+		}
+		rows.Close()
+	}
 	now := time.Now()
 	_, _ = db.Exec(
 		"UPDATE live_sessions SET ended_at=?, end_reason='user_stop' WHERE device_id=? AND ended_at IS NULL",
@@ -794,6 +809,9 @@ func stopLiveHandler(w http.ResponseWriter, r *http.Request) {
 		"device_id":  did,
 		"end_reason": "user_stop",
 	})
+	for _, vid := range closingVideoIDs {
+		cleanupEphemeralVideoIfUnreferenced(vid)
+	}
 	writeJSON(w, http.StatusAccepted, map[string]string{"command_id": cid})
 }
 

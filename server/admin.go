@@ -479,10 +479,11 @@ func adminForceStopLiveHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	var did string
 	var ownerID int64
+	var vidNull sql.NullInt64
 	if err := db.QueryRow(
-		"SELECT device_id, owner_user_id FROM live_sessions WHERE id=? AND ended_at IS NULL",
+		"SELECT device_id, owner_user_id, video_id FROM live_sessions WHERE id=? AND ended_at IS NULL",
 		id,
-	).Scan(&did, &ownerID); err != nil {
+	).Scan(&did, &ownerID, &vidNull); err != nil {
 		writeError(w, http.StatusNotFound, "LIVE_NOT_FOUND", "active live not found")
 		return
 	}
@@ -499,6 +500,9 @@ func adminForceStopLiveHandler(w http.ResponseWriter, r *http.Request) {
 		"device_id":       did,
 		"end_reason":      "admin_force",
 	})
+	if vidNull.Valid {
+		cleanupEphemeralVideoIfUnreferenced(vidNull.Int64)
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 

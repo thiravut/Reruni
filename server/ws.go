@@ -302,9 +302,27 @@ func handleDeviceMessage(deviceID string, ownerID int64, raw []byte) {
 			reason = "loop_completed"
 		}
 		now := time.Now()
-		// Close ALL open lives for this device (defensive: a stale row from
-		// before reconnect should also get cleaned up). Match the specific
-		// session id when provided so the "right" reason lands on the row.
+		// Collect the video_ids of every session we're about to close so
+		// the ephemeral-cleanup pass below knows which assets to ref-count.
+		// Snapshot BEFORE the UPDATE because afterwards ended_at IS NOT NULL
+		// and the ref count would already see them as closed.
+		closingVideoIDs := map[int64]struct{}{}
+		rows, _ := db.Query(
+			"SELECT DISTINCT video_id FROM live_sessions WHERE device_id=? AND ended_at IS NULL",
+			deviceID,
+		)
+		if rows != nil {
+			for rows.Next() {
+				var vid sql.NullInt64
+				if err := rows.Scan(&vid); err == nil && vid.Valid {
+					closingVideoIDs[vid.Int64] = struct{}{}
+				}
+			}
+			rows.Close()
+		}
+
+		// Close the matching session row when an id was provided, then a
+		// defensive sweep for any other still-open rows on the device.
 		if p.LiveSessionID > 0 {
 			_, _ = db.Exec(
 				"UPDATE live_sessions SET ended_at=?, end_reason=? WHERE id=? AND device_id=? AND ended_at IS NULL",
@@ -330,6 +348,13 @@ func handleDeviceMessage(deviceID string, ownerID int64, raw []byte) {
 			"last_seen_at": now.UTC(),
 		})
 		log.Printf("[%s] live_ended session=%d reason=%s", deviceID, p.LiveSessionID, reason)
+
+		// Ref-counted cleanup of the implicit-merge ephemeral video. Multiple
+		// devices broadcasting the same merged file end at different times;
+		// only the last one closing actually deletes the file + DB row.
+		for vid := range closingVideoIDs {
+			cleanupEphemeralVideoIfUnreferenced(vid)
+		}
 
 	case "device_caps":
 		// Mobile companion reports its permission/install state.

@@ -370,13 +370,18 @@ Start a live session on one or more devices.
 }
 ```
 
-- `video_ids` (preferred) — list of video IDs to broadcast. The server
-  assigns one video per device using round-robin indexing
-  `device_ids[i] → video_ids[i % len(video_ids)]`:
-  - 1 video, N devices → every device plays the same video (legacy behaviour)
-  - K videos, N devices (K ≤ N) → videos cycle, diversifying the fleet so
-    TikTok's duplicate-stream heuristics see distinct content per phone
-  - K videos, N devices (K > N) → first N videos play, extras unused
+- `video_ids` (preferred) — list of video IDs to broadcast. When more
+  than one ID is sent, the server ffmpeg-concatenates them into a single
+  ephemeral MP4 (`videos.is_ephemeral = TRUE`), and **every device in
+  the request points to that same merged file** — operators get one
+  coherent playlist across the fleet without mobile-side playlist
+  support. The ephemeral row is hidden from `GET /api/videos` and
+  ref-count-deleted (file + DB row) once the last `live_sessions` row
+  referencing it closes (mobile `live_ended`, `POST /api/lives/:id/stop`,
+  or admin force-stop — whichever happens last wins).
+  - 1 video → used as-is; no merge, no cleanup.
+  - N videos → one merge pass before any `start_live` envelope is sent.
+    The HTTP request blocks until ffmpeg finishes (15 min hard cap).
 - `video_id` (legacy) — single integer, accepted for backward compatibility.
   Equivalent to `video_ids: [video_id]`. When both are sent, `video_ids`
   wins.
@@ -411,6 +416,8 @@ Async — device may report success via WS status. Use `GET /api/commands/:id` t
 - `400 NO_DEVICES_ONLINE` — none of the device_ids currently online
 - `404 VIDEO_NOT_FOUND` — error message includes the offending video id
 - `403 DEVICE_NOT_OWNED` — at least one device not owned by current user
+- `500 MERGE_FAILED` — ffmpeg returned non-zero (e.g. an input has no
+  audio track and the concat filter wired a missing stream)
 
 ---
 

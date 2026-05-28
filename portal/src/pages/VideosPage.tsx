@@ -9,7 +9,7 @@ import { Confirm } from '../components/Confirm';
 import { ErrorBanner } from '../components/ErrorBanner';
 import { ApiError } from '../api/client';
 import { useToast } from '../contexts/ToastContext';
-import { concatVideos, deleteVideo, listVideos, renameVideo, uploadVideo } from '../api/videos';
+import { deleteVideo, listVideos, renameVideo, uploadVideo } from '../api/videos';
 import { Modal } from '../components/Modal';
 import { TextField } from '../components/Field';
 import type { Video } from '../types/api';
@@ -30,12 +30,6 @@ export function VideosPage() {
   const [renameValue, setRenameValue] = useState('');
   const [renameErr, setRenameErr] = useState<string | null>(null);
   const [renameLoading, setRenameLoading] = useState(false);
-  // Ordered — defines the concat sequence on submit.
-  const [selectedIds, setSelectedIds] = useState<number[]>([]);
-  const [concatOpen, setConcatOpen] = useState(false);
-  const [concatName, setConcatName] = useState('');
-  const [concatLoading, setConcatLoading] = useState(false);
-  const [concatErr, setConcatErr] = useState<string | null>(null);
 
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -92,34 +86,6 @@ export function VideosPage() {
         setUploading(false);
         setUploadProgress(0);
       }, 500);
-    }
-  }
-
-  function toggleSelect(id: number) {
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    );
-  }
-
-  async function handleConcat(e: React.FormEvent) {
-    e.preventDefault();
-    setConcatErr(null);
-    if (selectedIds.length < 2) {
-      setConcatErr('เลือกวิดีโออย่างน้อย 2 รายการ');
-      return;
-    }
-    setConcatLoading(true);
-    try {
-      const v = await concatVideos(selectedIds, concatName.trim() || undefined);
-      setVideos((prev) => [v, ...prev]);
-      toast.success('รวมวิดีโอเรียบร้อย');
-      setConcatOpen(false);
-      setConcatName('');
-      setSelectedIds([]);
-    } catch (e2) {
-      setConcatErr(e2 instanceof ApiError ? e2.message : 'รวมไม่สำเร็จ');
-    } finally {
-      setConcatLoading(false);
     }
   }
 
@@ -212,39 +178,10 @@ export function VideosPage() {
         />
       ) : (
         <Card>
-          {selectedIds.length > 0 && (
-            <div className="px-4 py-2 bg-brand-50 border-b border-brand-100 flex items-center gap-3 text-sm">
-              <span className="font-medium text-brand-700">
-                เลือกแล้ว {selectedIds.length} รายการ
-              </span>
-              <Button
-                size="sm"
-                onClick={() => {
-                  setConcatName(`รวม ${selectedIds.length} วิดีโอ`);
-                  setConcatErr(null);
-                  setConcatOpen(true);
-                }}
-                disabled={selectedIds.length < 2}
-              >
-                รวมเป็นวิดีโอเดียว
-              </Button>
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => setSelectedIds([])}
-              >
-                ล้างการเลือก
-              </Button>
-              <span className="text-xs text-slate-500 ml-auto">
-                ลำดับที่คลิก = ลำดับการต่อวิดีโอ
-              </span>
-            </div>
-          )}
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-slate-600 text-left">
                 <tr>
-                  <Th className="w-10"> </Th>
                   <Th>ชื่อวิดีโอ</Th>
                   <Th>ความยาว</Th>
                   <Th>ขนาด</Th>
@@ -253,25 +190,8 @@ export function VideosPage() {
                 </tr>
               </thead>
               <tbody>
-                {videos.map((v) => {
-                  const selIdx = selectedIds.indexOf(v.id);
-                  return (
+                {videos.map((v) => (
                   <tr key={v.id} className="border-t border-slate-100">
-                    <Td>
-                      <label className="inline-flex items-center gap-1">
-                        <input
-                          type="checkbox"
-                          checked={selIdx !== -1}
-                          onChange={() => toggleSelect(v.id)}
-                          className="w-4 h-4"
-                        />
-                        {selIdx !== -1 && (
-                          <span className="text-xs font-mono text-brand-600">
-                            #{selIdx + 1}
-                          </span>
-                        )}
-                      </label>
-                    </Td>
                     <Td>
                       <div className="font-medium text-slate-800 truncate max-w-xs">
                         {v.name || v.filename}
@@ -314,8 +234,7 @@ export function VideosPage() {
                       </Button>
                     </Td>
                   </tr>
-                  );
-                })}
+                ))}
               </tbody>
             </table>
           </div>
@@ -332,52 +251,6 @@ export function VideosPage() {
         onConfirm={handleDelete}
         onCancel={() => setDeleteTarget(null)}
       />
-
-      <Modal
-        open={concatOpen}
-        title={`รวม ${selectedIds.length} วิดีโอเป็นไฟล์เดียว`}
-        onClose={() => concatLoading ? null : setConcatOpen(false)}
-      >
-        <form onSubmit={handleConcat} className="space-y-4">
-          {concatErr && <ErrorBanner message={concatErr} onDismiss={() => setConcatErr(null)} />}
-          <div className="text-sm text-slate-600 space-y-1">
-            <p>
-              Server จะ re-encode วิดีโอที่เลือก (ตามลำดับที่คลิก) เป็นไฟล์เดียว
-              ใช้เวลาประมาณ <span className="font-mono">{Math.max(1, Math.round(selectedIds.length * 0.5))}</span> นาทีต่อความยาวรวม 1 นาที
-            </p>
-            <p className="text-xs text-slate-500">
-              เลือกไว้แล้ว: {selectedIds.map((id, i) => {
-                const v = videos.find((x) => x.id === id);
-                return `#${i + 1} ${v?.name || v?.filename || id}`;
-              }).join(', ')}
-            </p>
-          </div>
-          <TextField
-            label="ชื่อไฟล์ที่ได้"
-            value={concatName}
-            onChange={(e) => setConcatName(e.target.value)}
-            placeholder={`รวม ${selectedIds.length} วิดีโอ`}
-            maxLength={100}
-            disabled={concatLoading}
-          />
-          <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
-            ⚠ ทุกวิดีโอที่เลือกต้องมี audio track — ถ้าวิดีโอเงียบ encoder จะ fail
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => setConcatOpen(false)}
-              disabled={concatLoading}
-            >
-              ยกเลิก
-            </Button>
-            <Button type="submit" loading={concatLoading}>
-              {concatLoading ? 'กำลัง encode...' : 'รวมไฟล์'}
-            </Button>
-          </div>
-        </form>
-      </Modal>
 
       <Modal
         open={!!renameTarget}
