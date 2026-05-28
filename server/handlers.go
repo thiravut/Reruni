@@ -491,8 +491,8 @@ func deleteDeviceHandler(w http.ResponseWriter, r *http.Request) {
 	user := userFromCtx(r)
 	id := r.PathValue("id")
 
-	// Ownership pre-check so the close-any-open-live step below can't be
-	// abused against someone else's device id.
+	// Ownership pre-check so the live-check below can't be abused against
+	// someone else's device id.
 	var owner int64
 	if err := db.QueryRow("SELECT owner_user_id FROM devices WHERE id=?", id).Scan(&owner); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -507,36 +507,18 @@ func deleteDeviceHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Auto-stop any live broadcasting on this device — otherwise the
-	// live_sessions row would orphan (the device row is about to vanish)
-	// and the operator would have no way to close it. Also collect the
-	// video_ids we're closing so the ephemeral GC runs after.
-	closingVideoIDs := []int64{}
-	if rows, err := db.Query(
-		"SELECT DISTINCT video_id FROM live_sessions WHERE device_id=? AND ended_at IS NULL",
+	// Refuse to delete while the device is broadcasting — operator must
+	// stop the live first. Prevents orphan live_sessions rows that would
+	// linger forever (the stop endpoint needs the device row).
+	var activeLives int
+	_ = db.QueryRow(
+		"SELECT COUNT(*) FROM live_sessions WHERE device_id=? AND ended_at IS NULL",
 		id,
-	); err == nil {
-		for rows.Next() {
-			var vid sql.NullInt64
-			if err := rows.Scan(&vid); err == nil && vid.Valid {
-				closingVideoIDs = append(closingVideoIDs, vid.Int64)
-			}
-		}
-		rows.Close()
-	}
-	hadLive := len(closingVideoIDs) > 0
-	if hadLive {
-		// Best-effort tell the device to stop too — if it's still online
-		// the autopilot can clean up local state.
-		_, _ = issueCommand(user.ID, id, "stop_live", map[string]any{})
-		_, _ = db.Exec(
-			"UPDATE live_sessions SET ended_at=?, end_reason='device_deleted' WHERE device_id=? AND ended_at IS NULL",
-			time.Now(), id,
-		)
-		broadcastToPortal(user.ID, "live_ended", map[string]any{
-			"device_id":  id,
-			"end_reason": "device_deleted",
-		})
+	).Scan(&activeLives)
+	if activeLives > 0 {
+		writeError(w, http.StatusConflict, "DEVICE_LIVE",
+			"อุปกรณ์กำลังไลฟ์อยู่ — กรุณาหยุดไลฟ์ก่อนลบ")
+		return
 	}
 
 	if _, err := db.Exec(
@@ -548,13 +530,6 @@ func deleteDeviceHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	// Force-disconnect websocket if connected.
 	disconnectDevice(id, "unpaired")
-
-	// Now that the sessions are closed and the device row is gone, run
-	// ephemeral cleanup — the ref count will hit 0 for any merged video
-	// that this device was the last broadcaster of.
-	for _, vid := range closingVideoIDs {
-		cleanupEphemeralVideoIfUnreferenced(vid)
-	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
