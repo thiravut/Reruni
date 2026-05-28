@@ -23,6 +23,13 @@ export function renameVideo(id: number, name: string): Promise<Video> {
   });
 }
 
+export function concatVideos(videoIds: number[], name?: string): Promise<Video> {
+  return apiFetch<Video>('/videos/concat', {
+    method: 'POST',
+    body: { video_ids: videoIds, name },
+  });
+}
+
 export function deleteVideo(id: number): Promise<void> {
   return apiFetch<void>(`/videos/${id}`, { method: 'DELETE' });
 }

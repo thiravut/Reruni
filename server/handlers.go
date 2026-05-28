@@ -242,6 +242,97 @@ func patchVideoHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, v)
 }
 
+type concatVideosReq struct {
+	VideoIDs []int64 `json:"video_ids"`
+	Name     string  `json:"name"`
+}
+
+// concatVideosHandler joins multiple uploaded videos into one re-encoded
+// MP4. Synchronous: blocks the HTTP request for up to ffmpegConcatTimeout.
+// Re-encodes via libx264/aac so mismatched input codecs/resolutions still
+// produce a clean output that the mobile companion can play unchanged.
+func concatVideosHandler(w http.ResponseWriter, r *http.Request) {
+	user := userFromCtx(r)
+
+	var body concatVideosReq
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_INPUT", err.Error())
+		return
+	}
+	if len(body.VideoIDs) < 2 {
+		writeError(w, http.StatusBadRequest, "INVALID_INPUT", "need at least 2 videos to concat")
+		return
+	}
+	if len(body.VideoIDs) > 20 {
+		writeError(w, http.StatusBadRequest, "INVALID_INPUT", "max 20 videos per concat")
+		return
+	}
+
+	// Resolve absolute paths in the requested order; bail on first missing/non-owned.
+	inputs := make([]string, 0, len(body.VideoIDs))
+	for _, vid := range body.VideoIDs {
+		var fn string
+		if err := db.QueryRow(
+			"SELECT filename FROM videos WHERE id=? AND owner_user_id=?",
+			vid, user.ID,
+		).Scan(&fn); err != nil {
+			writeError(w, http.StatusNotFound, "VIDEO_NOT_FOUND",
+				fmt.Sprintf("video %d not found", vid))
+			return
+		}
+		path := filepath.Join(uploadsDir, fn)
+		if _, err := os.Stat(path); err != nil {
+			writeError(w, http.StatusInternalServerError, "VIDEO_FILE_MISSING",
+				fmt.Sprintf("video %d file gone from disk", vid))
+			return
+		}
+		inputs = append(inputs, path)
+	}
+
+	displayName := strings.TrimSpace(body.Name)
+	if displayName == "" {
+		displayName = fmt.Sprintf("Concat %d videos", len(inputs))
+	}
+	if len(displayName) > 100 {
+		displayName = displayName[:100]
+	}
+
+	storedName := time.Now().Format("20060102-150405") + "-" + randomHex(6) + ".mp4"
+	storedPath := filepath.Join(uploadsDir, storedName)
+
+	if err := runFFmpegConcat(r.Context(), inputs, storedPath); err != nil {
+		_ = os.Remove(storedPath)
+		writeError(w, http.StatusInternalServerError, "CONCAT_FAILED", err.Error())
+		return
+	}
+
+	stat, err := os.Stat(storedPath)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
+		return
+	}
+
+	var id int64
+	err = db.QueryRow(
+		"INSERT INTO videos (name, filename, size_bytes, owner_user_id) VALUES (?, ?, ?, ?) RETURNING id",
+		displayName, storedName, stat.Size(), user.ID,
+	).Scan(&id)
+	if err != nil {
+		_ = os.Remove(storedPath)
+		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, Video{
+		ID:        id,
+		Name:      displayName,
+		Filename:  storedName,
+		SizeBytes: stat.Size(),
+		CreatedAt: time.Now().UTC(),
+		URL:       "/uploads/" + storedName,
+	})
+}
+
 func deleteVideoHandler(w http.ResponseWriter, r *http.Request) {
 	user := userFromCtx(r)
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)

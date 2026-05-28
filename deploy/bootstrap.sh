@@ -24,6 +24,16 @@ dnf -y install epel-release
 dnf -y install curl tar rsync firewalld policycoreutils-python-utils \
 	php-fpm php-cli php-pgsql php-mysqlnd unzip cronie
 
+# ffmpeg — used by POST /api/videos/concat to re-encode video playlists
+# into a single MP4. RPM Fusion has the patent-encumbered codec build;
+# AlmaLinux 9 also ships ffmpeg-free in epel but it's missing libx264.
+if ! command -v ffmpeg >/dev/null; then
+	dnf -y install \
+		https://download1.rpmfusion.org/free/el/rpmfusion-free-release-9.noarch.rpm \
+		https://download1.rpmfusion.org/nonfree/el/rpmfusion-nonfree-release-9.noarch.rpm
+	dnf -y install ffmpeg ffmpeg-libs
+fi
+
 systemctl enable --now crond
 
 # Caddy (official COPR for RHEL-likes)
