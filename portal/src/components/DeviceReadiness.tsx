@@ -15,11 +15,6 @@ const REQUIRED_CHECKS: Check[] = [
     fix: 'Android Settings → Apps → Reruni → Notifications → อนุญาต',
   },
   {
-    key: 'overlay_permission',
-    label: 'Overlay permission (Smart Overlay)',
-    fix: 'Android Settings → Apps → Special access → Display over other apps → Reruni → อนุญาต',
-  },
-  {
     key: 'accessibility_enabled',
     label: 'Accessibility service (Autopilot)',
     fix: 'Android Settings → Accessibility → Reruni Autopilot → เปิด',

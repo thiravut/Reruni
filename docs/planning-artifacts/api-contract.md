@@ -939,7 +939,7 @@ Force-stop a specific live session (any user).
 
 | Type | Payload | Purpose |
 |---|---|---|
-| `start_live` | `{ video_url, video_id, title, caption, hashtags, pinned_sku, banners[] }` | Begin Smart Overlay broadcast |
+| `start_live` | `{ video_url, video_id, title, caption, hashtags, pinned_sku, banners[], loop_count }` | Begin Device Camera broadcast (autopilot taps through TikTok UI) |
 | `stop_live` | `{}` | End current live session |
 | `switch_video` | `{ video_url, video_id }` | Mid-live video change |
 | `pin_product` | `{ sku }` | Pin a SKU |
@@ -960,7 +960,7 @@ Force-stop a specific live session (any user).
 | `ack` | `{ command_id, success, error_code?, error_message? }` | Acknowledge a server command |
 | `error` | `{ command_id?, code, message }` | Async error report |
 | `live_ended` | `{ live_session_id, reason }` | Mobile finished broadcasting on its own — fired when the configured `loop_count` passes complete, on a fatal playback error, or on a local user-stop. Server closes the `live_sessions` row, flips the device back to `idle`, and fans `live_ended` + `device_status_changed` out to the portal. `reason` is free-form; common values: `loop_completed`, `playback_error`, `device_stopped`. Omitted/empty → server defaults to `loop_completed`. |
-| `device_caps` | `{ overlay_permission, notification_permission, battery_unrestricted, accessibility_enabled, tiktok_installed, app_version, android_sdk, device_model, sku_tier, ... }` | Permission + install state snapshot. Sent right after pair/hello; portal renders readiness badges + setup hints from this. |
+| `device_caps` | `{ notification_permission, battery_unrestricted, accessibility_enabled, tiktok_installed, app_version, android_sdk, device_model, sku_tier, ... }` | Permission + install state snapshot. Sent right after pair/hello; portal renders readiness badges + setup hints from this. (Schema is loose — mobile may add/remove keys as the SKU lineup evolves; portal ignores unknown ones and treats missing required keys as "not ready".) |
 | `pong` | `{}` | Response to ping |
 
 ### 3.5 `/ws/portal` — Server → Browser messages
