@@ -13,6 +13,7 @@ import { Button } from '../components/Button';
 import { ErrorBanner } from '../components/ErrorBanner';
 import { Spinner } from '../components/Spinner';
 import { ApiError } from '../api/client';
+import { useAuth } from '../contexts/AuthContext';
 import * as onboardingApi from '../api/onboarding';
 import * as billingApi from '../api/billing';
 import type { OnboardingState, OnboardingStep } from '../api/onboarding';
@@ -24,6 +25,7 @@ const DEFAULT_QTY = 10;
 
 export function OnboardingPage() {
   const nav = useNavigate();
+  const { refresh: refreshAuth } = useAuth();
   const [state, setState] = useState<OnboardingState | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
@@ -39,11 +41,22 @@ export function OnboardingPage() {
     void refresh();
   }, [refresh]);
 
+  // When the server reports complete, refresh the AuthContext cache before
+  // navigating — otherwise ProtectedRoute reads a stale onboarding_step from
+  // /auth/me (loaded at login) and bounces back here, causing an infinite
+  // /onboarding ↔ /dashboard loop. Hit by any user whose DB row was migrated
+  // /backfilled to 'complete' mid-session.
   useEffect(() => {
-    if (state?.step === 'complete') {
-      nav('/dashboard', { replace: true });
-    }
-  }, [state?.step, nav]);
+    if (state?.step !== 'complete') return;
+    let cancelled = false;
+    (async () => {
+      await refreshAuth();
+      if (!cancelled) nav('/dashboard', { replace: true });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [state?.step, nav, refreshAuth]);
 
   // Poll while waiting on async signals (Stripe webhook, first device online).
   useEffect(() => {
