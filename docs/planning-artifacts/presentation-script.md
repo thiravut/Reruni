@@ -297,20 +297,20 @@
 ## Slide 13: Roadmap
 **[ON SLIDE]**
 > ```
-> 2026 Q2 │ POC                    ✅ Complete
-> 2026 Q3 │ MVP build              ◀── ขอ approval ที่นี่
-> 2026 Q4 │ V1 GA — paid launch
-> 2027 Q1 │ Scale + analytics
-> 2027 Q2 │ Hybrid live + AI
-> 2027 Q3 │ SEA expansion
+> 2026 Q2 │ POC                          ✅ Complete
+> 2026 Q3 │ V1 MVP build                ◀── ขอ approval ที่นี่
+> 2026 Q4 │ V1.5 Stability + QoL
+> 2027 Q1 │ V2 Multi-profile + Scheduling
+> 2027 Q2 │ V3 AI + Hybrid (exploratory)
 > ```
 
 **[SAY]**
-> "Roadmap 18 เดือน
+> "Roadmap 12 เดือน
 > POC เสร็จแล้ว
 > Q3 ปีนี้ — MVP build — ที่ผมขอ approval วันนี้
-> Q4 — V1 GA + paid launch
-> ปี 2027 — analytics, hybrid live, ขยายไป SEA"
+> Q4 — V1.5 stability + quality of life
+> ปี 2027 — V2 multi-profile rotation, V3 AI features (exploratory)
+> ไม่มี SEA expansion ในแผนแล้ว"
 
 **[TIME]** 1 นาที
 

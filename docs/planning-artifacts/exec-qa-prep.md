@@ -142,7 +142,7 @@ Worst case Tier B = 16 บาท/device, ยังถูกพอ — server cos
 **A:** เป็น realistic case (ไม่ใช่ best case) Logic:
 - 80 paying Users × avg 25 devices × 200 บาท = 400K MRR
 - Customer acquisition rate ~7 Users/เดือน หลัง launch — ไม่ aggressive
-- TH solo seller / multi-account reseller market มี ~5,000-20,000 ที่ run TikTok Shop หลายบัญชี = TAM ใหญ่กว่า agency market
+- TH solo seller / multi-account reseller market มี ~5,000-20,000 ที่ run TikTok Shop หลายบัญชี = TAM พอเพียงสำหรับ 80 customers
 
 Conservative case: 30 Users, 2.3M ARR ก็ยัง breakeven (server cost ต่ำมาก)
 
@@ -208,15 +208,16 @@ Native mobile app = Phase 2+ ถ้า demand ชัด
 
 ---
 
-### Q16. "ทำไม TH-first ไม่ start global?"
+### Q16. "ทำไม TH-only?"
 
-**A:** Founder-market fit + market dynamic:
+**A:** Founder-market fit + market focus:
 - เราเข้าใจ TikTok ecosystem ในไทยลึก
-- TH = 70M population, TikTok Shop GMV โต — meaningful TAM แล้ว
+- TH = 70M population, TikTok Shop GMV โต — meaningful TAM พอเดียว
 - Localized UX (Thai language, baht, Shopee/Lazada awareness) เป็น advantage vs global tools
-- SEA expansion Year 2 = natural — VN/ID/PH ใช้ TikTok Shop pattern คล้ายกัน
+- TH ตลาดมีลูกค้าศักยภาพ 10K-15K ราย — ไม่ต้อง expand ต่างชาติเพื่อ scale 27M ARR
+- International / SEA = **not in roadmap** (per 2026-05-31 direction) — focus + ship ก่อน
 
-**Backup:** PRD §15 Platform, §17 Rollout phase 3
+**Backup:** release-roadmap.md (V1-V3 plan, no V4 SEA)
 
 ---
 

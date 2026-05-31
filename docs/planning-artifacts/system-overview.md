@@ -19,7 +19,7 @@ TiktokRerun คือ **web-based control plane** ที่ช่วยให้
 
 **POC status:** ✅ Validated — broadcast, audio control, remote command, device pairing, start/stop live, pin/unpin product, video switching — ทำงานครบ พร้อมเข้า MVP
 
-**Ask:** approval ในการเข้า MVP phase (3 เดือน, team 4 คน, infra ~30-50K บาท/เดือน)
+**Ask:** approval ในการเข้า MVP phase (8 สัปดาห์, Pond solo + Claude, infra ~5-10K บาท/เดือน)
 
 ---
 
@@ -66,7 +66,7 @@ TiktokRerun คือ **web-based control plane** ที่ช่วยให้
 - **Multi-account reseller / drop-shipper** ที่ run TikTok Shop หลาย category — คนเดียว
 - **Small business owner** ที่ใช้ TikTok เป็นช่องทางหลัก, ไม่มีงบจ้างทีม
 
-→ **Not targeting:** agency, brand with internal team, enterprise — defer to Phase 2+ if demand emerges
+→ **Not targeting:** agency, brand with internal team, enterprise — no plan to add these segments
 
 ### Not building (สำคัญสำหรับ scope discipline)
 - ❌ Fake engagement / bot viewers / fake comments
@@ -357,15 +357,15 @@ Q4  │ V1 GA — Paid launch                 │
 
 ─── 2027 ──────────────────────────────────────────────────────────────▶
 
-Q1  │ Scale + Analytics                   │
-    │  • 1,000+ phones across customers   │
-    │  • GMV / retention dashboards       │
-Q2  │ Hybrid Live + AI assist             │
-    │  • Human takeover                   │
-    │  • AI comment reply suggestions     │
-Q3  │ International (SEA)                 │
-    │  • Vietnam, Indonesia, Philippines  │
+Q1  │ V2 — Multi-profile + Scheduling     │
+    │  • TikTok account rotation per dev  │
+    │  • Time-based start/stop            │
+Q2  │ V3 — Pro features + AI assist       │
+    │  • Hybrid live (exploratory)        │
+    │  • AI comment reply (exploratory)   │
 ```
+
+> Note: International / SEA expansion **no longer in plan** (per 2026-05-31 direction)
 
 ---
 

@@ -137,9 +137,9 @@
         │  • Scheduling, comment monitoring   │
         │  • Scheduling                       │
         │
-2027 Q1 │ Scale + Analytics                   │
-2027 Q2 │ Hybrid Live + AI assist             │
-2027 Q3 │ SEA expansion (VN, ID, PH)          │
+2027 Q1 │ V2 — Multi-profile + Scheduling     │
+2027 Q2 │ V3 — AI assist + Hybrid Live        │
+        │ (exploratory features)              │
 ```
 
 ---
