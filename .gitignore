@@ -33,3 +33,7 @@ server/uploads/*
 *.log
 **/logs/
 apk/*
+
+# Release artifacts — built locally by tools/release.sh, hosted on R2.
+# Keep only CHANGELOG.md + the directory shape under git.
+releases/v*/
