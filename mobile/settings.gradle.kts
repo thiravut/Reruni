@@ -16,3 +16,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "TiktokRerun"
 include(":app")
+include(":vcam")
