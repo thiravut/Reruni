@@ -1,0 +1,76 @@
+{
+  "name": "personal_live",
+  "version": 1,
+  "min_tiktok_version": "45.0.0",
+  "description": "V1 Personal Live — Mobile Gaming + Screen Share. Baseline (offline) script bundled in the APK; server is expected to override with the current version on first fetch.",
+  "steps": [
+    {"op": "step", "label": "เปิด TikTok…"},
+    {"op": "launch_tiktok"},
+    {"op": "delay", "ms": 3000},
+
+    {"op": "step", "label": "กลับไปหน้าหลัก TikTok…"},
+    {"op": "ensure_home"},
+    {"op": "delay", "ms": 500},
+
+    {"op": "step", "label": "กด + (Create)"},
+    {"op": "tap_by_text",
+     "labels": ["สร้าง", "Create", "post", "โพสต์"],
+     "retries": 8,
+     "allow_content_desc": true,
+     "fail": "ไม่พบปุ่ม + บน TikTok — UI อาจเปลี่ยน"},
+    {"op": "delay", "ms": 2500},
+
+    {"op": "step", "label": "กด LIVE"},
+    {"op": "tap_by_text",
+     "labels": ["LIVE", "ไลฟ์", "Live", "ถ่ายทอดสด"],
+     "retries": 8,
+     "allow_content_desc": true,
+     "fail": "ไม่พบแท็บ LIVE — ดู logcat tag 'Autopilot' สำหรับ node dump"},
+    {"op": "delay", "ms": 1800},
+
+    {"op": "step", "label": "กด Mobile Gaming"},
+    {"op": "tap_by_text",
+     "labels": ["Mobile Gaming", "เกมมือถือ", "Mobile gaming", "Gaming", "เกม"],
+     "retries": 8,
+     "allow_content_desc": true,
+     "fail": "ไม่พบแท็บ Mobile Gaming — บัญชีอาจไม่มีสิทธิ์ Gaming category"},
+    {"op": "delay", "ms": 1800},
+
+    {"op": "step", "label": "กด Go LIVE"},
+    {"op": "tap_by_text",
+     "labels": ["Go LIVE", "Go Live", "GO LIVE", "เริ่มไลฟ์", "เริ่ม LIVE", "เริ่ม Live", "ไลฟ์ทันที", "ไปสด", "Start"],
+     "retries": 8,
+     "allow_content_desc": true,
+     "fail": "ไม่พบปุ่ม Go LIVE — UI อาจมีหน้า setup เพิ่มเติม (title/game) ก่อน"},
+    {"op": "delay", "ms": 2000},
+
+    {"op": "step", "label": "กด Screen Share"},
+    {"op": "tap_by_text",
+     "labels": ["Screen Share", "แชร์หน้าจอ", "Share Screen", "Screen sharing", "หน้าจอ"],
+     "retries": 8,
+     "allow_content_desc": true,
+     "fail": "ไม่พบ Screen Share — UI อาจเปลี่ยน หรือบัญชีไม่มีสิทธิ์"},
+    {"op": "delay", "ms": 1500},
+
+    {"op": "step", "label": "กด Start (system dialog)"},
+    {"op": "tap_by_text",
+     "labels": ["Start now", "เริ่มเลย", "Start", "เริ่ม", "ตกลง", "OK"],
+     "retries": 4,
+     "ignore_failure": true,
+     "warn_on_fail": "no recording dialog button found yet; proceeding"},
+    {"op": "delay", "ms": 800},
+
+    {"op": "tap_by_text",
+     "labels": ["Start now", "เริ่มเลย", "Start", "เริ่ม", "ตกลง", "OK"],
+     "retries": 2,
+     "ignore_failure": true},
+
+    {"op": "deliver_broadcast"},
+
+    {"op": "step", "label": "ซ่อน TikTok overlay panel…"},
+    {"op": "delay", "ms": 4000},
+    {"op": "collapse_overlay"},
+
+    {"op": "step", "label": "✓ พร้อม Live"}
+  ]
+}

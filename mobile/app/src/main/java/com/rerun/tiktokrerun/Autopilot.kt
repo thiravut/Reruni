@@ -9,6 +9,8 @@ import android.graphics.Rect
 import android.os.Build
 import android.util.Log
 import android.view.accessibility.AccessibilityNodeInfo
+import com.rerun.tiktokrerun.script.ScriptContext
+import com.rerun.tiktokrerun.script.ScriptRunner
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -17,6 +19,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import org.json.JSONObject
 import kotlin.coroutines.resume
 
 enum class AutopilotState { Idle, Running, Failed, Done }
@@ -250,61 +253,90 @@ object Autopilot {
     private suspend fun runFlow(context: Context, launchIntent: Intent) {
         state.value = AutopilotState.Running
 
-        setStep("เปิด TikTok…")
-        context.startActivity(launchIntent)
-        delay(3000)
-
-        setStep("กลับไปหน้าหลัก TikTok…")
-        ensureTikTokHome()
-        delay(500)
-
-        setStep("กด + (Create)")
-        if (!tapByText(CREATE_BUTTON_LABELS, allowContentDesc = true, retries = 8)) {
-            return fail("ไม่พบปุ่ม + บน TikTok — UI อาจเปลี่ยน")
+        // V1 Personal is now executed from a JSON script (Phase A of the
+        // server-driven automation refactor — see project memory). The
+        // baseline lives in res/raw/script_personal_live_v1.json; future
+        // updates ship from the backend without an APK rebuild.
+        val script = loadBundledScript(context, R.raw.script_personal_live_v1) ?: run {
+            return fail("โหลด script_personal_live_v1 ไม่สำเร็จ")
         }
-        delay(2500)
-
-        setStep("กด LIVE")
-        if (!tapByText(LIVE_TAB_LABELS, allowContentDesc = true, retries = 8)) {
-            return fail("ไม่พบแท็บ LIVE — ดู logcat tag 'Autopilot' สำหรับ node dump")
+        val runner = ScriptRunner(buildScriptContext(context, launchIntent))
+        when (val result = runner.execute(script)) {
+            is ScriptRunner.Result.Success -> {
+                state.value = AutopilotState.Done
+                activeMode.value = null
+            }
+            is ScriptRunner.Result.Failed -> return fail(result.message)
         }
-        delay(1800)
+    }
 
-        setStep("กด Mobile Gaming")
-        if (!tapByText(MOBILE_GAMING_LABELS, allowContentDesc = true, retries = 8)) {
-            return fail("ไม่พบแท็บ Mobile Gaming — บัญชีอาจไม่มีสิทธิ์ Gaming category")
+    /**
+     * Wraps Autopilot's private primitives in the [ScriptContext] surface
+     * [ScriptRunner] expects. Created per-run so it can close over the
+     * caller-supplied [launchIntent].
+     */
+    private fun buildScriptContext(androidContext: Context, intent: Intent): ScriptContext =
+        object : ScriptContext {
+            override val context: Context = androidContext
+            override val launchIntent: Intent = intent
+
+            override suspend fun setStep(label: String) {
+                this@Autopilot.setStep(label)
+            }
+
+            override suspend fun delayMs(ms: Long) {
+                delay(ms)
+            }
+
+            override suspend fun tapByText(
+                labels: List<String>,
+                allowContentDesc: Boolean,
+                retries: Int,
+                verifyDisappear: Boolean,
+            ): Boolean = this@Autopilot.tapByText(
+                labels = labels,
+                retries = retries,
+                allowContentDesc = allowContentDesc,
+                verifyDisappear = verifyDisappear,
+            )
+
+            override suspend fun waitForAny(
+                labels: List<String>,
+                timeoutMs: Long,
+                intervalMs: Long,
+            ): Boolean = this@Autopilot.waitForAny(labels, timeoutMs, intervalMs)
+
+            override suspend fun swipeHorizontal(
+                startX: Float,
+                endX: Float,
+                y: Float,
+                durationMs: Long,
+            ): Boolean = this@Autopilot.swipeHorizontal(startX, endX, y, durationMs)
+
+            override suspend fun ensureTikTokHome() {
+                this@Autopilot.ensureTikTokHome()
+            }
+
+            override suspend fun deliverBroadcastContent() {
+                this@Autopilot.deliverBroadcastContent(androidContext)
+            }
+
+            override suspend fun collapseTikTokOverlay() {
+                this@Autopilot.collapseTikTokOverlay()
+            }
+
+            override fun warn(message: String) {
+                Log.w(TAG, message)
+            }
         }
-        delay(1800)
 
-        setStep("กด Go LIVE")
-        if (!tapByText(GO_LIVE_LABELS, allowContentDesc = true, retries = 8)) {
-            return fail("ไม่พบปุ่ม Go LIVE — UI อาจมีหน้า setup เพิ่มเติม (title/game) ก่อน")
-        }
-        delay(2000)
-
-        setStep("กด Screen Share")
-        if (!tapByText(SCREEN_SHARE_LABELS, allowContentDesc = true, retries = 8)) {
-            return fail("ไม่พบ Screen Share — UI อาจเปลี่ยน หรือบัญชีไม่มีสิทธิ์")
-        }
-        delay(1500)
-
-        setStep("กด Start (system dialog)")
-        if (!tapByText(RECORDING_OK_LABELS)) {
-            Log.w(TAG, "no recording dialog button found yet; proceeding")
-        }
-        delay(800)
-
-        tapByText(RECORDING_OK_LABELS, retries = 2)
-
-        deliverBroadcastContent(context)
-
-        setStep("ซ่อน TikTok overlay panel…")
-        delay(4000)
-        collapseTikTokOverlay()
-
-        setStep("✓ พร้อม Live")
-        state.value = AutopilotState.Done
-        activeMode.value = null
+    private fun loadBundledScript(context: Context, resId: Int): JSONObject? = try {
+        val text = context.resources.openRawResource(resId)
+            .bufferedReader().use { it.readText() }
+        JSONObject(text)
+    } catch (t: Throwable) {
+        Log.e(TAG, "loadBundledScript($resId) failed", t)
+        null
     }
 
     /**
