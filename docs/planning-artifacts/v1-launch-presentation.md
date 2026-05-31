@@ -704,11 +704,14 @@
 
 **[ON SLIDE]**
 > ```
-> 2026 Q2 end │ V1   — Launch (paying customers)
-> 2026 Q4     │ V1.5 — Stability + CAPTCHA + Banner Tier 2 + QoL
-> 2027 Q1     │ V2   — Scheduling + Playlist auto-switch + Stability
-> 2027 Q2     │ V3   — Compliance + Live AI moderation (POC-gated)
-> 2027 Q3     │ V4   — AI Content Creation (Phase 4)
+> 2026-06 wk 1-2  │ V1   — Launch (paying customers, MVP ~done)
+> 2026-06 wk 3    │ V1.5 — CAPTCHA + Banner Tier 2 + Stability
+> 2026-07 wk 1-2  │ V2   — Scheduling + Playlist auto-switch + Stability
+> 2026-07 wk 3 → 08 wk 1 │ V3 — Compliance + Live AI moderation (POC-gated)
+> 2026-08 wk 2-3  │ V4   — AI Content Creation (POC-gated)
+>
+> **All 4 versions wrap by ~late August 2026** (~2-2.5 mo from today, 5-10x velocity)
+> V1+V1.5 (MVP) = ~8 วันรวมจาก today; V2+V3+V4 = ~5-6 wk additional
 > ```
 >
 > **Tagged with confidence:**
@@ -930,7 +933,7 @@
 > | 2 | Mobile path | ✅ **DECIDED — VCam LSPatch (own-built)** — no further choice needed |
 > | 3 | Legal review budget ~50-100K | ✅ Approve |
 > | 4 | Design partner selection | 2-3 friendly TH sellers |
-> | 5 | GA target | ✅ Q2 2026 end (revised earlier from Q3) |
+> | 5 | GA target | ✅ **June 2026 wk 1-2** (~1-2 wk from today; full V1-V4 wraps Aug 2026) |
 > | 6 | Subscription gating without trial + flat 299/device | ✅ Keep (decided) |
 > | 7 | Two-cookie auth + admin separation | ✅ Confirm (deployed) |
 
@@ -939,7 +942,7 @@
 > ใหญ่สุดคือ #1 — approve V1 GA cycle cash-out 25-32K (founder time self-funded as equity)
 > #2 — mobile path = VCam LSPatch own-built — ไม่ต้อง hedge อีก
 > #3 — legal review สำหรับ ToS + PDPA
-> #5 — GA target Q2 2026 end (เร็วกว่า Q3 ตามเดิมเพราะ ship เร็ว)
+> #5 — GA target **June wk 1-2 2026** (~1-2 wk from today); full V1 → V4 roadmap wraps ~August 2026 (2-2.5 mo from today, supported by 5-10x velocity proof)
 > ที่เหลือ confirm decisions ที่เคยทำไว้แล้ว"
 
 **[TIME]** 1.5 นาที

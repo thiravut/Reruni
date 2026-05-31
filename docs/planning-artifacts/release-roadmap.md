@@ -19,16 +19,19 @@
 ## 📅 Timeline Overview
 
 ```
-2026 Q2 end (Jun-Jul) │ V1   — Launch (paying customers)
-2026 Q4 (Oct-Dec)     │ V1.5 — Stability + CAPTCHA + Banner Tier 2 + QoL
-2027 Q1 (Jan-Mar)     │ V2   — Scheduling + Playlist auto-switch + Stability Hardening
-2027 Q2 (Apr-Jun)     │ V3   — Compliance + Live AI moderation (POC-gated)
-2027 Q3 (Jul-Sep)     │ V4   — AI Content Creation (Phase 4 — Product search + AI video gen)
+2026-06 wk 1-2 │ V1   — Launch (paying customers, MVP ~done)
+2026-06 wk 3   │ V1.5 — CAPTCHA + Banner Tier 2 + Stability
+2026-07 wk 1-2 │ V2   — Scheduling + Playlist auto-switch + Stability Hardening
+2026-07 wk 3 → 2026-08 wk 1 │ V3 — Compliance + Live AI moderation (POC-gated)
+2026-08 wk 2-3 │ V4   — AI Content Creation (POC-gated)
+
+V1 + V1.5 (MVP) = ~8 วันรวมจาก today (Pond's call, supported by 5-10x velocity proof)
+V2 + V3 + V4 total = ~5-6 wk additional → all 4 versions wrap by ~late August 2026
 ```
 
 ---
 
-## 🚀 V1 — Launch (Q2 2026 end)
+## 🚀 V1 — Launch (June 2026, wk 1-2)
 
 **Theme:** "Make money work — first paying customers"
 
@@ -79,7 +82,7 @@
 
 ---
 
-## 🛠️ V1.5 — Stability + CAPTCHA + Banner Tier 2 + Quality of Life (Q4 2026)
+## 🛠️ V1.5 — Stability + CAPTCHA + Banner Tier 2 + QoL (June 2026, wk 3 — ~1 wk after V1)
 
 **Theme:** "Make it reliable — reduce ops burden + unblock account recovery + richer live presentation"
 
@@ -87,7 +90,7 @@
 
 | Feature | Status | Notes |
 |---|---|---|
-| **Jigsaw CAPTCHA bot** ⭐ moved up from V3 | ❓ POC required, then 🔄 ship | CV-based solver for TikTok slider/puzzle CAPTCHA — operations necessity (TikTok shows CAPTCHA after rapid relogin/reinstall cycles, blocks customer account recovery). POC: model accuracy on TikTok slider, detection risk, success rate. ~1-2 wk POC. |
+| **Jigsaw CAPTCHA bot** ⭐ moved up from V3 | ❓ POC required, then 🔄 ship | CV-based solver for TikTok slider/puzzle CAPTCHA — operations necessity (TikTok shows CAPTCHA after rapid relogin/reinstall cycles, blocks customer account recovery). POC: model accuracy on TikTok slider, detection risk, success rate. **~3-5 days POC** (5x compression from industry baseline ~1-2 wk via Pond + Claude). |
 | **Banner Tier 2 (dynamic real-time composition)** ⭐ moved from V1 | ✅ Confirmed | Countdown / price tag / promo composite on Camera2 preview real-time; operator updates from web → push via WebSocket → render overlay in VCam pipeline. Architecture clear; engineering only — defer from V1 to keep launch scope tight. |
 | Sentry error tracking + structured logging | ✅ Confirmed | Wire RESEND_API_KEY + Sentry DSN |
 | Mobile auto-update companion | 🔄 Likely | In-app version check + APK update prompt |
@@ -117,7 +120,7 @@
 
 ---
 
-## 📈 V2 — Scheduling + Playlist auto-switch + Stability Hardening (Q1 2027)
+## 📈 V2 — Scheduling + Playlist auto-switch + Stability Hardening (July 2026, wk 1-2)
 
 **Theme:** "Make it auto-pilot — scheduling + reliability without operator handholding"
 
@@ -130,7 +133,7 @@
 | Feature | Confidence |
 |---|---|
 | Scheduling (time-based start/stop, recurring) | ✅ Confirmed |
-| **Playlist auto-switch ระหว่าง live** (swap video mid-broadcast without stopping) — POC: VCam Camera2 pipeline swap video source ได้ไหมโดย TikTok ไม่ drop? Effort 1 wk. Fallback if POC fails: ใช้ V1 ffmpeg-concat single-file approach (no UX downgrade) | ❓ POC required |
+| **Playlist auto-switch ระหว่าง live** (swap video mid-broadcast without stopping) — POC: VCam Camera2 pipeline swap video source ได้ไหมโดย TikTok ไม่ drop? **Effort 2-3 days** (compressed from 1 wk industry baseline). Fallback if POC fails: ใช้ V1 ffmpeg-concat single-file approach (no UX downgrade) | ❓ POC required |
 | Stability hardening — auto-reconnect tuning, VCam module monitoring + fallback flow | ✅ Confirmed |
 | Per-device health score (online %, broadcast uptime, error rate) | ✅ Confirmed |
 | Alert system (live ตก, device offline > N นาที, error spike) | ✅ Confirmed |
@@ -163,7 +166,7 @@ Runtime:
 
 ---
 
-## 🤖 V3 — Compliance + Live AI Moderation (Q2 2027 — POC-gated)
+## 🤖 V3 — Compliance + Live AI Moderation (July wk 3 → August wk 1, 2026 — POC-gated)
 
 **Theme:** "Make live broadcasts safer — location simulation + real-time speech moderation"
 
@@ -176,9 +179,9 @@ Runtime:
 
 | Feature | Status | POC questions to answer |
 |---|---|---|
-| **Fake GPS — location simulation** ⭐ NEW | ❓ POC required | LSPosed hook ที่ Android Location APIs ได้ไหม? TikTok detect Mock Location ผ่าน Play Integrity? **Use case (clarified 2026-06-01):** ลูกค้าตั้งได้ว่าจะให้ TikTok เห็นว่าโทรศัพท์ live อยู่ที่ไหน — เลือกจังหวัด/พิกัดเอง (ไม่ใช่ anti-fraud, แต่เป็น region selection UX). **Effort: 3-5 วัน POC** |
-| **Live Insight — forbidden word check + scoring + improvement tips real-time** ⭐ NEW | ❓ POC required | STT Thai latency < 2s? Forbidden word list ที่ TikTok ใช้ (extract จาก ban history)? Scoring algo (engagement + compliance + delivery)? Operator alert UX? Audio capture path บน Android (companion app intercept?). **Effort: 2-3 wk POC** |
-| **Real-time forbidden-word censor (bleep)** ⭐ NEW | ❓ POC required | Audio buffer N วินาทีได้ไหมโดยไม่ติด TikTok delay limit? Beep injection จุดไหนใน VCam pipeline? STT precision พอไหม (false positive = bleep ผิดคำ)?. **Effort: 3-4 wk POC — biggest scope item** |
+| **Fake GPS — location simulation** ⭐ NEW | ❓ POC required | LSPosed hook ที่ Android Location APIs ได้ไหม? TikTok detect Mock Location ผ่าน Play Integrity? **Use case (clarified 2026-06-01):** ลูกค้าตั้งได้ว่าจะให้ TikTok เห็นว่าโทรศัพท์ live อยู่ที่ไหน — เลือกจังหวัด/พิกัดเอง (ไม่ใช่ anti-fraud, แต่เป็น region selection UX). **Effort: 1-2 วัน POC** (compressed from 3-5 วัน — LSPosed hook is small) |
+| **Live Insight — forbidden word check + scoring + improvement tips real-time** ⭐ NEW | ❓ POC required | STT Thai latency < 2s? Forbidden word list ที่ TikTok ใช้ (extract จาก ban history)? Scoring algo (engagement + compliance + delivery)? Operator alert UX? Audio capture path บน Android (companion app intercept?). **Effort: 3-5 วัน POC** (compressed from 2-3 wk — most is STT + LLM API integration, not novel research) |
+| **Real-time forbidden-word censor (bleep)** ⭐ NEW | ❓ POC required | Audio buffer N วินาทีได้ไหมโดยไม่ติด TikTok delay limit? Beep injection จุดไหนใน VCam pipeline? STT precision พอไหม (false positive = bleep ผิดคำ)?. **Effort: ~1 wk POC — long pole of V3** (compressed from 3-4 wk; audio pipeline complexity is genuine but solvable in days with focused work) |
 | **Hybrid Live** — creator joins live in real-time, takes over from broadcast | ❓ Exploratory | Technical feasibility of mid-stream control handoff unclear; depends on TikTok's live API behavior |
 | **AI Comment Reply** with operator approval | 🔄 Likely | LLM API call — depends on comments access (see V2 ❓) |
 | **AI Insights** — "Best performing video" / "When to switch product" | 🔄 Likely | Depends on analytics data (see V2 ❓ GMV) |
@@ -187,15 +190,17 @@ Runtime:
 | **Fraud Detection** — bot patterns, abuse signals | 🔄 Likely | Internal telemetry analysis |
 | **Advanced Pin** — multi-product rotation, auto-pin by video timestamp | ✅ Confirmed | Engineering only; schema ready |
 
-### V3 POC Sequencing
+### V3 POC Sequencing (compressed)
 
 ```
-Sprint 1 (parallel)         Sprint 2 (parallel)         Sprint 3
-─────────────────────       ──────────────────────       ──────────────────────
-[Fake GPS POC]              [Live Insight POC]           [Real-time Censor POC]
-  3-5 วัน                     2-3 wk                       3-4 wk
-                                                          (depends on STT result)
+Days 1-2          Days 3-7                Days 8-14 (long pole)
+─────────────     ─────────────────       ─────────────────────────
+[Fake GPS POC]    [Live Insight POC]      [Real-time Censor POC]
+  1-2 วัน          3-5 วัน                  ~1 wk (audio pipeline)
+                  (parallel with GPS ship)  (depends on STT validation)
 ```
+
+V3 wraps ~2 wk total (mid-July → end of July 2026).
 
 Each POC has a kill-switch gate — if feasibility unclear after timeboxed effort, defer or drop. V3 ship scope = features ที่ผ่าน POC gate
 
@@ -208,7 +213,7 @@ Each POC has a kill-switch gate — if feasibility unclear after timeboxed effor
 
 ---
 
-## 🎨 V4 — AI Content Creation (Q3 2027 — Phase 4)
+## 🎨 V4 — AI Content Creation (August 2026, wk 2-3 — POC-gated)
 
 **Theme:** "Make content creation effortless — search existing assets + AI-generate fallback"
 
@@ -218,23 +223,25 @@ Each POC has a kill-switch gate — if feasibility unclear after timeboxed effor
 
 | Feature | Status | POC questions to answer |
 |---|---|---|
-| **AI Video Generation** ⭐ moved from V3 | ❓ POC required | Provider ไหน (Veo / Sora / Runway / Pika)? Cost per video? Latency (sync vs async)? Quality ขายของพอไหม? Thai voice support? **Effort: 1-2 wk POC + pricing analysis** |
-| **Product Search** (find listings on TikTok Shop ที่ลูกค้าอยากนำมา live) | ❓ POC required | Data source: TikTok Shop API ไม่ public — scrape feasibility? Search relevance (keyword vs semantic)? Rate limit risk? |
-| **Existing Video Search** (find live video corpus ที่ตรงกับสินค้า) | ❓ POC required | Video index source (TikTok video search? Affiliate platforms?). Relevance scoring. License/usage rights consideration |
-| **End-to-end pipeline: search → if no video → AI gen → push to library** ⭐ killer feature | ❓ POC required | UX flow: operator search สินค้า → ระบบตอบ "มีวิดีโออยู่แล้ว ใช้เลย" หรือ "ไม่มี — AI gen ให้ภายใน 5 นาที" → push เข้า library → ready for live. **Effort: 2-3 wk POC — depends on AI video provider decision** |
+| **AI Video Generation** ⭐ moved from V3 | ❓ POC required | Provider ไหน (Veo / Sora / Runway / Pika)? Cost per video? Latency (sync vs async)? Quality ขายของพอไหม? Thai voice support? **Effort: 2-3 days POC + pricing analysis** (compressed from 1-2 wk — mostly API integration) |
+| **Product Search** (find listings on TikTok Shop ที่ลูกค้าอยากนำมา live) | ❓ POC required | Data source: TikTok Shop API ไม่ public — scrape feasibility? Search relevance (keyword vs semantic)? Rate limit risk? **Effort: 3-5 days POC** (compressed from 2-3 wk) |
+| **Existing Video Search** (find live video corpus ที่ตรงกับสินค้า) | ❓ POC required | Video index source (TikTok video search? Affiliate platforms?). Relevance scoring. License/usage rights consideration. **Effort: 3-5 days POC** (parallel with product search) |
+| **End-to-end pipeline: search → if no video → AI gen → push to library** ⭐ killer feature | ❓ POC required | UX flow: operator search สินค้า → ระบบตอบ "มีวิดีโออยู่แล้ว ใช้เลย" หรือ "ไม่มี — AI gen ให้ภายใน 5 นาที" → push เข้า library → ready for live. **Effort: ~1 wk POC** (compressed from 2-3 wk; depends on AI video + search POCs above) |
 | **Asset library** (saved generated videos + curated stock) | 🔄 Likely | DB schema + R2 storage extension |
 | **Video editing assistance** (trim, watermark removal, voiceover dub) | ❓ Exploratory | Provider availability for Thai voice + lip-sync |
 
-### V4 POC Sequencing
+### V4 POC Sequencing (compressed)
 
 ```
-Sprint 1                    Sprint 2 (depends Sprint 1)        Sprint 3
-─────────────────────       ───────────────────────────       ──────────────────────
-[AI Video Gen POC]          [Product Search POC]              [End-to-end pipeline]
-  1-2 wk                      2-3 wk                            2-3 wk
-                            [Existing Video Search POC]
-                              2-3 wk (parallel)
+Days 1-3                    Days 4-8 (parallel)             Days 9-14
+─────────────────           ──────────────────────────      ──────────────────────
+[AI Video Gen POC]          [Product Search POC]            [End-to-end pipeline]
+  2-3 วัน                    3-5 วัน                          ~1 wk
+                            [Existing Video Search POC]      (depends on prev two)
+                              3-5 วัน (parallel)
 ```
+
+V4 wraps ~2 wk total (August wk 2 → wk 3, 2026).
 
 ### Success Criteria
 - 500+ paying customers
@@ -250,11 +257,13 @@ Sprint 1                    Sprint 2 (depends Sprint 1)        Sprint 3
 
 ## 🎯 What This Roadmap Says About the Business
 
-**V1 (now):** Get web control + multi-device fleet + flat 299 pricing into market → 5-10 paying customers
-**V1.5 (Q4 2026):** CAPTCHA unblocks customer onboarding + Banner Tier 2 + stability → 30 customers
-**V2 (Q1 2027):** Auto-pilot scheduling + playlist auto-switch → reduce operator handholding → 80 customers
-**V3 (Q2 2027):** Compliance + Live AI moderation (Live insight + censor + Fake GPS) → 300 customers
-**V4 (Q3 2027 / Phase 4):** AI Content Creation (product search + AI video gen pipeline) → 500+ customers
+**V1 (now, ~June wk 1-2):** Get web control + multi-device fleet + flat 299 pricing into market → 5-10 paying customers
+**V1.5 (June wk 3):** CAPTCHA unblocks customer onboarding + Banner Tier 2 + stability → 30 customers
+**V2 (July wk 1-2):** Auto-pilot scheduling + playlist auto-switch → reduce operator handholding → 80 customers
+**V3 (July wk 3 → Aug wk 1):** Compliance + Live AI moderation (Live insight + censor + Fake GPS) → 300 customers
+**V4 (Aug wk 2-3):** AI Content Creation (product search + AI video gen pipeline) → 500+ customers
+
+**Total V1 → V4 timeline:** ~2-2.5 เดือนจาก today, assuming 5-10x velocity proof holds. Customer acquisition runs in parallel — version numbers reflect ship cadence, not customer count gates.
 
 **Pricing implication of post-V1 features:**
 - All add-ons above flat 299/device base

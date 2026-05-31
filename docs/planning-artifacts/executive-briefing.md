@@ -141,24 +141,22 @@
 ## 6. Roadmap
 
 ```
-2026 Q2 │ POC                                 ✅ Complete (validated)
-2026 May│ MVP build (actual: ~2 wk so far)    🟢 ~90% shipped
-        │  • Backend (Go) + DB + auth ✅     │
-        │  • Portal SPA + Backoffice SPA ✅  │
-        │  • Mobile companion + VCam ✅      │
-        │  • Pin product, video switching ✅ │
-        │  • Onboarding wizard + billing ✅  │
-        │  • Banner Tier 1 (static) ✅      │
-        │  • Playlist (ffmpeg-concat) ✅    │
-        │  • 2-3 design partners (next 1 wk) │
-        │
-Q2 end │ V1 GA — Paid launch                  │
-        │  • Self-serve signup + billing      │
-        │
-2026 Q4 │ V1.5 — Stability + CAPTCHA + Banner Tier 2 │
-2027 Q1 │ V2 — Scheduling + Playlist auto-switch + Stability │
-2027 Q2 │ V3 — Compliance + Live AI moderation (POC-gated) │
-2027 Q3 │ V4 — AI Content Creation (Phase 4)  │
+2026-05      │ POC + MVP build (~2 wk actual)      ✅ ~90% shipped
+             │  • Backend (Go) + DB + auth ✅     │
+             │  • Portal SPA + Backoffice SPA ✅  │
+             │  • Mobile companion + VCam ✅      │
+             │  • Pin product, video switching ✅ │
+             │  • Onboarding wizard + billing ✅  │
+             │  • Banner Tier 1 (static) ✅      │
+             │  • Playlist (ffmpeg-concat) ✅    │
+             │
+2026-06 wk 1-2 │ V1 GA — Paid launch + design partner cycle │
+2026-06 wk 3   │ V1.5 — CAPTCHA + Banner Tier 2 + Stability │
+2026-07 wk 1-2 │ V2 — Scheduling + Playlist auto-switch + Stability │
+2026-07 wk 3 → 08 wk 1 │ V3 — Compliance + Live AI moderation (POC-gated) │
+2026-08 wk 2-3 │ V4 — AI Content Creation (POC-gated) │
+
+V1 → V4 all wrap by ~late August 2026 (~2-2.5 mo from today, 5-10x velocity proof)
 ```
 
 ---
