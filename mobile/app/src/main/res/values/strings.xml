@@ -22,9 +22,12 @@
     <string name="onboarding_step_2">2. กด "สร้าง Pair QR"</string>
     <string name="onboarding_step_3">3. กดปุ่มข้างล่างเพื่อสแกน — แอปจะบันทึกและเชื่อมต่อให้อัตโนมัติ</string>
     <string name="onboarding_scan_cta">📷 สแกน QR</string>
-    <string name="onboarding_manual_entry">หรือกรอกเอง</string>
+    <string name="onboarding_manual_entry">ใส่ Server URL + Token เอง</string>
     <string name="onboarding_qr_parse_error">QR ไม่ใช่ pair format ที่ถูกต้อง</string>
-    <string name="onboarding_paired_toast">✓ เชื่อมต่อ %1$s</string>
+    <string name="onboarding_qr_not_reruni">QR นี้ไม่ใช่ Pair QR จาก Rerun-i dashboard — ลองสแกนใหม่จากหน้า dashboard</string>
+    <string name="onboarding_qr_missing_fields">Pair QR หมดอายุหรือเสียหาย — สร้าง QR ใหม่จาก dashboard แล้วลองอีกครั้ง</string>
+    <string name="onboarding_pairing_toast">กำลัง pair กับ Control Panel…</string>
+    <string name="onboarding_paired_toast">✓ เชื่อมต่อแล้ว</string>
 
     <!-- Permission status panel (shown when paired but missing required permissions) -->
     <string name="permissions_section">สิทธิ์ที่ต้องเปิด</string>
@@ -94,6 +97,11 @@
     <string name="conn_error">ผิดพลาด · %1$s</string>
     <string name="conn_pause">⏸ ตัดการเชื่อมต่อ</string>
     <string name="conn_resume">▶ เชื่อมต่ออีกครั้ง</string>
+    <string name="conn_disconnect_unpair">ลบบัญชีออกจากเครื่อง</string>
+    <string name="conn_disconnect_confirm_title">ลบบัญชีออกจากเครื่อง?</string>
+    <string name="conn_disconnect_confirm_msg">Server URL + device token + บัญชีที่ pair ไว้จะถูกลบออกจากเครื่องนี้ ต้องสแกน QR ใหม่เพื่อใช้งานอีกครั้ง\n\nหมายเหตุ: อุปกรณ์จะยังคงแสดงใน dashboard — ลบจาก dashboard แยกถ้าต้องการ</string>
+    <string name="conn_disconnect_confirm_yes">ลบและออกจากระบบ</string>
+    <string name="conn_disconnect_confirm_cancel">ยกเลิก</string>
     <string name="receiving_video">⏬ กำลังโหลด \"%1$s\" จาก server…</string>
 
     <!-- SKU tier -->

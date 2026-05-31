@@ -24,4 +24,20 @@
     <color name="status_offline">#FF94A3B8</color>
     <color name="status_error">#FFEF4444</color>
     <color name="status_warn">#FFF59E0B</color>
+
+    <!-- Reruni landing palette (reruni.com). Mirrors landing/index.html's
+         CSS variables so the mobile app and marketing site read as one
+         product. Always dark — re-fork into values-night only if the
+         landing also adds a light theme. -->
+    <color name="reruni_bg">#FF0A0A0A</color>
+    <color name="reruni_fg">#FFF4F4F5</color>
+    <color name="reruni_muted">#FFA1A1AA</color>
+    <color name="reruni_accent">#FFFB7185</color>
+    <color name="reruni_accent_fg">#FF0A0A0A</color>
+    <color name="reruni_border">#FF27272A</color>
+    <!-- ~7% white over reruni_bg. The landing uses rgba(255,255,255,0.04)–0.08
+         on subtle elevation; 3% (the original here) was invisible in daylight
+         on a Samsung A1x screen. -->
+    <color name="reruni_surface_subtle">#12FFFFFF</color>
+    <color name="reruni_danger">#FFEF4444</color>
 </resources>

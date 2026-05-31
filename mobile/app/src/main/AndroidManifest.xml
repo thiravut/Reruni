@@ -26,8 +26,11 @@
         android:usesCleartextTraffic="true"
         android:theme="@style/Theme.TiktokRerun">
 
+        <!-- Launcher = OnboardingActivity. On launch it checks for paired
+             creds and finishes immediately into MainActivity when present,
+             so paired users never see the onboarding flicker. -->
         <activity
-            android:name=".MainActivity"
+            android:name=".OnboardingActivity"
             android:exported="true"
             android:screenOrientation="portrait">
             <intent-filter>
@@ -35,6 +38,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
 
         <activity
             android:name=".SettingsActivity"

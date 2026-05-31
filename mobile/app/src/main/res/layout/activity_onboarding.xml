@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Onboarding screen. Single Activity — when the user pairs (or already has
+     paired credentials at launch), we finish() and start HomeActivity. The
+     content is intentionally minimal: a centered logo, a three-step recipe,
+     and the QR scan CTA. Matches reruni.com landing visually. -->
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/reruni_bg"
+    android:fitsSystemWindows="true"
+    android:paddingHorizontal="28dp"
+    android:paddingVertical="24dp">
+
+    <!-- Centered logo block. The hero is a single TextView so we can stack
+         "Rerun-i" with the "i" tinted accent via a Spannable in code. -->
+    <TextView
+        android:id="@+id/onboardingLogo"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:fontFamily="sans-serif"
+        android:letterSpacing="-0.03"
+        android:text="Rerun-i"
+        android:textColor="@color/reruni_fg"
+        android:textSize="48sp"
+        android:textStyle="bold"
+        app:layout_constraintBottom_toTopOf="@id/onboardingTagline"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_chainStyle="packed" />
+
+    <TextView
+        android:id="@+id/onboardingTagline"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:gravity="center"
+        android:lineSpacingExtra="3dp"
+        android:text="@string/onboarding_title"
+        android:textColor="@color/reruni_muted"
+        android:textSize="15sp"
+        app:layout_constraintBottom_toTopOf="@id/onboardingStepsCard"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/onboardingLogo" />
+
+    <!-- Connection instructions card. Subtle outline like the landing
+         feature blocks. -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/onboardingStepsCard"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="28dp"
+        app:cardBackgroundColor="@color/reruni_surface_subtle"
+        app:cardCornerRadius="20dp"
+        app:cardElevation="0dp"
+        app:contentPadding="20dp"
+        app:layout_constraintBottom_toTopOf="@id/onboardingScanButton"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/onboardingTagline"
+        app:strokeColor="@color/reruni_border"
+        app:strokeWidth="1dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:lineSpacingExtra="5dp"
+                android:text="@string/onboarding_step_1"
+                android:textColor="@color/reruni_fg"
+                android:textSize="15sp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:lineSpacingExtra="5dp"
+                android:text="@string/onboarding_step_2"
+                android:textColor="@color/reruni_fg"
+                android:textSize="15sp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:lineSpacingExtra="5dp"
+                android:text="@string/onboarding_step_3"
+                android:textColor="@color/reruni_fg"
+                android:textSize="15sp" />
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+    <!-- Primary CTA. Accent rose pink, full width. -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/onboardingScanButton"
+        android:layout_width="0dp"
+        android:layout_height="60dp"
+        android:layout_marginBottom="8dp"
+        android:backgroundTint="@color/reruni_accent"
+        android:fontFamily="sans-serif-medium"
+        android:letterSpacing="0.02"
+        android:text="@string/onboarding_scan_cta"
+        android:textColor="@color/reruni_accent_fg"
+        android:textSize="16sp"
+        app:cornerRadius="16dp"
+        app:layout_constraintBottom_toTopOf="@id/onboardingManualEntry"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        tools:ignore="HardcodedText" />
+
+    <!-- Secondary path: manual creds entry → SettingsActivity. -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/onboardingManualEntry"
+        style="@style/Widget.Material3.Button.TextButton"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="@string/onboarding_manual_entry"
+        android:textColor="@color/reruni_muted"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:rippleColor="@color/reruni_border" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

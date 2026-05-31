@@ -1,20 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
 
-    <style name="Theme.TiktokRerun" parent="Theme.Material3.DayNight.NoActionBar">
-        <item name="colorPrimary">@color/brand_primary</item>
-        <item name="colorOnPrimary">#FF00181A</item>
-        <item name="colorPrimaryContainer">#FF0F4F49</item>
-        <item name="colorOnPrimaryContainer">#FFB8F5EE</item>
-        <item name="colorSecondary">@color/brand_accent</item>
-        <item name="colorOnSecondary">#FFFFFFFF</item>
-        <item name="android:colorBackground">@color/bg_light</item>
-        <item name="colorSurface">@color/surface_light</item>
-        <item name="colorSurfaceVariant">@color/surface_variant_light</item>
-        <item name="colorOnSurface">@color/on_surface_light</item>
-        <item name="colorOnSurfaceVariant">@color/on_surface_muted_light</item>
-        <item name="android:statusBarColor">?android:attr/colorBackground</item>
-        <item name="android:windowLightStatusBar" tools:targetApi="m">true</item>
+    <!-- Forced dark theme matching reruni.com landing palette. We don't
+         inherit DayNight because the landing is dark-only — branching into
+         a light variant just for the app would diverge the two surfaces. -->
+    <style name="Theme.TiktokRerun" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">@color/reruni_accent</item>
+        <item name="colorOnPrimary">@color/reruni_accent_fg</item>
+        <item name="colorPrimaryContainer">#33FB7185</item>
+        <item name="colorOnPrimaryContainer">@color/reruni_fg</item>
+        <item name="colorSecondary">@color/reruni_accent</item>
+        <item name="colorOnSecondary">@color/reruni_accent_fg</item>
+        <item name="colorError">@color/reruni_danger</item>
+        <item name="colorOnError">@color/reruni_fg</item>
+        <item name="android:colorBackground">@color/reruni_bg</item>
+        <item name="colorSurface">@color/reruni_bg</item>
+        <item name="colorSurfaceVariant">@color/reruni_surface_subtle</item>
+        <item name="colorOnSurface">@color/reruni_fg</item>
+        <item name="colorOnSurfaceVariant">@color/reruni_muted</item>
+        <item name="colorOutline">@color/reruni_border</item>
+        <item name="colorOutlineVariant">@color/reruni_border</item>
+        <item name="android:statusBarColor">@color/reruni_bg</item>
+        <item name="android:navigationBarColor">@color/reruni_bg</item>
+        <item name="android:windowLightStatusBar" tools:targetApi="m">false</item>
     </style>
 
     <style name="Theme.TiktokRerun.Fullscreen" parent="Theme.TiktokRerun">
