@@ -18,6 +18,7 @@ import androidx.lifecycle.lifecycleScope
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 import com.rerun.tiktokrerun.databinding.ActivityMainBinding
+import com.rerun.tiktokrerun.script.ScriptStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -106,6 +107,21 @@ class MainActivity : AppCompatActivity() {
         observeOverlayLoopGoal()
         observeCaptcha()
         refreshUiState()
+        refreshAutomationScripts()
+    }
+
+    /**
+     * Background-fetch automation scripts so Autopilot picks up any
+     * server-side updates the operator published since last launch. Quiet
+     * on failure — [ScriptStore.getScript] falls back to the disk cache or
+     * the bundled baseline, so the next live still works offline.
+     */
+    private fun refreshAutomationScripts() {
+        if (prefs.serverUrl.isEmpty()) return
+        lifecycleScope.launch(Dispatchers.IO) {
+            val store = ScriptStore(applicationContext)
+            store.refresh(ScriptStore.PERSONAL_LIVE)
+        }
     }
 
     override fun onResume() {

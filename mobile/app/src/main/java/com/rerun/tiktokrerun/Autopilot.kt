@@ -11,6 +11,7 @@ import android.util.Log
 import android.view.accessibility.AccessibilityNodeInfo
 import com.rerun.tiktokrerun.script.ScriptContext
 import com.rerun.tiktokrerun.script.ScriptRunner
+import com.rerun.tiktokrerun.script.ScriptStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -19,7 +20,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
-import org.json.JSONObject
 import kotlin.coroutines.resume
 
 enum class AutopilotState { Idle, Running, Failed, Done }
@@ -253,12 +253,18 @@ object Autopilot {
     private suspend fun runFlow(context: Context, launchIntent: Intent) {
         state.value = AutopilotState.Running
 
-        // V1 Personal is now executed from a JSON script (Phase A of the
-        // server-driven automation refactor — see project memory). The
-        // baseline lives in res/raw/script_personal_live_v1.json; future
-        // updates ship from the backend without an APK rebuild.
-        val script = loadBundledScript(context, R.raw.script_personal_live_v1) ?: run {
-            return fail("โหลด script_personal_live_v1 ไม่สำเร็จ")
+        // V1 Personal is executed from a JSON script. ScriptStore returns the
+        // freshest copy it has — disk cache (last server fetch) first, then
+        // the bundled baseline in res/raw. The fetch itself is triggered from
+        // MainActivity on launch + on demand; this code path is read-only.
+        val script = try {
+            ScriptStore(context).getScript(
+                ScriptStore.PERSONAL_LIVE,
+                R.raw.script_personal_live_v1,
+            )
+        } catch (t: Throwable) {
+            Log.e(TAG, "ScriptStore.getScript(personal_live) failed", t)
+            return fail("โหลด script_personal_live ไม่สำเร็จ")
         }
         val runner = ScriptRunner(buildScriptContext(context, launchIntent))
         when (val result = runner.execute(script)) {
@@ -330,14 +336,6 @@ object Autopilot {
             }
         }
 
-    private fun loadBundledScript(context: Context, resId: Int): JSONObject? = try {
-        val text = context.resources.openRawResource(resId)
-            .bufferedReader().use { it.readText() }
-        JSONObject(text)
-    } catch (t: Throwable) {
-        Log.e(TAG, "loadBundledScript($resId) failed", t)
-        null
-    }
 
     /**
      * Get the broadcast content (video) onto the screen so TikTok's screen-share
