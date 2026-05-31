@@ -129,5 +129,6 @@ class ScriptStore(private val context: Context) {
 
         /** Stable script names — server endpoints + cache files key off these. */
         const val PERSONAL_LIVE = "personal_live"
+        const val SHOPPABLE_VCAM = "shoppable_vcam"
     }
 }

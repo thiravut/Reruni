@@ -127,6 +127,49 @@ class ScriptRunner(private val ctx: ScriptContext) {
                 ctx.collapseTikTokOverlay()
                 Result.Success
             }
+            "swipe_to_find_tab" -> {
+                val ok = ctx.swipeToFindTab(
+                    tabLabel = step.getString("tab_label"),
+                    confirmMarkers = step.jsonStringArray("confirm_markers"),
+                    swipeX1 = step.getDouble("swipe_x1").toFloat(),
+                    swipeX2 = step.getDouble("swipe_x2").toFloat(),
+                    swipeY = step.getDouble("swipe_y").toFloat(),
+                    swipeDurationMs = step.optLong("swipe_duration_ms", 350L),
+                    maxIterations = step.optInt("max_iterations", 6),
+                    settleDelayMs = step.optLong("settle_delay_ms", 1800L),
+                    betweenSwipeDelayMs = step.optLong("between_swipe_delay_ms", 700L),
+                )
+                if (!ok && !step.optBoolean("ignore_failure", false)) {
+                    return Result.Failed(step.optString("fail", "swipe_to_find_tab gave up at step $index"))
+                }
+                Result.Success
+            }
+            "set_live_title_if_provided" -> {
+                ctx.setLiveTitleIfProvided()
+                Result.Success
+            }
+            "remove_pre_selected_products" -> {
+                val removed = ctx.removePreSelectedProducts()
+                if (removed > 0) ctx.warn("cleaned $removed pre-selected product(s)")
+                Result.Success
+            }
+            "search_in_picker_first_keyword" -> {
+                val found = ctx.searchInPickerFirstKeyword()
+                if (!found) ctx.warn(
+                    step.optString("warn_on_fail",
+                        "search input not found — falling back to scroll-less match on visible list")
+                )
+                Result.Success
+            }
+            "auto_pin_products" -> {
+                val pinned = ctx.autoPinProducts()
+                if (pinned <= 0) {
+                    return Result.Failed(step.optString("fail_if_zero",
+                        "auto-pin: ไม่พบ product ใดตรง keyword — เช็ค Settings + ดู dump"))
+                }
+                ctx.warn("auto-pinned $pinned product(s)")
+                Result.Success
+            }
             else -> {
                 Log.w(TAG, "unknown op '$op' at step $index — skipped")
                 Result.Success

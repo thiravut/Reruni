@@ -49,6 +49,47 @@ interface ScriptContext {
 
     suspend fun collapseTikTokOverlay()
 
+    // ── Phase C: domain-specific helpers exposed as DSL ops ─────────────────
+    // Inner retry / animation-settle / accessibility-tree logic stays in
+    // Kotlin; the script provides the structural parameters (labels, swipe
+    // coords, max iterations) and reads back the outcome.
+
+    /**
+     * Swipes a horizontal tab strip until a tab labeled [tabLabel] is visible,
+     * taps it, then checks whether [confirmMarkers] indicate we've landed on
+     * the intended screen. Used by the Device camera / Mobile gaming reveal
+     * loops. Returns true once any of [confirmMarkers] matches.
+     */
+    suspend fun swipeToFindTab(
+        tabLabel: String,
+        confirmMarkers: List<String>,
+        swipeX1: Float,
+        swipeX2: Float,
+        swipeY: Float,
+        swipeDurationMs: Long,
+        maxIterations: Int,
+        settleDelayMs: Long,
+        betweenSwipeDelayMs: Long,
+    ): Boolean
+
+    /** Best-effort wait until any of [labels] appears, identical to [waitForAny]
+     *  but used here for the manual fallback path's longer timeout. */
+    // (no new method — reuses waitForAny)
+
+    /** No-op when the autopilot has no live title queued for this run. */
+    suspend fun setLiveTitleIfProvided(): Boolean
+
+    /** Returns the number of products removed (0 when none were present). */
+    suspend fun removePreSelectedProducts(): Int
+
+    /** Searches the product picker for the first configured keyword.
+     *  Returns true when the search input was found and used. */
+    suspend fun searchInPickerFirstKeyword(): Boolean
+
+    /** Pins all configured keywords; returns the number actually pinned.
+     *  Returns 0 when no keywords are configured. */
+    suspend fun autoPinProducts(): Int
+
     /** Used by ops that want to log a warning but proceed (e.g. optional taps). */
     fun warn(message: String)
 }

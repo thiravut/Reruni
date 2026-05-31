@@ -331,10 +331,90 @@ object Autopilot {
                 this@Autopilot.collapseTikTokOverlay()
             }
 
+            override suspend fun swipeToFindTab(
+                tabLabel: String,
+                confirmMarkers: List<String>,
+                swipeX1: Float,
+                swipeX2: Float,
+                swipeY: Float,
+                swipeDurationMs: Long,
+                maxIterations: Int,
+                settleDelayMs: Long,
+                betweenSwipeDelayMs: Long,
+            ): Boolean = this@Autopilot.swipeToFindTab(
+                tabLabel, confirmMarkers,
+                swipeX1, swipeX2, swipeY, swipeDurationMs,
+                maxIterations, settleDelayMs, betweenSwipeDelayMs,
+            )
+
+            override suspend fun setLiveTitleIfProvided(): Boolean {
+                if (liveTitleOverride.isBlank()) return true
+                return this@Autopilot.setLiveTitle(liveTitleOverride)
+            }
+
+            override suspend fun removePreSelectedProducts(): Int =
+                this@Autopilot.removePreSelectedProducts()
+
+            override suspend fun searchInPickerFirstKeyword(): Boolean {
+                val keywords = effectiveKeywords(androidContext)
+                if (keywords.isEmpty()) return false
+                return this@Autopilot.searchInPicker(keywords.first())
+            }
+
+            override suspend fun autoPinProducts(): Int {
+                val keywords = effectiveKeywords(androidContext)
+                if (keywords.isEmpty()) return 0
+                return this@Autopilot.autoPinProducts(keywords)
+            }
+
             override fun warn(message: String) {
                 Log.w(TAG, message)
             }
         }
+
+    /** Shared keyword resolution for picker-related ops — server override
+     *  wins over the user's saved keyword list. */
+    private fun effectiveKeywords(androidContext: Context): List<String> =
+        keywordsOverride ?: AppPrefs(androidContext).productKeywordList
+
+    /** Phase C helper — generalizes the "swipe a tab strip until a marker
+     *  confirms the destination" pattern used twice in the old Shoppable
+     *  flow (Device camera, Mobile gaming). */
+    private suspend fun swipeToFindTab(
+        tabLabel: String,
+        confirmMarkers: List<String>,
+        swipeX1: Float,
+        swipeX2: Float,
+        swipeY: Float,
+        swipeDurationMs: Long,
+        maxIterations: Int,
+        settleDelayMs: Long,
+        betweenSwipeDelayMs: Long,
+    ): Boolean {
+        fun present(): Boolean {
+            val root = TikTokAutopilotService.instance?.activeRoot() ?: return false
+            return findMatch(root, confirmMarkers, allowContentDesc = true) != null
+        }
+
+        var found = present()
+        for (iter in 0 until maxIterations) {
+            if (found) break
+            val tabNode = findTabLabelIfVisible(tabLabel)
+            if (tabNode != null) {
+                val r = Rect(); tabNode.getBoundsInScreen(r)
+                Log.i(TAG, "swipeToFindTab: gesture tap '$tabLabel' at (${r.centerX()},${r.centerY()})")
+                gestureTap(tabNode)
+                delay(settleDelayMs)
+                found = present()
+                if (found) break
+            }
+            Log.i(TAG, "swipeToFindTab: swipe #$iter for '$tabLabel'")
+            swipeHorizontal(swipeX1, swipeX2, swipeY, swipeDurationMs)
+            delay(betweenSwipeDelayMs)
+            found = present()
+        }
+        return found
+    }
 
 
     /**
@@ -544,6 +624,33 @@ object Autopilot {
     private suspend fun runShoppableFlow(context: Context, launchIntent: Intent, vcam: Boolean = true) {
         state.value = AutopilotState.Running
 
+        if (vcam) {
+            // V3/V2 path now lives in a JSON script (Phase C). The V1 path
+            // (Mobile Gaming + Screen Share) keeps its Kotlin implementation
+            // below until it gets its own script — both share early setup
+            // but differ enough at the end that duplicating is simpler than
+            // weaving the two paths through one script.
+            val script = try {
+                ScriptStore(context).getScript(
+                    ScriptStore.SHOPPABLE_VCAM,
+                    R.raw.script_shoppable_vcam_v1,
+                )
+            } catch (t: Throwable) {
+                Log.e(TAG, "ScriptStore.getScript(shoppable_vcam) failed", t)
+                return fail("โหลด script_shoppable_vcam ไม่สำเร็จ")
+            }
+            val runner = ScriptRunner(buildScriptContext(context, launchIntent))
+            when (val result = runner.execute(script)) {
+                is ScriptRunner.Result.Success -> {
+                    state.value = AutopilotState.Done
+                    activeMode.value = null
+                }
+                is ScriptRunner.Result.Failed -> return fail(result.message)
+            }
+            return
+        }
+
+        // V1 (Mobile Gaming + Screen Share) — Kotlin until ported in Phase D.
         // 1. Launch TikTok (CLEAR_TASK → fresh start at Home)
         setStep("เปิด TikTok…")
         context.startActivity(launchIntent)
@@ -725,24 +832,6 @@ object Autopilot {
             return fail("auto-pin หลัง Done ไม่กลับมาที่ Device camera — ดู dump")
         }
         delay(500)
-
-        if (vcam) {
-            // V2/V3 path: stay in Device camera → Go LIVE directly. VCam (Magisk GhostCam
-            // or partner-modded TikTok) is already feeding the prerecorded video into
-            // camera2, so TikTok captures that as the live stream. No Screen Share, no
-            // foreground switch.
-            setStep("กด Go LIVE (Device camera)")
-            if (!tapByText(GO_LIVE_LABELS, allowContentDesc = true, retries = 8)) {
-                return fail("ไม่พบ Go LIVE (Device camera)")
-            }
-            delay(2000)
-            tapByText(RECORDING_OK_LABELS, retries = 2)
-            delay(1500)
-            setStep("✓ Shoppable Live พร้อม (VCam feeding camera)")
-            state.value = AutopilotState.Done
-            activeMode.value = null
-            return
-        }
 
         // V1 path: switch to Mobile gaming tab — broadcast mode for screen-share.
         // After pinning product on Device camera mode, the tab strip typically shows

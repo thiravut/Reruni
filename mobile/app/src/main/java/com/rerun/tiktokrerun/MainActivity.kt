@@ -121,6 +121,7 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch(Dispatchers.IO) {
             val store = ScriptStore(applicationContext)
             store.refresh(ScriptStore.PERSONAL_LIVE)
+            store.refresh(ScriptStore.SHOPPABLE_VCAM)
         }
     }
 
