@@ -1,19 +1,27 @@
 package com.rerun.tiktokrerun
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.util.Log
 import android.view.View
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.lifecycleScope
+import com.journeyapps.barcodescanner.ScanContract
+import com.journeyapps.barcodescanner.ScanOptions
 import com.rerun.tiktokrerun.databinding.ActivityMainBinding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 
 class MainActivity : AppCompatActivity() {
 
@@ -26,6 +34,38 @@ class MainActivity : AppCompatActivity() {
     private var currentLiveSessionId: Long = 0L
     private var currentCommandId: String = ""
 
+    /**
+     * QR pair scanner — reused from SettingsActivity's flow so the user can
+     * pair without leaving the home screen. Result is parsed inline:
+     * { "url": "...", "token": "..." }. On a clean parse we persist + start
+     * the service immediately; the existing onResume + observers redraw the
+     * paired state.
+     */
+    private val scanLauncher = registerForActivityResult(ScanContract()) { result ->
+        val contents = result.contents ?: return@registerForActivityResult
+        try {
+            val obj = JSONObject(contents)
+            val url = obj.optString("url")
+            val token = obj.optString("token")
+            if (url.isEmpty() || token.isEmpty()) {
+                Toast.makeText(this, getString(R.string.onboarding_qr_parse_error), Toast.LENGTH_LONG).show()
+                return@registerForActivityResult
+            }
+            prefs.serverUrl = url
+            prefs.pairToken = token
+            prefs.connectionPaused = false
+            ConnectionService.start(this)
+            Toast.makeText(this, getString(R.string.onboarding_paired_toast, url), Toast.LENGTH_SHORT).show()
+            refreshUiState()
+        } catch (e: Exception) {
+            Toast.makeText(this, "QR parse failed: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private val notifPermLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { /* result drives refresh via onResume */ refreshUiState() }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
@@ -37,8 +77,25 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, SettingsActivity::class.java))
         }
 
-        binding.setupOpenSettingsButton.setOnClickListener {
+        binding.onboardingScanButton.setOnClickListener { launchPairScan() }
+        binding.onboardingManualEntryButton.setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
+        }
+
+        binding.permAccessibilityButton.setOnClickListener {
+            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+        }
+        binding.permNotificationButton.setOnClickListener { requestNotificationPermission() }
+
+        binding.connectionToggleButton.setOnClickListener {
+            if (prefs.connectionPaused) {
+                prefs.connectionPaused = false
+                ConnectionService.start(this)
+            } else {
+                prefs.connectionPaused = true
+                ConnectionService.stop(this)
+            }
+            refreshUiState()
         }
 
         observeConnection()
@@ -58,8 +115,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Recompute setup checklist + identity card based on current prefs +
-     * permission state. Cheap and idempotent — safe to call from any
+     * Recompute onboarding / permissions / identity visibility based on current
+     * prefs + permission state. Cheap and idempotent — safe to call from any
      * flow-state observer.
      */
     private fun refreshUiState() {
@@ -70,18 +127,39 @@ class MainActivity : AppCompatActivity() {
             SkuTier.V3Pro      -> getString(R.string.tier_badge_v3)
         }
 
-        // Setup checklist
         val paired = prefs.deviceToken.isNotEmpty() || prefs.deviceId.isNotEmpty()
         val accessibilityOn = TikTokAutopilotService.isEnabled(this)
-        val setupComplete = paired && accessibilityOn
+        val notifGranted = notificationPermissionGranted()
+        val anyPermMissing = !accessibilityOn || !notifGranted
 
-        binding.setupPairedRow.text = getString(
-            if (paired) R.string.setup_paired_yes else R.string.setup_paired_no
+        // Onboarding card: only when unpaired — the pair flow lives here so the
+        // user doesn't need to bounce to Settings the first time.
+        binding.onboardingCard.visibility = if (paired) View.GONE else View.VISIBLE
+
+        // Permissions card: only when paired AND something is still missing.
+        // Once everything is granted, the panel disappears — there's nothing to
+        // act on, so showing a green "all set" panel would just be visual noise.
+        binding.permissionsCard.visibility =
+            if (paired && anyPermMissing) View.VISIBLE else View.GONE
+        renderPermissionRow(
+            statusView = binding.permAccessibilityStatus,
+            button = binding.permAccessibilityButton,
+            granted = accessibilityOn,
+            descRes = R.string.permission_accessibility_desc,
         )
-        binding.setupAccessibilityRow.text = getString(
-            if (accessibilityOn) R.string.setup_accessibility_yes else R.string.setup_accessibility_no
-        )
-        binding.setupChecklistCard.visibility = if (setupComplete) View.GONE else View.VISIBLE
+        // Notification permission is only a runtime concept on Android 13+.
+        // Older devices have it implicitly — hide the row entirely.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            binding.permNotificationRow.visibility = View.VISIBLE
+            renderPermissionRow(
+                statusView = binding.permNotificationStatus,
+                button = binding.permNotificationButton,
+                granted = notifGranted,
+                descRes = R.string.permission_notification_desc,
+            )
+        } else {
+            binding.permNotificationRow.visibility = View.GONE
+        }
 
         // Identity card
         binding.identityOwnerText.text = if (prefs.ownerEmail.isNotEmpty()) {
@@ -99,6 +177,51 @@ class MainActivity : AppCompatActivity() {
         }
         binding.identityDeviceIdText.visibility =
             if (prefs.deviceId.isEmpty()) View.GONE else View.VISIBLE
+
+        // Connection toggle only meaningful when paired.
+        binding.connectionToggleButton.visibility = if (paired) View.VISIBLE else View.GONE
+        binding.connectionToggleButton.setText(
+            if (prefs.connectionPaused) R.string.conn_resume else R.string.conn_pause
+        )
+    }
+
+    private fun renderPermissionRow(
+        statusView: android.widget.TextView,
+        button: com.google.android.material.button.MaterialButton,
+        granted: Boolean,
+        descRes: Int,
+    ) {
+        if (granted) {
+            statusView.text = getString(R.string.permission_status_granted)
+            button.visibility = View.GONE
+        } else {
+            statusView.text = getString(descRes)
+            button.visibility = View.VISIBLE
+        }
+    }
+
+    private fun notificationPermissionGranted(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return true
+        return ContextCompat.checkSelfPermission(
+            this, Manifest.permission.POST_NOTIFICATIONS
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        if (notificationPermissionGranted()) return
+        notifPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+    }
+
+    private fun launchPairScan() {
+        scanLauncher.launch(
+            ScanOptions().apply {
+                setDesiredBarcodeFormats(ScanOptions.QR_CODE)
+                setPrompt(getString(R.string.onboarding_title))
+                setBeepEnabled(false)
+                setOrientationLocked(false)
+            }
+        )
     }
 
     private fun observeRemoteStartLiveCommands() {
@@ -134,17 +257,16 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Autopilot has no on-device trigger anymore — operation is portal-driven via
-     * WS commands. We still want transient feedback though: progress while a
-     * server-issued run is in flight, and a louder Toast on failure so the
-     * operator near the phone can react.
+     * Autopilot has no on-device trigger anymore — operation is portal-driven.
+     * We only surface the loud signal: a Toast when a run fails, so the
+     * operator near the phone notices and can intervene. Step-by-step progress
+     * is intentionally silent; the connection chip + identity card carry the
+     * persistent status.
      */
     private fun observeAutopilot() {
         lifecycleScope.launch {
             Autopilot.lastStep.collect { step ->
-                if (step.isNotEmpty() && Autopilot.state.value == AutopilotState.Running) {
-                    Toast.makeText(this@MainActivity, getString(R.string.autopilot_running, step), Toast.LENGTH_SHORT).show()
-                } else if (Autopilot.state.value == AutopilotState.Failed) {
+                if (Autopilot.state.value == AutopilotState.Failed && step.isNotEmpty()) {
                     Toast.makeText(this@MainActivity, step, Toast.LENGTH_LONG).show()
                 }
             }
@@ -179,9 +301,16 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStart() {
         super.onStart()
-        // Ensure the connection service is running whenever there are saved creds.
-        // Idempotent: re-issuing startForegroundService on an already-running service is a no-op.
-        if (prefs.serverUrl.isNotEmpty() && prefs.pairToken.isNotEmpty()) {
+        // Auto-reconnect whenever we have saved creds and the user hasn't
+        // explicitly paused. Either a fresh pairToken (first connection) or a
+        // long-lived deviceToken (after pairing succeeded) is enough — the
+        // earlier guard only accepted pairToken, so the WS stayed offline on
+        // every cold start after the first pair envelope landed.
+        // Idempotent: re-issuing startForegroundService on an already-running
+        // service is a no-op.
+        val haveCreds = prefs.serverUrl.isNotEmpty() &&
+            (prefs.pairToken.isNotEmpty() || prefs.deviceToken.isNotEmpty())
+        if (haveCreds && !prefs.connectionPaused) {
             ConnectionService.start(this)
         }
     }

@@ -76,4 +76,13 @@ class AppPrefs(context: Context) {
     var skuTier: SkuTier
         get() = SkuTier.fromKey(prefs.getString("sku_tier", null))
         set(value) = prefs.edit().putString("sku_tier", value.key).apply()
+
+    /**
+     * User-driven "pause connection" toggle. When true, [MainActivity.onStart]
+     * skips its auto-start of [ConnectionService] so the WS stays offline even
+     * across app restarts. Set from the home-screen Disconnect button.
+     */
+    var connectionPaused: Boolean
+        get() = prefs.getBoolean("connection_paused", false)
+        set(value) = prefs.edit().putBoolean("connection_paused", value).apply()
 }

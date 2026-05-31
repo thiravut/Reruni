@@ -111,9 +111,73 @@
             </LinearLayout>
         </FrameLayout>
 
-        <!-- ── Setup checklist (only when something missing) ─ -->
+        <!-- ── First-launch onboarding (visible when unpaired) ─ -->
         <com.google.android.material.card.MaterialCardView
-            android:id="@+id/setupChecklistCard"
+            android:id="@+id/onboardingCard"
+            style="@style/Widget.TR.Card"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:visibility="gone"
+            tools:visibility="visible">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/onboarding_title"
+                    android:textAppearance="@style/TextAppearance.TR.SectionLabel" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:lineSpacingExtra="3dp"
+                    android:text="@string/onboarding_step_1"
+                    android:textAppearance="@style/TextAppearance.TR.Body" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:lineSpacingExtra="3dp"
+                    android:text="@string/onboarding_step_2"
+                    android:textAppearance="@style/TextAppearance.TR.Body" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:lineSpacingExtra="3dp"
+                    android:text="@string/onboarding_step_3"
+                    android:textAppearance="@style/TextAppearance.TR.Body" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/onboardingScanButton"
+                    style="@style/Widget.TR.Button.Tonal"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:text="@string/onboarding_scan_cta"
+                    android:textSize="16sp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/onboardingManualEntryButton"
+                    style="@style/Widget.Material3.Button.TextButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="@string/onboarding_manual_entry" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- ── Permissions status (visible when paired but anything missing) ─ -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/permissionsCard"
             style="@style/Widget.TR.Card.Subtle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -131,32 +195,92 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/setup_section"
+                    android:text="@string/permissions_section"
                     android:textAppearance="@style/TextAppearance.TR.SectionLabel" />
 
-                <TextView
-                    android:id="@+id/setupPairedRow"
+                <!-- Accessibility row -->
+                <LinearLayout
+                    android:id="@+id/permAccessibilityRow"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:text="@string/setup_paired_no"
-                    android:textAppearance="@style/TextAppearance.TR.Body" />
+                    android:layout_marginTop="12dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
 
-                <TextView
-                    android:id="@+id/setupAccessibilityRow"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:text="@string/setup_accessibility_no"
-                    android:textAppearance="@style/TextAppearance.TR.Body" />
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/setupOpenSettingsButton"
-                    style="@style/Widget.TR.Button.Tonal"
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="sans-serif-medium"
+                            android:text="@string/permission_accessibility_title"
+                            android:textColor="?attr/colorOnSurface"
+                            android:textSize="14sp" />
+
+                        <TextView
+                            android:id="@+id/permAccessibilityStatus"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/permission_accessibility_desc"
+                            android:textAppearance="@style/TextAppearance.TR.Caption" />
+                    </LinearLayout>
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/permAccessibilityButton"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:minWidth="0dp"
+                        android:paddingHorizontal="14dp"
+                        android:text="@string/permission_action_enable"
+                        android:textSize="13sp" />
+                </LinearLayout>
+
+                <!-- Notification row (Android 13+) -->
+                <LinearLayout
+                    android:id="@+id/permNotificationRow"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="14dp"
-                    android:text="@string/setup_open_settings_cta" />
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="sans-serif-medium"
+                            android:text="@string/permission_notification_title"
+                            android:textColor="?attr/colorOnSurface"
+                            android:textSize="14sp" />
+
+                        <TextView
+                            android:id="@+id/permNotificationStatus"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/permission_notification_desc"
+                            android:textAppearance="@style/TextAppearance.TR.Caption" />
+                    </LinearLayout>
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/permNotificationButton"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:minWidth="0dp"
+                        android:paddingHorizontal="14dp"
+                        android:text="@string/permission_action_enable"
+                        android:textSize="13sp" />
+                </LinearLayout>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
@@ -281,6 +405,23 @@
                     android:fontFamily="monospace"
                     android:textAppearance="@style/TextAppearance.TR.Caption"
                     tools:text="ID: 6d8dc3d9d4e2ba9c" />
+
+                <!-- Disconnect / Reconnect — only shown when paired. Lets the
+                     operator pause the WS without unpairing (state survives
+                     restarts via prefs.connectionPaused). -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/connectionToggleButton"
+                    style="@style/Widget.Material3.Button.TextButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="end"
+                    android:layout_marginTop="6dp"
+                    android:minWidth="0dp"
+                    android:paddingHorizontal="10dp"
+                    android:text="@string/conn_pause"
+                    android:textSize="13sp"
+                    android:visibility="gone"
+                    tools:visibility="visible" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 

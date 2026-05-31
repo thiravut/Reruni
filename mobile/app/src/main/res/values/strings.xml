@@ -16,6 +16,25 @@
     <string name="setup_accessibility_no">○ ยังไม่เปิด Accessibility</string>
     <string name="setup_open_settings_cta">ตั้งค่าให้ครบก่อนเริ่มไลฟ์</string>
 
+    <!-- First-launch onboarding (replaces setup checklist for unpaired devices) -->
+    <string name="onboarding_title">เชื่อมต่อกับ Control Panel</string>
+    <string name="onboarding_step_1">1. เปิด Rerun-i dashboard บน laptop หรือคอมพิวเตอร์</string>
+    <string name="onboarding_step_2">2. กด "สร้าง Pair QR"</string>
+    <string name="onboarding_step_3">3. กดปุ่มข้างล่างเพื่อสแกน — แอปจะบันทึกและเชื่อมต่อให้อัตโนมัติ</string>
+    <string name="onboarding_scan_cta">📷 สแกน QR</string>
+    <string name="onboarding_manual_entry">หรือกรอกเอง</string>
+    <string name="onboarding_qr_parse_error">QR ไม่ใช่ pair format ที่ถูกต้อง</string>
+    <string name="onboarding_paired_toast">✓ เชื่อมต่อ %1$s</string>
+
+    <!-- Permission status panel (shown when paired but missing required permissions) -->
+    <string name="permissions_section">สิทธิ์ที่ต้องเปิด</string>
+    <string name="permission_accessibility_title">Accessibility</string>
+    <string name="permission_accessibility_desc">ให้แอปกดปุ่มใน TikTok แทน</string>
+    <string name="permission_notification_title">Notification</string>
+    <string name="permission_notification_desc">แสดงสถานะ connection ที่ status bar</string>
+    <string name="permission_action_enable">เปิด</string>
+    <string name="permission_status_granted">✓ เปิดแล้ว</string>
+
     <string name="status_section">สถานะปัจจุบัน</string>
 
     <string name="identity_section">เชื่อมต่อกับบัญชี</string>
@@ -73,6 +92,8 @@
     <string name="conn_connecting">กำลังเชื่อมต่อ…</string>
     <string name="conn_connected">เชื่อมต่อ %1$s</string>
     <string name="conn_error">ผิดพลาด · %1$s</string>
+    <string name="conn_pause">⏸ ตัดการเชื่อมต่อ</string>
+    <string name="conn_resume">▶ เชื่อมต่ออีกครั้ง</string>
     <string name="receiving_video">⏬ กำลังโหลด \"%1$s\" จาก server…</string>
 
     <!-- SKU tier -->
