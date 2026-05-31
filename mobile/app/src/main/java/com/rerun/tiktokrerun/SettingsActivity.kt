@@ -81,6 +81,7 @@ class SettingsActivity : AppCompatActivity() {
                 else            -> SkuTier.V1Lite
             }
         }
+
         binding.deviceIdText.text = if (prefs.deviceId.isNotEmpty()) "Device ID: ${prefs.deviceId}" else "Device ID: (จะถูก assign หลัง connect)"
 
         binding.scanQrButton.setOnClickListener {
@@ -105,6 +106,10 @@ class SettingsActivity : AppCompatActivity() {
 
         binding.openAccessibilityButton.setOnClickListener {
             startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+        }
+
+        binding.openDiagnosticsCard.setOnClickListener {
+            startActivity(Intent(this, DiagnosticsActivity::class.java))
         }
     }
 

@@ -13,6 +13,24 @@ data class PlayCommand(
     val useOverlay: Boolean = false,
     val productKeywords: List<String> = emptyList(),
     val liveTitle: String = "",
+    /**
+     * How many times to replay the (server-stitched) video file before the
+     * broadcast ends. 0 / -1 = loop indefinitely (legacy behaviour). When
+     * positive, mobile counts playbacks and triggers end-live + WS notify
+     * when the count is reached.
+     */
+    val loopCount: Int = 0,
+    /**
+     * Command id from the server's issueCommand row, echoed back in `ack`
+     * envelopes once the broadcast actually ends.
+     */
+    val commandId: String = "",
+    /**
+     * Server's live_sessions row id. Mobile echoes it back inside the
+     * `live_ended` envelope so the server can close the matching row
+     * (api-contract §3.4).
+     */
+    val liveSessionId: Long = 0L,
 )
 
 data class StartLiveCommand(
@@ -25,6 +43,8 @@ data class StartLiveCommand(
 object WsBus {
     val state = MutableStateFlow(ConnState.Disconnected)
     val statusLine = MutableStateFlow<String>("")
+    /** Email of the portal user this device is paired to (server-supplied). */
+    val ownerEmail = MutableStateFlow<String>("")
     val playCommands = MutableSharedFlow<PlayCommand>(extraBufferCapacity = 8)
     val startLiveCommands = MutableSharedFlow<StartLiveCommand>(extraBufferCapacity = 4)
 }

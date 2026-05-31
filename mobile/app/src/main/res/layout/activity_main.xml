@@ -2,6 +2,7 @@
 <androidx.core.widget.NestedScrollView
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="?android:attr/colorBackground"
@@ -52,13 +53,24 @@
                             android:textSize="28sp"
                             android:textStyle="bold" />
 
-                        <TextView
+                        <FrameLayout
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="2dp"
-                            android:text="@string/hero_subtitle"
-                            android:textColor="#CCFFFFFF"
-                            android:textSize="13sp" />
+                            android:layout_marginTop="6dp"
+                            android:background="@drawable/bg_status_chip"
+                            android:paddingHorizontal="10dp"
+                            android:paddingVertical="4dp">
+
+                            <TextView
+                                android:id="@+id/tierBadge"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:fontFamily="sans-serif-medium"
+                                android:letterSpacing="0.06"
+                                android:text="@string/tier_badge_v1"
+                                android:textColor="#FFFFFFFF"
+                                android:textSize="11sp" />
+                        </FrameLayout>
                     </LinearLayout>
 
                     <com.google.android.material.button.MaterialButton
@@ -99,14 +111,17 @@
             </LinearLayout>
         </FrameLayout>
 
-        <!-- ── Quick start hint ─────────────────────────── -->
+        <!-- ── Setup checklist (only when something missing) ─ -->
         <com.google.android.material.card.MaterialCardView
+            android:id="@+id/setupChecklistCard"
             style="@style/Widget.TR.Card.Subtle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
+            android:visibility="gone"
             app:strokeColor="?attr/colorOutlineVariant"
-            app:strokeWidth="1dp">
+            app:strokeWidth="1dp"
+            tools:visibility="visible">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -116,178 +131,61 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/section_quick_start"
+                    android:text="@string/setup_section"
                     android:textAppearance="@style/TextAppearance.TR.SectionLabel" />
 
                 <TextView
-                    android:id="@+id/hintText"
+                    android:id="@+id/setupPairedRow"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:text="@string/hint_workflow"
+                    android:text="@string/setup_paired_no"
                     android:textAppearance="@style/TextAppearance.TR.Body" />
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
 
-        <!-- ── Autopilot card (PRIMARY action) ─────────── -->
-        <com.google.android.material.card.MaterialCardView
-            style="@style/Widget.TR.Card"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <FrameLayout
-                        android:layout_width="32dp"
-                        android:layout_height="32dp"
-                        android:background="@drawable/bg_section_icon">
-
-                        <TextView
-                            android:layout_width="match_parent"
-                            android:layout_height="match_parent"
-                            android:gravity="center"
-                            android:text="🤖"
-                            android:textSize="16sp" />
-                    </FrameLayout>
-
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="12dp"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="@string/section_autopilot"
-                            android:textColor="?attr/colorOnSurface"
-                            android:textSize="16sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="@string/section_autopilot_subtitle"
-                            android:textAppearance="@style/TextAppearance.TR.Caption" />
-                    </LinearLayout>
-                </LinearLayout>
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/autopilotShoppableButton"
-                    style="@style/Widget.TR.Button.Primary"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="16dp"
-                    android:text="@string/autopilot_start_shoppable" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/autopilotButton"
-                    style="@style/Widget.TR.Button.Text"
+                <TextView
+                    android:id="@+id/setupAccessibilityRow"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
-                    android:minHeight="40dp"
-                    android:text="@string/autopilot_start"
-                    android:textSize="13sp" />
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- ── Playlist card (secondary tool for Screen Share) ─ -->
-        <com.google.android.material.card.MaterialCardView
-            style="@style/Widget.TR.Card"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="@string/section_playlist"
-                        android:textAppearance="@style/TextAppearance.TR.SectionLabel" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/clearButton"
-                        style="@style/Widget.Material3.Button.IconButton"
-                        android:layout_width="40dp"
-                        android:layout_height="40dp"
-                        android:contentDescription="@string/clear_list"
-                        android:enabled="false"
-                        android:insetTop="0dp"
-                        android:insetBottom="0dp"
-                        app:icon="@android:drawable/ic_menu_delete"
-                        app:iconSize="20dp"
-                        app:iconTint="?attr/colorOnSurfaceVariant" />
-                </LinearLayout>
-
-                <TextView
-                    android:id="@+id/selectedVideoText"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:maxLines="8"
-                    android:scrollbars="vertical"
-                    android:text="@string/no_video_selected"
+                    android:text="@string/setup_accessibility_no"
                     android:textAppearance="@style/TextAppearance.TR.Body" />
 
                 <com.google.android.material.button.MaterialButton
-                    android:id="@+id/pickVideoButton"
+                    android:id="@+id/setupOpenSettingsButton"
                     style="@style/Widget.TR.Button.Tonal"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="14dp"
-                    android:text="@string/pick_video" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/startButton"
-                    style="@style/Widget.TR.Button.Outlined"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:enabled="false"
-                    android:text="@string/start_broadcast" />
+                    android:text="@string/setup_open_settings_cta" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- ── Smart Overlay POC card (tech-arch §3.5 verification) ─ -->
+        <!-- ── Identity (paired portal user + device record) ─ -->
+        <!-- Mobile is a passive companion now — operation is portal-driven.
+             This card answers the operator's primary on-device question:
+             "is this phone bound to the right account?". -->
         <com.google.android.material.card.MaterialCardView
-            style="@style/Widget.TR.Card.Subtle"
+            style="@style/Widget.TR.Card"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            app:strokeColor="?attr/colorOutlineVariant"
-            app:strokeWidth="1dp">
+            android:layout_marginTop="12dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical">
 
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/identity_section"
+                    android:textAppearance="@style/TextAppearance.TR.SectionLabel" />
+
+                <!-- User row -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
                     android:gravity="center_vertical"
                     android:orientation="horizontal">
 
@@ -300,7 +198,7 @@
                             android:layout_width="match_parent"
                             android:layout_height="match_parent"
                             android:gravity="center"
-                            android:text="🧪"
+                            android:text="👤"
                             android:textSize="16sp" />
                     </FrameLayout>
 
@@ -314,47 +212,77 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="@string/section_overlay"
+                            android:text="@string/identity_owner_label"
+                            android:textAppearance="@style/TextAppearance.TR.Caption" />
+
+                        <TextView
+                            android:id="@+id/identityOwnerText"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="sans-serif-medium"
+                            android:text="@string/identity_owner_unknown"
                             android:textColor="?attr/colorOnSurface"
-                            android:textSize="16sp"
-                            android:textStyle="bold" />
+                            android:textSize="15sp"
+                            tools:text="pond@example.com" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <!-- Device row -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <FrameLayout
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:background="@drawable/bg_section_icon">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:gravity="center"
+                            android:text="📱"
+                            android:textSize="16sp" />
+                    </FrameLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
 
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="@string/section_overlay_subtitle"
+                            android:text="@string/identity_device_label"
                             android:textAppearance="@style/TextAppearance.TR.Caption" />
+
+                        <TextView
+                            android:id="@+id/identityDeviceText"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="sans-serif-medium"
+                            android:textColor="?attr/colorOnSurface"
+                            android:textSize="15sp"
+                            tools:text="SM-A156E" />
                     </LinearLayout>
                 </LinearLayout>
 
+                <!-- Device ID (small monospaced — useful for support tickets) -->
                 <TextView
-                    android:id="@+id/overlayStatusText"
+                    android:id="@+id/identityDeviceIdText"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
-                    android:text="@string/overlay_status_idle"
-                    android:textAppearance="@style/TextAppearance.TR.Body" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/overlayToggleButton"
-                    style="@style/Widget.TR.Button.Tonal"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:text="@string/overlay_start" />
+                    android:fontFamily="monospace"
+                    android:textAppearance="@style/TextAppearance.TR.Caption"
+                    tools:text="ID: 6d8dc3d9d4e2ba9c" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- ── Debug footer (visible only in debug builds) ── -->
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/dumpUiButton"
-            style="@style/Widget.TR.Button.Text"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="@string/debug_dump_ui"
-            android:textColor="?attr/colorOnSurfaceVariant"
-            android:textSize="12sp"
-            android:visibility="gone" />
     </LinearLayout>
 </androidx.core.widget.NestedScrollView>

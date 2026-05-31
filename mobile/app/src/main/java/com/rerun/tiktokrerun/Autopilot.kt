@@ -35,7 +35,9 @@ enum class AutopilotMode {
 }
 
 /**
- * Coordinates the "Open TikTok → Go Live → Mobile Gaming → Screen Share" tap sequence.
+ * Coordinates the "Open TikTok → Go Live" tap sequence across tiers:
+ *   - V1 Lite (Personal/Shoppable) → Mobile Gaming + Screen Share + PlayerActivity/Overlay
+ *   - V2/V3 (ShoppableVCam) → Device camera + GhostCam/modded VCam feed
  *
  * Run on the main thread (UI selectors must be queried from the AccessibilityService).
  * Each step has a timeout; on miss, the whole flow fails fast so the user can correct manually.
@@ -47,6 +49,13 @@ object Autopilot {
     val state = MutableStateFlow(AutopilotState.Idle)
     val lastStep = MutableStateFlow("")
     val activeMode = MutableStateFlow<AutopilotMode?>(null)
+    /**
+     * Flips to `true` the moment the autopilot detects a TikTok captcha
+     * modal in the accessibility tree, and back to `false` once it's gone.
+     * UI can use this to surface a "solve the puzzle" toast / dialog; the
+     * (future) Magisk autoCaptcha module can also subscribe and auto-solve.
+     */
+    val captchaShowing = MutableStateFlow(false)
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var job: Job? = null
@@ -69,6 +78,9 @@ object Autopilot {
      */
     private var overlayVideoUri: android.net.Uri? = null
 
+    /** Loop budget passed to OverlayService (V1 path) — 0 = play forever. */
+    private var overlayLoopCount: Int = 0
+
     // Multilingual labels — TikTok 2026 Thai app + global fallbacks.
     // Order matters: more specific text first.
     private val HOME_TAB_LABELS         = listOf("Home", "หน้าหลัก", "For You", "สำหรับคุณ", "Following", "Friends")
@@ -86,14 +98,51 @@ object Autopilot {
     private val BUSINESS_ICON_LABELS    = listOf("Business", "ธุรกิจ")
     // Camera-specific icons that ONLY appear on Device camera mode (verified vs Mobile gaming screenshot).
     private val DEVICE_CAMERA_MARKERS   = listOf("Beautify", "Effects", "Flip", "Interact", "ปรับแต่ง", "เอฟเฟกต์")
-    private val ADD_PRODUCT_LABELS      = listOf("+ Add product", "Add product", "+ Add", "เพิ่มสินค้า", "Add Product")
+    // Both Layer 2 (commerce sheet) and Layer 3 (product manager) carry a
+    // button whose *text* label is "Add products" — the "+" prefix that
+    // appears at Layer 3 is rendered as a separate icon (ImageView with no
+    // text/desc), so accessibility sees the same string at both layers.
+    // We can't distinguish layers by label match; sequence + fixed settle
+    // delays decide which layer we're on.
+    private val OPEN_PRODUCT_MANAGER_LABELS = listOf("Add products", "Add Product", "เพิ่มสินค้า", "Manage products", "จัดการสินค้า")
+    private val ADD_PRODUCT_LABELS          = OPEN_PRODUCT_MANAGER_LABELS
+    // Per-row remove control in product manager — used to clear pre-selected
+    // products before we add the operator's keyword target.
+    private val REMOVE_PRODUCT_LABELS   = listOf("Remove", "Delete", "ลบ", "นำออก", "Remove product", "ลบสินค้า")
     private val DONE_LABELS             = listOf("Done", "เสร็จสิ้น", "เสร็จ", "ตกลง", "OK")
+
+    // End-live flow — tapped in TikTok's broadcast UI after server-stitched
+    // loop_count playbacks finish. Two stages: initial close button, then
+    // confirmation in modal. Labels include English + Thai variants seen in
+    // TikTok 2026.
+    private val END_LIVE_LABELS         = listOf("End", "End live", "End LIVE", "End broadcast", "Stop live", "Stop LIVE", "Stop broadcast", "ปิดไลฟ์", "จบไลฟ์", "ปิด LIVE", "สิ้นสุดไลฟ์", "หยุดไลฟ์", "หยุด")
+    private val END_LIVE_CONFIRM_LABELS = listOf("End", "End LIVE", "End broadcast", "Confirm", "ยืนยัน", "ปิดไลฟ์", "ใช่", "Yes", "OK", "ตกลง")
+
+    // Captcha markers — TikTok throws a slide-puzzle / slider-verify modal
+    // periodically (login, mid-broadcast, suspicious-activity). Markers below
+    // were collected from community reports; tune via dumpVisibleNodesToLog
+    // when we capture a real one. Matched against text + contentDescription
+    // anywhere in the active accessibility tree.
+    private val CAPTCHA_MARKERS = listOf(
+        "Drag the puzzle",
+        "Slide to verify",
+        "Slide right to complete",
+        "Verify to continue",
+        "ลากชิ้นส่วน",
+        "ลากปริศนา",
+        "เลื่อนเพื่อยืนยัน",
+        "เลื่อนไปทางขวา",
+        "ยืนยันตัวตน",
+        "captcha",
+        "puzzle",
+    )
 
     /**
      * Start the autopilot flow.
-     * @param mode Personal (no pin) or Shoppable (Creator Centre with product pin).
-     * @param followup intent to launch after broadcast is set up (typically PlayerActivity with
-     *                 the video that should be captured by TikTok's screen-share).
+     * @param mode Personal (no pin / Mobile Gaming), Shoppable (V1 pin + Mobile Gaming + Screen Share),
+     *             or ShoppableVCam (V2/V3 Device camera + VCam feed).
+     * @param followup intent to launch after Screen Share starts (typically PlayerActivity); ignored
+     *                 when overlayVideoUri is non-null or in ShoppableVCam mode.
      */
     fun start(
         context: Context,
@@ -102,6 +151,7 @@ object Autopilot {
         productKeywords: List<String> = emptyList(),
         liveTitle: String = "",
         overlayVideoUri: android.net.Uri? = null,
+        overlayLoopCount: Int = 0,
     ) {
         if (state.value == AutopilotState.Running) {
             Log.w(TAG, "already running")
@@ -119,6 +169,7 @@ object Autopilot {
         // Overlay mode supersedes foreground-switch followup intent.
         this.followupIntent = if (overlayVideoUri != null) null else followup
         this.overlayVideoUri = overlayVideoUri
+        this.overlayLoopCount = overlayLoopCount
         keywordsOverride = productKeywords.takeIf { it.isNotEmpty() }
         liveTitleOverride = liveTitle
         activeMode.value = mode
@@ -140,75 +191,115 @@ object Autopilot {
         activeMode.value = null
     }
 
+    /**
+     * Drive the end-of-broadcast UI in TikTok. Called by [MainActivity]'s
+     * loop-goal observer when the server-stitched playback finishes its
+     * configured cycles (api-contract §3.4 — `live_ended`). Posts back to
+     * [state]/[lastStep] like any other flow so the UI Toast layer surfaces
+     * progress.
+     */
+    fun endLive(context: Context) {
+        if (!TikTokAutopilotService.isEnabled(context)) {
+            fail("ยังไม่ได้เปิด Accessibility permission")
+            return
+        }
+        val launchIntent = pickTikTokLaunchIntent(context)
+        if (launchIntent == null) {
+            fail("ไม่พบ TikTok app บนเครื่อง")
+            return
+        }
+        job?.cancel()
+        job = scope.launch { runEndLiveFlow(context, launchIntent) }
+    }
+
+    private suspend fun runEndLiveFlow(context: Context, launchIntent: Intent) {
+        state.value = AutopilotState.Running
+
+        // 1. Bring TikTok back to foreground — when PlayerActivity or the
+        //    VCam pipeline was driving the broadcast, TikTok may be in the
+        //    background. Need its UI in front before we can tap the end button.
+        setStep("จบไลฟ์: เปิด TikTok…")
+        context.startActivity(launchIntent)
+        delay(2000)
+
+        // 2. Find + tap the end-live button. Position varies across TikTok
+        //    versions and broadcast modes (Mobile Gaming vs Device camera) so
+        //    we rely on label matching rather than fixed coordinates.
+        setStep("กด End live")
+        if (!tapByText(END_LIVE_LABELS, allowContentDesc = true, retries = 8, verifyDisappear = true)) {
+            return fail("ไม่พบปุ่ม End live — ดู dump")
+        }
+        delay(1200)
+
+        // 3. Confirmation dialog ("Are you sure you want to end?"). Best-
+        //    effort — some TikTok variants end without confirmation. Don't
+        //    fail the run if the dialog isn't present.
+        setStep("ยืนยัน End")
+        tapByText(END_LIVE_CONFIRM_LABELS, allowContentDesc = true, retries = 4)
+        delay(1500)
+
+        setStep("✓ Live จบแล้ว")
+        state.value = AutopilotState.Done
+        activeMode.value = null
+    }
+
+    /**
+     * V1 Personal flow — Mobile Gaming + Screen Share + foreground player (no pin product).
+     * Used by Lite tier with stock TikTok + Smart Overlay.
+     */
     private suspend fun runFlow(context: Context, launchIntent: Intent) {
         state.value = AutopilotState.Running
 
-        // 1. Launch TikTok (CLEAR_TASK already set in pickTikTokLaunchIntent → fresh start at Home)
         setStep("เปิด TikTok…")
         context.startActivity(launchIntent)
-        delay(3000)  // wait for TikTok to load to For You
+        delay(3000)
 
-        // 1.5 Safety net: confirm we have bottom nav + tap Home tab (idempotent)
         setStep("กลับไปหน้าหลัก TikTok…")
         ensureTikTokHome()
         delay(500)
 
-        // 2. Tap "+" (create button)
         setStep("กด + (Create)")
         if (!tapByText(CREATE_BUTTON_LABELS, allowContentDesc = true, retries = 8)) {
             return fail("ไม่พบปุ่ม + บน TikTok — UI อาจเปลี่ยน")
         }
-        delay(2500)  // camera screen has heavier load + animation
+        delay(2500)
 
-        // 3. Tap "LIVE" tab in the create menu (icon+label horizontal scroller)
         setStep("กด LIVE")
         if (!tapByText(LIVE_TAB_LABELS, allowContentDesc = true, retries = 8)) {
             return fail("ไม่พบแท็บ LIVE — ดู logcat tag 'Autopilot' สำหรับ node dump")
         }
         delay(1800)
 
-        // 4. Tap "Mobile Gaming" tab
         setStep("กด Mobile Gaming")
         if (!tapByText(MOBILE_GAMING_LABELS, allowContentDesc = true, retries = 8)) {
             return fail("ไม่พบแท็บ Mobile Gaming — บัญชีอาจไม่มีสิทธิ์ Gaming category")
         }
         delay(1800)
 
-        // 5. Tap "Go LIVE" — opens the broadcast-mode chooser where Screen Share lives
         setStep("กด Go LIVE")
         if (!tapByText(GO_LIVE_LABELS, allowContentDesc = true, retries = 8)) {
             return fail("ไม่พบปุ่ม Go LIVE — UI อาจมีหน้า setup เพิ่มเติม (title/game) ก่อน")
         }
-        delay(2000)  // mode chooser needs animation time
+        delay(2000)
 
-        // 6. Tap "Screen Share"
         setStep("กด Screen Share")
         if (!tapByText(SCREEN_SHARE_LABELS, allowContentDesc = true, retries = 8)) {
             return fail("ไม่พบ Screen Share — UI อาจเปลี่ยน หรือบัญชีไม่มีสิทธิ์")
         }
         delay(1500)
 
-        // 7. System "Start recording?" confirmation dialog (MediaProjection)
         setStep("กด Start (system dialog)")
         if (!tapByText(RECORDING_OK_LABELS)) {
-            // Not necessarily a failure — TikTok may show its own confirm first
             Log.w(TAG, "no recording dialog button found yet; proceeding")
         }
         delay(800)
 
-        // 8. Final TikTok confirmation (best-effort)
         tapByText(RECORDING_OK_LABELS, retries = 2)
 
-        // 9. Place broadcast content on top of TikTok during the countdown.
-        //    Smart Overlay path: SAW overlay (TikTok stays foreground, no flash).
-        //    Legacy path: foreground-switch to PlayerActivity / MainActivity.
         deliverBroadcastContent(context)
 
-        // 10. Wait for the broadcast countdown to end + TikTok's floating control panel
-        // to appear, then collapse it (tap profile icon at top-left) so the panel
-        // doesn't show in the broadcast.
         setStep("ซ่อน TikTok overlay panel…")
-        delay(4000)  // countdown ~3s + panel appearance buffer
+        delay(4000)
         collapseTikTokOverlay()
 
         setStep("✓ พร้อม Live")
@@ -219,11 +310,12 @@ object Autopilot {
     /**
      * Get the broadcast content (video) onto the screen so TikTok's screen-share
      * captures it. Picks Smart Overlay if [overlayVideoUri] was set; otherwise
-     * falls back to the legacy foreground-switch path.
+     * falls back to the foreground-switch path.
      */
     private fun deliverBroadcastContent(context: Context) {
         val uri = overlayVideoUri
         overlayVideoUri = null
+        overlayLoopCount = 0
         if (uri != null) {
             setStep("เปิด Smart Overlay…")
             OverlayService.startVideo(context, uri)
@@ -269,26 +361,10 @@ object Autopilot {
         val root = tiktokWin.root ?: return
         val winBounds = Rect()
         tiktokWin.getBoundsInScreen(winBounds)
-        Log.i(TAG, "TikTok overlay bounds: $winBounds")
 
         val all = mutableListOf<AccessibilityNodeInfo>()
         collectNodes(root, all)
 
-        // Dump for selector tuning when this step needs iteration
-        Log.i(TAG, "── TikTok overlay (${all.size} nodes) ──")
-        all.forEach { n ->
-            val text = n.text?.toString()
-            val desc = n.contentDescription?.toString()
-            val id = n.viewIdResourceName
-            if (text != null || desc != null || id != null || n.isClickable) {
-                val r = Rect(); n.getBoundsInScreen(r)
-                Log.i(TAG, "  text='$text' desc='$desc' id='$id' clickable=${n.isClickable} bounds=$r")
-            }
-        }
-        Log.i(TAG, "── end overlay dump ──")
-
-        // Strategy: profile icon is rendered in the top-left quadrant of the panel.
-        // Pick the clickable node whose bounds fully sit in the top-left quadrant.
         val midX = winBounds.left + winBounds.width() / 2
         val midY = winBounds.top + winBounds.height() / 2
         val topLeftClickable = all
@@ -297,7 +373,7 @@ object Autopilot {
                 val r = Rect(); n.getBoundsInScreen(r)
                 r.right <= midX && r.bottom <= midY && !r.isEmpty
             }
-            ?: all.firstOrNull { it.isClickable }  // any-clickable fallback
+            ?: all.firstOrNull { it.isClickable }
 
         if (topLeftClickable == null) {
             Log.w(TAG, "no clickable node in TikTok overlay — cannot collapse")
@@ -336,6 +412,14 @@ object Autopilot {
         verifyDelayMs: Long = 600,
     ): Boolean {
         for (attempt in 0 until retries) {
+            // Before each retry, see if TikTok has interrupted us with a
+            // captcha modal. If so wait for it to clear (operator solves
+            // manually or Magisk autoCaptcha module solves) before we
+            // continue tapping — otherwise we'd hit the captcha's slider
+            // by accident or fail silently.
+            if (isCaptchaShowing()) {
+                if (!waitOutCaptcha()) return false
+            }
             val root = TikTokAutopilotService.instance?.activeRoot()
             if (root != null) {
                 val match = findMatch(root, labels, allowContentDesc)
@@ -421,14 +505,13 @@ object Autopilot {
         node.text?.toString() ?: node.contentDescription?.toString() ?: "?"
 
     /**
-     * Shoppable Live flow — Profile → TikTok Shop Creator Centre → Create now → LIVE →
-     * Start your shoppable LIVE → +Add product (user picks) → Done×2 → Mobile gaming → Go LIVE
-     * → Screen Share → system dialog → followup intent → collapse overlay.
-     *
-     * The Add-product step is semi-manual: Autopilot opens the picker, then polls for
-     * the post-pin "Mobile gaming" tab to reappear (= user finished + tapped Done×2).
+     * Shoppable VCam Live flow — + → LIVE → Device camera → business icon (Details) →
+     * commerce sheet → product manager → product picker → search + tap-Add → Done × N →
+     * back to Device camera → Go LIVE. Magisk VCam supplies the prerecorded video to
+     * camera2 so TikTok captures it as the live stream. Native portrait 9:16, no
+     * Screen Share, no foreground switch.
      */
-    private suspend fun runShoppableFlow(context: Context, launchIntent: Intent, vcam: Boolean) {
+    private suspend fun runShoppableFlow(context: Context, launchIntent: Intent, vcam: Boolean = true) {
         state.value = AutopilotState.Running
 
         // 1. Launch TikTok (CLEAR_TASK → fresh start at Home)
@@ -509,106 +592,123 @@ object Autopilot {
         if (!tapByText(BUSINESS_ICON_LABELS, allowContentDesc = true, retries = 8)) {
             return fail("ไม่พบ business icon (Details) — ดู dump")
         }
-        delay(2800)
 
-        // 5b. Commerce sheet open. Detect which case we're in:
-        //     Case A — has products: sheet shows product list + "+ Add products" (outlined) + "Done" (filled red).
-        //              We just tap Done to confirm and close.
-        //     Case B — empty: sheet shows "No products yet" + "+ Add products" (only button).
-        //              We tap "+ Add products" → user picks in picker → taps Done×2 → returns.
-        // Differentiator: presence of "Done" button at this stage.
-        val rootAfterBusiness = TikTokAutopilotService.instance?.activeRoot()
-        val hasDone = rootAfterBusiness != null &&
-            findMatch(rootAfterBusiness, DONE_LABELS, allowContentDesc = true) != null
+        // 5b. There are 3 sheet layers between Business icon and the actual
+        //     product picker — each animates in separately. We must traverse
+        //     them in order, never short-circuiting on label match alone:
+        //
+        //     Layer 2 (commerce sheet)    — has "Add products" (NO "+")
+        //         tap → wait → arrives at
+        //     Layer 3 (product manager)   — list of pre-selected + "+ Add products"
+        //         remove pre-selected → tap "+ Add products" → wait → arrives at
+        //     Layer 4 (product picker)    — list of available products to add
+        //         find keyword → tap Add → returns to Layer 3 → Done → Layer 2 → Done → Device camera
+        //
+        //     Each transition needs ~3-5s settle delay because TikTok's
+        //     bottom-sheet animation finishes before the next layer's onClick
+        //     handlers are wired (we observed this in fail dumps where the
+        //     button label was in the tree but tap had no effect).
 
-        if (hasDone) {
-            // Case A: products already selected, just confirm.
-            setStep("กด Done (มี product อยู่แล้ว)")
-            if (!tapByText(DONE_LABELS, allowContentDesc = true, retries = 4)) {
-                return fail("Case A: ไม่พบ Done button — ดู dump")
-            }
-            delay(1500)
-        } else {
-            // Case B: empty list. Tap + Add products → AUTO-PIN by keyword → Done × 2.
-            setStep("กด + Add products (ยังไม่มี product)")
-            var tappedAddProduct = false
-            for (round in 0 until 3) {
-                // verifyDisappear: the "+ Add products" label is a Compose button —
-                // a synthetic ACTION_CLICK on its wrapper returns true but the button
-                // doesn't react. Verify the label is gone after each tap, otherwise
-                // fall through to the next strategy (gesture).
-                if (tapByText(
-                        ADD_PRODUCT_LABELS,
-                        allowContentDesc = true,
-                        retries = 3,
-                        intervalMs = 400,
-                        verifyDisappear = true,
-                    )
-                ) {
-                    tappedAddProduct = true
-                    delay(2500)  // wait for picker to fully open
-                    break
-                }
-                delay(800)
-            }
-            if (!tappedAddProduct) {
-                return fail("Case B: ไม่พบ + Add products button — ดู dump")
-            }
+        setStep("รอ commerce sheet เปิด (Layer 2)…")
+        if (!waitForAny(OPEN_PRODUCT_MANAGER_LABELS, timeoutMs = 8_000L, intervalMs = 300)) {
+            return fail("commerce sheet (Layer 2) ไม่เปิด — กด Business แล้วไม่เห็น 'Add products' — ดู dump")
+        }
+        delay(3500)  // settle: button onClick wires after animation
 
-            // Auto-pin products. Prefer server-sent keywords (per-run); fall back to AppPrefs.
-            val prefs = AppPrefs(context)
-            val keywords = keywordsOverride ?: prefs.productKeywordList
-            if (keywords.isEmpty()) {
-                return fail("ไม่มี Product keywords — ใส่ใน web dashboard หรือ Settings ก่อน")
-            }
-            Log.i(TAG, "auto-pin keywords (${if (keywordsOverride != null) "from web" else "from prefs"}): $keywords")
-
-            setStep("🛍 auto-pin ${keywords.size} product(s)")
-            val pinned = autoPinProducts(keywords)
-            if (pinned == 0) {
-                return fail("auto-pin: ไม่พบ product ใดตรง keyword — เช็ค Settings + ดู dump")
-            }
-            Log.i(TAG, "auto-pinned $pinned/${keywords.size} products")
-            delay(1200)
-
-            // Close picker → back to commerce sheet (which now has Done button).
-            setStep("กด Done (ปิด picker)")
-            if (!tapByText(DONE_LABELS, allowContentDesc = true, retries = 4)) {
-                return fail("ไม่พบ Done ปิด picker")
-            }
-            delay(1500)
-
-            // Close commerce sheet → back to Device camera setup.
-            setStep("กด Done (ปิด commerce sheet)")
-            if (!tapByText(DONE_LABELS, allowContentDesc = true, retries = 4)) {
-                // Optional — some flows have only one Done step. Verify by waiting for markers.
-                Log.i(TAG, "no 2nd Done found — checking if already returned to Device camera")
-            }
-            delay(1000)
-
-            // Verify return to Device camera setup.
-            val resumed = waitForAny(DEVICE_CAMERA_MARKERS, timeoutMs = 10_000L)
-            if (!resumed) {
-                return fail("auto-pin หลัง Done ไม่กลับมาที่ Device camera — ดู dump")
-            }
-            delay(500)
+        // Layer 2 → 3. verifyDisappear is OFF: Layer 3 also has an "Add
+        // products" button (the "+" is icon-only), so the label persists in
+        // the tree after navigation and would falsely trip the verify check.
+        // Trust the sequence + fixed settle delay instead.
+        setStep("กด 'Add products' (Layer 2 → 3)")
+        if (!tapByText(OPEN_PRODUCT_MANAGER_LABELS, allowContentDesc = true, retries = 4)) {
+            return fail("Layer 2: ไม่พบ 'Add products' — ดู dump")
         }
 
+        setStep("รอ product manager render (Layer 3)…")
+        delay(5000)  // fixed wait — Layer 3 takes 3-5s per operator's observation
+
+        // Optional clean step: remove pre-selected products so the operator's
+        // keyword target is the only thing pinned (broker workflow expects
+        // each broadcast to start with a clean slate).
+        setStep("🧹 ลบ product ที่ค้างอยู่ (ถ้ามี)")
+        val removed = removePreSelectedProducts()
+        if (removed > 0) {
+            Log.i(TAG, "cleaned $removed pre-selected product(s)")
+            delay(1200)
+        }
+
+        // Layer 3 → 4. Same label as Layer 2, same reasoning — no verifyDisappear.
+        setStep("กด 'Add products' (Layer 3 → 4)")
+        if (!tapByText(ADD_PRODUCT_LABELS, allowContentDesc = true, retries = 4, intervalMs = 400)) {
+            return fail("Layer 3: ไม่พบ 'Add products' — ดู dump")
+        }
+
+        setStep("รอ product picker เปิด (Layer 4)…")
+        delay(5000)  // picker render + product list load
+
+        // Auto-pin: pick operator's keyword target from the picker list.
+        val prefs = AppPrefs(context)
+        val keywords = keywordsOverride ?: prefs.productKeywordList
+        if (keywords.isEmpty()) {
+            return fail("ไม่มี Product keywords — ใส่ใน web dashboard หรือ Settings ก่อน")
+        }
+        Log.i(TAG, "auto-pin keywords (${if (keywordsOverride != null) "from web" else "from prefs"}): $keywords")
+
+        // Default-load shows recent/suggested — type the keyword into
+        // the picker's search input first so the target product surfaces
+        // even if it's not in the initial visible list.
+        setStep("🔍 ค้นหา product '${keywords.first()}'")
+        val searched = searchInPicker(keywords.first())
+        if (!searched) {
+            Log.w(TAG, "search input not found — falling back to scroll-less match on visible list")
+        }
+
+        setStep("🛍 auto-pin ${keywords.size} product(s)")
+        val pinned = autoPinProducts(keywords)
+        if (pinned == 0) {
+            return fail("auto-pin: ไม่พบ product ใดตรง keyword — เช็ค Settings + ดู dump")
+        }
+        Log.i(TAG, "auto-pinned $pinned/${keywords.size} products")
+        delay(1500)
+
+        // Layer 4 → 3 (Done in picker)
+        setStep("กด Done (Layer 4 → 3)")
+        if (!tapByText(DONE_LABELS, allowContentDesc = true, retries = 4)) {
+            return fail("ไม่พบ Done ปิด picker")
+        }
+        delay(2000)
+
+        // Layer 3 → 2 (Done in product manager)
+        setStep("กด Done (Layer 3 → 2)")
+        if (!tapByText(DONE_LABELS, allowContentDesc = true, retries = 4)) {
+            Log.i(TAG, "no Done at Layer 3 — may have auto-collapsed")
+        }
+        delay(1500)
+
+        // Layer 2 → Device camera (auto-close or explicit Done)
+        // Some TikTok versions auto-close after picker Done; try one more
+        // Done tap best-effort then verify we're back on Device camera setup.
+        tapByText(DONE_LABELS, allowContentDesc = true, retries = 2)
+        delay(1500)
+        val resumed = waitForAny(DEVICE_CAMERA_MARKERS, timeoutMs = 10_000L)
+        if (!resumed) {
+            return fail("auto-pin หลัง Done ไม่กลับมาที่ Device camera — ดู dump")
+        }
+        delay(500)
+
         if (vcam) {
-            // V3 path: stay in Device camera → Go LIVE directly. VCam (Magisk GhostCam
-            // or equivalent) is already feeding the prerecorded video into camera2, so
-            // TikTok captures that as the live stream. No Screen Share, no overlay,
-            // no foreground switch.
-            setStep("กด Go LIVE (Device camera, V3)")
+            // V2/V3 path: stay in Device camera → Go LIVE directly. VCam (Magisk GhostCam
+            // or partner-modded TikTok) is already feeding the prerecorded video into
+            // camera2, so TikTok captures that as the live stream. No Screen Share, no
+            // foreground switch.
+            setStep("กด Go LIVE (Device camera)")
             if (!tapByText(GO_LIVE_LABELS, allowContentDesc = true, retries = 8)) {
                 return fail("ไม่พบ Go LIVE (Device camera)")
             }
             delay(2000)
-            // Some device-camera Go LIVE flows show a recording / mic confirmation
-            // dialog — best-effort tap. Doesn't fail if absent.
             tapByText(RECORDING_OK_LABELS, retries = 2)
             delay(1500)
-            setStep("✓ V3 Shoppable Live พร้อม (VCam feeding camera)")
+            setStep("✓ Shoppable Live พร้อม (VCam feeding camera)")
             state.value = AutopilotState.Done
             activeMode.value = null
             return
@@ -626,8 +726,7 @@ object Autopilot {
             if (mgVisible != null) {
                 val r = Rect(); mgVisible.getBoundsInScreen(r)
                 Log.i(TAG, "Mobile gaming tab visible at (${r.centerX()},${r.centerY()}) — tapping")
-                val gOk = gestureTap(mgVisible)
-                Log.i(TAG, "  gestureTap returned $gOk")
+                gestureTap(mgVisible)
                 delay(1800)
                 foundMobileGaming = true
                 break
@@ -641,14 +740,20 @@ object Autopilot {
         }
         delay(800)
 
-        // 8. Go LIVE
+        // Re-set live title — Mobile gaming has its own title field that
+        // doesn't inherit the value set at Device camera setup.
+        if (liveTitleOverride.isNotBlank()) {
+            setStep("📝 ตั้ง live title ซ้ำ (Mobile gaming)")
+            setLiveTitle(liveTitleOverride)
+            delay(800)
+        }
+
         setStep("กด Go LIVE")
         if (!tapByText(GO_LIVE_LABELS, allowContentDesc = true, retries = 8)) {
             return fail("ไม่พบ Go LIVE")
         }
         delay(2000)
 
-        // 11. Screen Share + system confirm — same as personal flow
         setStep("กด Screen Share")
         if (!tapByText(SCREEN_SHARE_LABELS, allowContentDesc = true, retries = 8)) {
             return fail("ไม่พบ Screen Share")
@@ -661,10 +766,8 @@ object Autopilot {
         delay(800)
         tapByText(RECORDING_OK_LABELS, retries = 2)
 
-        // 12. Place broadcast content (overlay or foreground player) during countdown
         deliverBroadcastContent(context)
 
-        // 13. Collapse TikTok floating panel
         setStep("ซ่อน TikTok overlay panel…")
         delay(4000)
         collapseTikTokOverlay()
@@ -746,43 +849,200 @@ object Autopilot {
      * For each keyword: substring-match (case-insensitive) against any text node, then tap
      * the "Add" button nearest in y to the matched product row. Returns count successfully pinned.
      */
+    /**
+     * Layer 4 picker has a "Search products" input at the top — typing the
+     * keyword there filters the list so the target product comes into view
+     * (default-load shows recent/suggested, not all products). Returns true
+     * iff the input was found + ACTION_SET_TEXT succeeded.
+     */
+    private suspend fun searchInPicker(keyword: String): Boolean {
+        val root = TikTokAutopilotService.instance?.activeRoot() ?: return false
+        val all = mutableListOf<AccessibilityNodeInfo>()
+        collectNodes(root, all)
+        // The input shows hint "Search products" / "ค้นหาสินค้า" — match by
+        // text OR contentDescription on a clickable node.
+        val searchInput = all.firstOrNull { n ->
+            val t = n.text?.toString()?.lowercase() ?: ""
+            val d = n.contentDescription?.toString()?.lowercase() ?: ""
+            (t.contains("search") || t.contains("ค้นหา") ||
+                d.contains("search") || d.contains("ค้นหา")) &&
+                (n.isClickable || n.isEditable)
+        } ?: return false
+
+        // Tap to focus the input first — some Compose inputs only accept
+        // SET_TEXT after they have keyboard focus.
+        searchInput.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+        delay(600)
+
+        val args = android.os.Bundle().apply {
+            putCharSequence(
+                AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,
+                keyword,
+            )
+        }
+        // Re-fetch the (now-focused) input — the post-tap tree may have a
+        // different node object for the EditText that actually accepts text.
+        val rootAfter = TikTokAutopilotService.instance?.activeRoot()
+        val typeTarget = if (rootAfter != null) {
+            val afterAll = mutableListOf<AccessibilityNodeInfo>()
+            collectNodes(rootAfter, afterAll)
+            afterAll.firstOrNull { n -> n.isEditable || n.isFocused } ?: searchInput
+        } else searchInput
+        val ok = typeTarget.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+        Log.i(TAG, "search input typed='$keyword' ok=$ok")
+        if (!ok) return false
+        delay(400)
+
+        // ACTION_SET_TEXT only fills the buffer — it doesn't trigger the
+        // input's IME action (the magnifying-glass / Search key on the
+        // keyboard). On Android 11+ we ask the input to fire its IME action
+        // directly. Without this the filtered results never appear.
+        val imeFired = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            typeTarget.performAction(
+                AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER.id
+            )
+        } else false
+        Log.i(TAG, "search ime-enter ok=$imeFired (sdk=${Build.VERSION.SDK_INT})")
+
+        // Fallback for SDK < 30: dispatch a system ENTER key event. Requires
+        // the AccessibilityService to be active. Some keyboards still consume
+        // ENTER as "search" when imeOptions=actionSearch, which is what
+        // TikTok's picker input uses.
+        if (!imeFired) {
+            val svc = TikTokAutopilotService.instance
+            if (svc != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                // Use global action to dispatch ENTER via key event injection.
+                // Note: GLOBAL_ACTION ids don't include direct key codes — the
+                // cleanest fallback would be a shell `input keyevent 66` but
+                // that requires root. For non-root SDK<30, document the limit.
+                Log.w(TAG, "ime-enter unavailable on this SDK; search may not trigger")
+            }
+        }
+        delay(1500) // let the picker filter + re-render results
+        return true
+    }
+
+    /**
+     * Remove any products already on the product-manager (Layer 3) list, so
+     * the operator's keyword target ends up being the only one pinned for
+     * this broadcast. Best-effort: looks for Remove / Delete / ลบ clickables
+     * and taps each. Returns the count removed.
+     *
+     * Each tap can trigger a confirmation modal — we auto-confirm with OK /
+     * ตกลง if one appears. Stops after MAX_REMOVALS in case the matcher
+     * misfires and we'd otherwise loop forever.
+     */
+    private suspend fun removePreSelectedProducts(): Int {
+        val MAX_REMOVALS = 20
+        var removed = 0
+        while (removed < MAX_REMOVALS) {
+            val root = TikTokAutopilotService.instance?.activeRoot() ?: break
+            val all = mutableListOf<AccessibilityNodeInfo>()
+            collectNodes(root, all)
+            val removeBtn = all.firstOrNull { n ->
+                if (!n.isClickable) return@firstOrNull false
+                val t = n.text?.toString()?.trim() ?: ""
+                val d = n.contentDescription?.toString()?.trim() ?: ""
+                REMOVE_PRODUCT_LABELS.any { label ->
+                    t.equals(label, ignoreCase = true) || d.equals(label, ignoreCase = true) ||
+                        // Some TalkBack hints use ", button" / ", remove" suffixes
+                        t.contains(label, ignoreCase = true) || d.contains(label, ignoreCase = true)
+                }
+            } ?: break  // no more remove buttons in the list
+
+            val ok = removeBtn.performAction(AccessibilityNodeInfo.ACTION_CLICK) ||
+                gestureTap(removeBtn)
+            if (!ok) {
+                Log.w(TAG, "remove tap failed — bailing after $removed removals")
+                break
+            }
+            delay(800)
+            // Best-effort confirm dialog ("Remove product?" → OK).
+            tapByText(listOf("OK", "ตกลง", "Remove", "ลบ", "Confirm", "ยืนยัน"),
+                allowContentDesc = true, retries = 2, intervalMs = 300)
+            delay(600)
+            removed++
+        }
+        return removed
+    }
+
     private suspend fun autoPinProducts(keywords: List<String>): Int {
         var pinned = 0
         for (keyword in keywords) {
             val needle = keyword.lowercase().trim()
             if (needle.isEmpty()) continue
 
-            val root = TikTokAutopilotService.instance?.activeRoot() ?: continue
-            val all = mutableListOf<AccessibilityNodeInfo>()
-            collectNodes(root, all)
-
-            // Find product name node containing the keyword (substring, case-insensitive).
-            val productNode = all.firstOrNull { n ->
-                val t = n.text?.toString()?.lowercase()
-                t != null && t.contains(needle) && t.length > 2
+            // KEY: TikTok's picker renders product names through Compose
+            // custom drawing — text shows on screen but accessibility tree
+            // has text=null for those rows. We CANNOT match products by
+            // keyword in the tree. The earlier searchInPicker() step
+            // already filtered the picker to the keyword's results; here
+            // we just locate the topmost "Add" button (= most-relevant
+            // filtered product) and tap it.
+            //
+            // To avoid false matches we filter out:
+            //  - the search input row (y < 400)
+            //  - the "Done" footer button at the bottom
+            //  - oversized containers (Add icon button is ~250×80)
+            var addLabels: List<AccessibilityNodeInfo> = emptyList()
+            val pollDeadline = System.currentTimeMillis() + 6_000L
+            var attempts = 0
+            while (System.currentTimeMillis() < pollDeadline) {
+                attempts++
+                val root = TikTokAutopilotService.instance?.activeRoot()
+                if (root != null) {
+                    val all = mutableListOf<AccessibilityNodeInfo>()
+                    collectNodes(root, all)
+                    addLabels = all.filter { n ->
+                        val t = n.text?.toString()?.trim() ?: ""
+                        val d = n.contentDescription?.toString()?.trim() ?: ""
+                        // Match "Add" / "เพิ่ม" — exclude "Done" (Done,button)
+                        val matchesAdd = listOf("Add", "เพิ่ม").any { kw ->
+                            (t.contains(kw, ignoreCase = true) || d.contains(kw, ignoreCase = true)) &&
+                                !t.contains("Done", ignoreCase = true) &&
+                                !d.contains("Done", ignoreCase = true)
+                        }
+                        if (!matchesAdd) return@filter false
+                        val r = Rect(); n.getBoundsInScreen(r)
+                        !r.isEmpty &&
+                            r.top > 400 &&             // skip search input area
+                            r.width() < 400 &&         // small button only
+                            r.height() < 200
+                    }
+                    if (addLabels.isNotEmpty()) {
+                        Log.i(TAG, "auto-pin: found ${addLabels.size} Add button(s) on attempt $attempts (${all.size} nodes visible)")
+                        break
+                    }
+                }
+                delay(500)
             }
-            if (productNode == null) {
-                Log.w(TAG, "auto-pin: no product node matching '$keyword'")
+            if (addLabels.isEmpty()) {
+                Log.w(TAG, "auto-pin: no Add buttons in picker after $attempts polls — search may have returned no matches")
+                val root = TikTokAutopilotService.instance?.activeRoot()
+                if (root != null) dumpVisibleNodesToLog(root, listOf(keyword, "Add"))
                 continue
             }
-            val pRect = Rect(); productNode.getBoundsInScreen(pRect)
 
-            // Find clickable "Add" button in the same row (centerY within ±100px) to the right.
-            val addBtn = all.firstOrNull { n ->
-                if (!n.isClickable) return@firstOrNull false
-                val t = n.text?.toString()?.trim()?.equals("Add", ignoreCase = true) == true
-                val d = n.contentDescription?.toString()?.trim()?.equals("Add", ignoreCase = true) == true
-                if (!t && !d) return@firstOrNull false
-                val r = Rect(); n.getBoundsInScreen(r)
-                kotlin.math.abs(r.centerY() - pRect.centerY()) < 110 && r.left > pRect.left
+            // De-duplicate: occasionally two Add nodes overlap (icon + button
+            // semantics both expose the label). Keep the one with the lower
+            // y per unique centerY bucket.
+            val unique = addLabels
+                .sortedBy { Rect().also { r -> it.getBoundsInScreen(r) }.top }
+                .distinctBy {
+                    val r = Rect(); it.getBoundsInScreen(r); r.centerY() / 50  // 50px buckets
+                }
+            val topAdd = unique.first()
+            val r = Rect(); topAdd.getBoundsInScreen(r)
+            Log.i(TAG, "auto-pin: tap top Add at $r (filtered '${keyword}' → ${unique.size} unique row(s))")
+            val gOk = gestureTap(topAdd)
+            if (!gOk) {
+                val ancestor = climbToClickable(topAdd)
+                if (ancestor != null && !isScreenWideContainer(ancestor)) {
+                    ancestor.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                } else if (topAdd.isClickable) {
+                    topAdd.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                }
             }
-            if (addBtn == null) {
-                Log.w(TAG, "auto-pin: no Add button near '${productNode.text}'")
-                continue
-            }
-            Log.i(TAG, "auto-pin: tap Add for '${productNode.text?.toString()?.take(50)}'")
-            val gOk = gestureTap(addBtn)
-            if (!gOk) addBtn.performAction(AccessibilityNodeInfo.ACTION_CLICK)
             pinned++
             delay(900)
         }
@@ -797,6 +1057,54 @@ object Autopilot {
             if (root != null && findMatch(root, labels, allowContentDesc = true) != null) return true
             delay(intervalMs)
         }
+        return false
+    }
+
+    /**
+     * Returns true iff a TikTok captcha modal is detectable in the current
+     * accessibility tree. Cheap — one snapshot, substring match across all
+     * text + contentDescription against [CAPTCHA_MARKERS].
+     */
+    private fun isCaptchaShowing(): Boolean {
+        val root = TikTokAutopilotService.instance?.activeRoot() ?: return false
+        return findMatch(root, CAPTCHA_MARKERS, allowContentDesc = true) != null
+    }
+
+    /**
+     * If a captcha is currently visible, pause the flow until it clears
+     * (operator solves manually, or a future autoCaptcha module solves it).
+     * Returns true when the captcha cleared within [timeoutMs], false if we
+     * gave up. Caller should fail the run on timeout.
+     *
+     * Side-effects: flips [captchaShowing] state so UI can render an alert;
+     * dumps visible nodes once on first detection so we can tune
+     * [CAPTCHA_MARKERS] and discover the real resource ids.
+     */
+    private suspend fun waitOutCaptcha(timeoutMs: Long = 5 * 60_000L): Boolean {
+        if (!isCaptchaShowing()) return true
+        captchaShowing.value = true
+        val savedStep = lastStep.value
+        setStep("⚠ TikTok ขึ้น captcha — กำลังรอ solve")
+        Log.w(TAG, "captcha detected — pausing autopilot (was on step: '$savedStep')")
+        // One-shot dump to logcat so we can refine markers later.
+        TikTokAutopilotService.instance?.activeRoot()?.let { root ->
+            dumpVisibleNodesToLog(root, CAPTCHA_MARKERS)
+        }
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (System.currentTimeMillis() < deadline) {
+            delay(800)
+            if (!isCaptchaShowing()) {
+                captchaShowing.value = false
+                Log.i(TAG, "captcha cleared — resuming '$savedStep'")
+                setStep(savedStep)
+                // Brief settle before the next tap so the post-captcha UI
+                // has time to render whatever TikTok was about to show.
+                delay(1000)
+                return true
+            }
+        }
+        captchaShowing.value = false
+        Log.w(TAG, "captcha did not clear within ${timeoutMs/1000}s — giving up")
         return false
     }
 

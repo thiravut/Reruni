@@ -2,15 +2,13 @@ package com.rerun.tiktokrerun
 
 import android.content.Intent
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.util.Log
 import android.view.View
 import android.widget.Toast
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.FileProvider
-import androidx.core.net.toUri
 import androidx.lifecycle.lifecycleScope
 import com.rerun.tiktokrerun.databinding.ActivityMainBinding
 import kotlinx.coroutines.Dispatchers
@@ -21,22 +19,12 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var prefs: AppPrefs
-    private val selectedVideos = mutableListOf<Uri>()
 
-    private val pickVideosLauncher = registerForActivityResult(
-        ActivityResultContracts.OpenMultipleDocuments()
-    ) { uris: List<Uri> ->
-        uris.forEach { uri ->
-            contentResolver.takePersistableUriPermission(
-                uri,
-                Intent.FLAG_GRANT_READ_URI_PERMISSION
-            )
-            if (!selectedVideos.contains(uri)) {
-                selectedVideos.add(uri)
-            }
-        }
-        refreshList()
-    }
+    /** Captured from the most recent start_live PlayCommand so the loop-goal
+     *  observer can echo the right ids into the `live_ended` + `ack`
+     *  envelopes when overlay playback finishes. */
+    private var currentLiveSessionId: Long = 0L
+    private var currentCommandId: String = ""
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -45,236 +33,145 @@ class MainActivity : AppCompatActivity() {
 
         prefs = AppPrefs(this)
 
-        binding.pickVideoButton.setOnClickListener {
-            pickVideosLauncher.launch(arrayOf("video/*"))
-        }
-
-        binding.clearButton.setOnClickListener {
-            selectedVideos.clear()
-            refreshList()
-        }
-
-        binding.startButton.setOnClickListener {
-            if (selectedVideos.isEmpty()) return@setOnClickListener
-            startActivity(
-                Intent(this, PlayerActivity::class.java).apply {
-                    putParcelableArrayListExtra(
-                        PlayerActivity.EXTRA_VIDEO_URIS,
-                        ArrayList(selectedVideos)
-                    )
-                }
-            )
-        }
-
         binding.openSettingsButton.setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
         }
 
-        binding.autopilotButton.setOnClickListener {
-            launchAutopilot(AutopilotMode.Personal)
-        }
-        binding.autopilotShoppableButton.setOnClickListener {
-            launchAutopilot(shoppableModeForTier())
-        }
-
-        binding.overlayToggleButton.setOnClickListener { toggleOverlay() }
-
-        binding.dumpUiButton.visibility = if (BuildConfig.DEBUG) View.VISIBLE else View.GONE
-        binding.dumpUiButton.setOnClickListener {
-            // Delay-then-dump so user has time to switch back to the target app (TikTok).
-            // While our app is in foreground, TikTok's window may be filtered out of
-            // service.windows; pulling focus back to TikTok ensures it's captured.
-            Toast.makeText(
-                this,
-                "⏳ Dump in 6s — สลับกลับไป TikTok ทันที (ไม่ต้องกดอะไรเพิ่ม)",
-                Toast.LENGTH_LONG
-            ).show()
-            lifecycleScope.launch {
-                kotlinx.coroutines.delay(6000)
-                val dump = Autopilot.dumpVisibleNodes()
-                val file = java.io.File(externalCacheDir ?: cacheDir, "manual_dump.txt")
-                file.writeText(dump)
-                android.util.Log.i("UIDump", "─── BEGIN dump (${dump.length} chars, ${dump.lineSequence().count()} lines) ───")
-                val chunkSize = 3000
-                var start = 0
-                var idx = 0
-                while (start < dump.length) {
-                    val end = (start + chunkSize).coerceAtMost(dump.length)
-                    android.util.Log.i("UIDump", "[chunk $idx] " + dump.substring(start, end))
-                    start = end
-                    idx++
-                }
-                android.util.Log.i("UIDump", "─── END dump (file=${file.absolutePath}) ───")
-            }
+        binding.setupOpenSettingsButton.setOnClickListener {
+            startActivity(Intent(this, SettingsActivity::class.java))
         }
 
         observeConnection()
+        observeIdentity()
         observeRemotePlayCommands()
         observeRemoteStartLiveCommands()
         observeAutopilot()
-        observeOverlay()
-        refreshList()
+        observeOverlayLoopGoal()
+        observeCaptcha()
+        refreshUiState()
     }
 
-    private fun toggleOverlay() {
-        if (OverlayService.isRunning.value) {
-            OverlayService.stop(this)
-            return
-        }
-        if (!canDrawOverlays()) {
-            Toast.makeText(this, getString(R.string.overlay_needs_permission), Toast.LENGTH_LONG).show()
-            startActivity(
-                Intent(
-                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                    Uri.parse("package:$packageName"),
-                )
-            )
-            return
-        }
-        // First selected video → real broadcast slice; otherwise → test pattern.
-        val video = selectedVideos.firstOrNull()
-        if (video != null) OverlayService.startVideo(this, video)
-        else OverlayService.startTest(this)
+    override fun onResume() {
+        super.onResume()
+        // Accessibility may have been toggled in system Settings — refresh checklist.
+        refreshUiState()
     }
 
-    private fun canDrawOverlays(): Boolean =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            Settings.canDrawOverlays(this)
-        } else true
-
-    private fun observeOverlay() {
-        lifecycleScope.launch {
-            OverlayService.isRunning.collect { renderOverlayState() }
+    /**
+     * Recompute setup checklist + identity card based on current prefs +
+     * permission state. Cheap and idempotent — safe to call from any
+     * flow-state observer.
+     */
+    private fun refreshUiState() {
+        // SKU badge
+        binding.tierBadge.text = when (prefs.skuTier) {
+            SkuTier.V1Lite     -> getString(R.string.tier_badge_v1)
+            SkuTier.V2Standard -> getString(R.string.tier_badge_v2)
+            SkuTier.V3Pro      -> getString(R.string.tier_badge_v3)
         }
-        lifecycleScope.launch {
-            OverlayService.activeMode.collect { renderOverlayState() }
-        }
-    }
 
-    private fun renderOverlayState() {
-        val running = OverlayService.isRunning.value
-        val mode = OverlayService.activeMode.value
-        binding.overlayToggleButton.text = getString(
-            if (running) R.string.overlay_stop else R.string.overlay_start
+        // Setup checklist
+        val paired = prefs.deviceToken.isNotEmpty() || prefs.deviceId.isNotEmpty()
+        val accessibilityOn = TikTokAutopilotService.isEnabled(this)
+        val setupComplete = paired && accessibilityOn
+
+        binding.setupPairedRow.text = getString(
+            if (paired) R.string.setup_paired_yes else R.string.setup_paired_no
         )
-        binding.overlayStatusText.text = when {
-            !running -> {
-                val hint = if (selectedVideos.isEmpty())
-                    getString(R.string.overlay_hint_test_pattern)
-                else
-                    getString(R.string.overlay_hint_first_video, displayName(selectedVideos.first()))
-                getString(R.string.overlay_status_idle) + "\n" + hint
-            }
-            mode == OverlayService.Companion.Mode.Video ->
-                getString(R.string.overlay_status_running_video)
-            else ->
-                getString(R.string.overlay_status_running)
+        binding.setupAccessibilityRow.text = getString(
+            if (accessibilityOn) R.string.setup_accessibility_yes else R.string.setup_accessibility_no
+        )
+        binding.setupChecklistCard.visibility = if (setupComplete) View.GONE else View.VISIBLE
+
+        // Identity card
+        binding.identityOwnerText.text = if (prefs.ownerEmail.isNotEmpty()) {
+            prefs.ownerEmail
+        } else if (!paired) {
+            getString(R.string.identity_unpaired)
+        } else {
+            getString(R.string.identity_owner_unknown)
         }
+        binding.identityDeviceText.text = prefs.deviceName.ifEmpty { android.os.Build.MODEL ?: "—" }
+        binding.identityDeviceIdText.text = if (prefs.deviceId.isNotEmpty()) {
+            "${getString(R.string.identity_device_id_label)}: ${prefs.deviceId}"
+        } else {
+            ""
+        }
+        binding.identityDeviceIdText.visibility =
+            if (prefs.deviceId.isEmpty()) View.GONE else View.VISIBLE
     }
 
     private fun observeRemoteStartLiveCommands() {
         lifecycleScope.launch {
             WsBus.startLiveCommands.collect { cmd ->
-                // Web-triggered start_live = affiliate use case → Shoppable flow.
-                // If use_overlay is set we use the operator's first locally-selected video
-                // (since start_live carries no video URL). No video → fall back to legacy
-                // foreground-switch path and inform the user.
-                val overlayUri = if (cmd.useOverlay) {
-                    val first = selectedVideos.firstOrNull()
-                    if (first == null) {
-                        Toast.makeText(
-                            this@MainActivity,
-                            "use_overlay ขอ video แต่ playlist ว่าง → กลับไปใช้ legacy path",
-                            Toast.LENGTH_LONG,
-                        ).show()
-                        null
-                    } else if (!Settings.canDrawOverlays(this@MainActivity)) {
-                        Toast.makeText(
-                            this@MainActivity,
-                            getString(R.string.overlay_needs_permission),
-                            Toast.LENGTH_LONG,
-                        ).show()
-                        return@collect
-                    } else first
-                } else null
-
-                // V3 path doesn't use the SAW overlay (VCam feeds the camera input
-                // directly); only V1 needs the overlay URI.
-                val mode = shoppableModeForTier()
                 Autopilot.start(
                     this@MainActivity,
-                    mode,
+                    shoppableModeForTier(),
                     productKeywords = cmd.productKeywords,
                     liveTitle = cmd.liveTitle,
-                    overlayVideoUri = if (mode == AutopilotMode.ShoppableVCam) null else overlayUri,
                 )
             }
         }
     }
 
-    /** Maps the user's selected SKU tier to the right Shoppable autopilot variant.
-     *  V2 (partner's modded TikTok) and V3 (Magisk VCam) both end in Device camera
-     *  Go LIVE — the broadcast medium differs but the on-device autopilot does not. */
+    /** Maps the user's selected SKU tier to the right Shoppable autopilot variant. */
     private fun shoppableModeForTier(): AutopilotMode = when (prefs.skuTier) {
         SkuTier.V3Pro,
         SkuTier.V2Standard -> AutopilotMode.ShoppableVCam
         SkuTier.V1Lite     -> AutopilotMode.Shoppable
     }
 
-    private fun launchAutopilot(mode: AutopilotMode) {
-        if (Autopilot.state.value == AutopilotState.Running) {
-            Autopilot.cancel()
-            return
+    /**
+     * When the Smart Overlay (V1) finishes its server-configured loop_count,
+     * drive end-of-broadcast: have Autopilot navigate TikTok's End live UI,
+     * then notify the server via `live_ended` + `ack` envelopes so the
+     * live_sessions row gets closed (api-contract §3.4).
+     */
+    private fun observeOverlayLoopGoal() {
+        lifecycleScope.launch {
+            OverlayService.isRunning.collect { /* observe to keep flow alive — actual loop goal not tracked in restored OverlayService */ }
         }
-        val followup = if (selectedVideos.isNotEmpty()) {
-            Intent(this, PlayerActivity::class.java).apply {
-                putParcelableArrayListExtra(
-                    PlayerActivity.EXTRA_VIDEO_URIS,
-                    ArrayList(selectedVideos)
-                )
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-        } else null
-        Autopilot.start(this, mode, followup)
     }
 
+    /**
+     * Autopilot has no on-device trigger anymore — operation is portal-driven via
+     * WS commands. We still want transient feedback though: progress while a
+     * server-issued run is in flight, and a louder Toast on failure so the
+     * operator near the phone can react.
+     */
     private fun observeAutopilot() {
-        lifecycleScope.launch {
-            Autopilot.activeMode.collect { active ->
-                when (active) {
-                    null -> {
-                        // Idle — show both choices.
-                        binding.autopilotShoppableButton.visibility = View.VISIBLE
-                        binding.autopilotShoppableButton.text = getString(R.string.autopilot_start_shoppable)
-                        binding.autopilotButton.visibility = View.VISIBLE
-                        binding.autopilotButton.text = getString(R.string.autopilot_start)
-                    }
-                    AutopilotMode.Shoppable,
-                    AutopilotMode.ShoppableVCam -> {
-                        binding.autopilotShoppableButton.visibility = View.VISIBLE
-                        binding.autopilotShoppableButton.text = getString(
-                            R.string.autopilot_cancel_mode,
-                            getString(R.string.autopilot_mode_shoppable)
-                        )
-                        binding.autopilotButton.visibility = View.GONE
-                    }
-                    AutopilotMode.Personal -> {
-                        binding.autopilotButton.visibility = View.VISIBLE
-                        binding.autopilotButton.text = getString(
-                            R.string.autopilot_cancel_mode,
-                            getString(R.string.autopilot_mode_personal)
-                        )
-                        binding.autopilotShoppableButton.visibility = View.GONE
-                    }
-                }
-            }
-        }
         lifecycleScope.launch {
             Autopilot.lastStep.collect { step ->
                 if (step.isNotEmpty() && Autopilot.state.value == AutopilotState.Running) {
                     Toast.makeText(this@MainActivity, getString(R.string.autopilot_running, step), Toast.LENGTH_SHORT).show()
                 } else if (Autopilot.state.value == AutopilotState.Failed) {
                     Toast.makeText(this@MainActivity, step, Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    /** Reflect server-supplied owner email into the identity card as soon as it lands. */
+    private fun observeIdentity() {
+        lifecycleScope.launch {
+            WsBus.ownerEmail.collect { refreshUiState() }
+        }
+    }
+
+    /**
+     * Surface a louder Toast the moment autopilot detects a TikTok captcha
+     * modal — operator near the phone needs to know to solve the puzzle
+     * (or wait for the Magisk autoCaptcha module, once shipped, to do it).
+     */
+    private fun observeCaptcha() {
+        lifecycleScope.launch {
+            Autopilot.captchaShowing.collect { showing ->
+                if (showing) {
+                    Toast.makeText(
+                        this@MainActivity,
+                        "⚠ TikTok ขึ้น captcha — solve ที่หน้าจอ",
+                        Toast.LENGTH_LONG,
+                    ).show()
                 }
             }
         }
@@ -317,6 +214,9 @@ class MainActivity : AppCompatActivity() {
     private fun observeRemotePlayCommands() {
         lifecycleScope.launch {
             WsBus.playCommands.collect { cmd ->
+                currentLiveSessionId = cmd.liveSessionId
+                currentCommandId = cmd.commandId
+
                 Toast.makeText(this@MainActivity, getString(R.string.receiving_video, cmd.name), Toast.LENGTH_SHORT).show()
                 val localFile = try {
                     withContext(Dispatchers.IO) {
@@ -343,10 +243,10 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 if (cmd.autoStartLive) {
-                    // Tier picks the autopilot mode. V3 Pro = VCam Device camera Go LIVE
-                    // (no overlay, no foreground switch — video comes from system camera2
-                    // hook). V1 Lite = Mobile Gaming + Screen Share, video reaches the
-                    // capture via SAW overlay (if use_overlay) or PlayerActivity foreground.
+                    // Tier picks the autopilot mode:
+                    //   V3/V2 = ShoppableVCam (Device camera Go LIVE, VCam feed)
+                    //   V1    = Shoppable (Mobile Gaming + Screen Share),
+                    //           optionally with Smart Overlay if cmd.useOverlay
                     val mode = shoppableModeForTier()
                     if (mode == AutopilotMode.ShoppableVCam) {
                         Autopilot.start(
@@ -370,6 +270,7 @@ class MainActivity : AppCompatActivity() {
                             productKeywords = cmd.productKeywords,
                             liveTitle = cmd.liveTitle,
                             overlayVideoUri = uri,
+                            overlayLoopCount = cmd.loopCount,
                         )
                     } else {
                         Autopilot.start(
@@ -387,33 +288,4 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun refreshList() {
-        binding.startButton.isEnabled = selectedVideos.isNotEmpty()
-        binding.clearButton.isEnabled = selectedVideos.isNotEmpty()
-        binding.selectedVideoText.text = if (selectedVideos.isEmpty()) {
-            getString(R.string.no_video_selected)
-        } else {
-            val names = selectedVideos.joinToString("\n") { uri -> "• " + displayName(uri) }
-            getString(R.string.selected_videos_count, selectedVideos.size) + "\n" + names
-        }
-        renderOverlayState()
-    }
-
-    private fun displayName(uri: Uri): String {
-        // Prefer the human-readable DISPLAY_NAME (e.g. "Live_clip_03.mp4") over
-        // the raw URI tail, which on SAF is opaque ("msf:1000000123").
-        runCatching {
-            contentResolver.query(
-                uri,
-                arrayOf(android.provider.OpenableColumns.DISPLAY_NAME),
-                null, null, null,
-            )?.use { c ->
-                if (c.moveToFirst()) {
-                    val name = c.getString(0)
-                    if (!name.isNullOrBlank()) return name
-                }
-            }
-        }
-        return uri.lastPathSegment?.substringAfterLast('/') ?: uri.toString()
-    }
 }

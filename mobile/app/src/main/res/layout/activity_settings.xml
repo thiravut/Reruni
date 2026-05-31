@@ -39,7 +39,7 @@
                 android:text="@string/settings_hint"
                 android:textAppearance="@style/TextAppearance.TR.Caption" />
 
-        <!-- ── SKU tier (must be first — affects autopilot routing) ─ -->
+        <!-- ── SKU tier (affects autopilot routing) ─ -->
         <com.google.android.material.card.MaterialCardView
             style="@style/Widget.TR.Card"
             android:layout_width="match_parent"
@@ -51,42 +51,19 @@
                 android:layout_height="wrap_content"
                 android:orientation="vertical">
 
-                <LinearLayout
-                    android:layout_width="match_parent"
+                <TextView
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
+                    android:text="@string/section_sku_tier"
+                    android:textColor="?attr/colorOnSurface"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
 
-                    <TextView
-                        android:layout_width="32dp"
-                        android:layout_height="32dp"
-                        android:background="@drawable/bg_section_icon"
-                        android:gravity="center"
-                        android:text="⚡"
-                        android:textSize="16sp" />
-
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="12dp"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="@string/section_sku_tier"
-                            android:textColor="?attr/colorOnSurface"
-                            android:textSize="16sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="@string/section_sku_subtitle"
-                            android:textAppearance="@style/TextAppearance.TR.Caption" />
-                    </LinearLayout>
-                </LinearLayout>
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/section_sku_subtitle"
+                    android:textAppearance="@style/TextAppearance.TR.Caption" />
 
                 <RadioGroup
                     android:id="@+id/skuTierGroup"
@@ -429,6 +406,69 @@
                         android:inputType="textMultiLine"
                         android:minLines="3" />
                 </com.google.android.material.textfield.TextInputLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- ── Diagnostics entry (setup verification + debug tooling) ─ -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/openDiagnosticsCard"
+            style="@style/Widget.TR.Card.Subtle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:foreground="?attr/selectableItemBackground"
+            app:strokeColor="?attr/colorOutlineVariant"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <FrameLayout
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:background="@drawable/bg_section_icon">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:gravity="center"
+                        android:text="🧪"
+                        android:textSize="16sp" />
+                </FrameLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/diagnostics_entry_label"
+                        android:textColor="?attr/colorOnSurface"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/diagnostics_entry_subtitle"
+                        android:textAppearance="@style/TextAppearance.TR.Caption" />
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="›"
+                    android:textColor="?attr/colorOnSurfaceVariant"
+                    android:textSize="22sp" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
         </LinearLayout>

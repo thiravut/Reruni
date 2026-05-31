@@ -57,7 +57,7 @@ class ConnectionService : Service() {
             startForeground(NOTIF_ID, initial)
         }
 
-        WsClient.startManaged(AppPrefs(this))
+        WsClient.startManaged(this, AppPrefs(this))
 
         observeJob = scope.launch {
             combine(WsBus.state, WsBus.statusLine) { st, line -> st to line }
@@ -67,7 +67,16 @@ class ConnectionService : Service() {
         }
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Re-invoke startManaged so we pick up any prefs that changed since
+        // onCreate ran. Without this, calling ConnectionService.start() after
+        // a Save+Connect on an already-running service is a no-op — the WS
+        // keeps using the original (possibly empty) prefs and never connects.
+        // startManaged closes any existing socket then reconnects with the
+        // fresh prefs.
+        WsClient.startManaged(this, AppPrefs(this))
+        return START_STICKY
+    }
 
     override fun onDestroy() {
         observeJob?.cancel()

@@ -3,6 +3,42 @@
     <string name="app_name">TiktokRerun</string>
     <string name="hero_title">TiktokRerun</string>
     <string name="hero_subtitle">Live ขายของแบบ autopilot — กดปุ่มเดียวจบ</string>
+
+    <!-- Production home screen -->
+    <string name="tier_badge_v1">V1 Lite</string>
+    <string name="tier_badge_v2">V2 Standard</string>
+    <string name="tier_badge_v3">V3 Pro</string>
+
+    <string name="setup_section">เริ่มต้นใช้งาน</string>
+    <string name="setup_paired_yes">✓ Pair กับ portal แล้ว</string>
+    <string name="setup_paired_no">○ ยังไม่ pair กับ portal</string>
+    <string name="setup_accessibility_yes">✓ Accessibility เปิดอยู่</string>
+    <string name="setup_accessibility_no">○ ยังไม่เปิด Accessibility</string>
+    <string name="setup_open_settings_cta">ตั้งค่าให้ครบก่อนเริ่มไลฟ์</string>
+
+    <string name="status_section">สถานะปัจจุบัน</string>
+
+    <string name="identity_section">เชื่อมต่อกับบัญชี</string>
+    <string name="identity_unpaired">ยังไม่ pair กับ portal</string>
+    <string name="identity_owner_label">User</string>
+    <string name="identity_device_label">Device</string>
+    <string name="identity_device_id_label">Device ID</string>
+    <string name="identity_owner_unknown">— (รอ handshake จาก server)</string>
+    <string name="state_not_paired">ยังไม่เชื่อมต่อ portal</string>
+    <string name="state_no_accessibility">รอเปิด Accessibility</string>
+    <string name="state_idle_ready">พร้อมไลฟ์</string>
+    <string name="state_idle_idle">รอคำสั่งจาก portal</string>
+    <string name="state_running">กำลังทำงาน · %1$s</string>
+    <string name="state_failed">ล้มเหลว · %1$s</string>
+    <string name="state_done">สำเร็จ — Live พร้อม</string>
+
+    <string name="diagnostics_section">เครื่องมือทดสอบ</string>
+    <string name="diagnostics_screen_title">เครื่องมือทดสอบ</string>
+    <string name="diagnostics_subtitle">ใช้ตอน setup ครั้งแรก + debug ระบบ ไม่ใช่ของใช้ประจำ</string>
+    <string name="diagnostics_entry_label">เครื่องมือทดสอบ</string>
+    <string name="diagnostics_entry_subtitle">Local playlist, dump UI</string>
+    <string name="diag_playlist_label">Local Playlist</string>
+    <string name="diag_playlist_help">เลือกวิดีโอจากเครื่อง สำหรับทดสอบ Screen Share / dry-run (production: server เป็นคนส่ง video URL ผ่าน WS)</string>
     <string name="section_quick_start">วิธีใช้แบบเร็ว</string>
     <string name="section_playlist">Playlist</string>
     <string name="section_autopilot">Autopilot Live</string>
@@ -39,14 +75,6 @@
     <string name="conn_error">ผิดพลาด · %1$s</string>
     <string name="receiving_video">⏬ กำลังโหลด \"%1$s\" จาก server…</string>
 
-    <!-- Notification (foreground service) -->
-    <string name="notif_channel_name">Server Connection</string>
-    <string name="notif_channel_desc">WebSocket ที่เชื่อมต่อกับ TiktokRerun Control panel</string>
-    <string name="notif_online">● Online — %1$s</string>
-    <string name="notif_connecting">● กำลังเชื่อมต่อ…</string>
-    <string name="notif_error">● Error: %1$s</string>
-    <string name="notif_disconnected">● ตัดการเชื่อมต่อ</string>
-
     <!-- SKU tier -->
     <string name="section_sku_tier">โหมดใช้งาน (SKU)</string>
     <string name="section_sku_subtitle">เลือกตามชนิดเครื่อง broadcaster — V3 ต้อง root + Magisk + GhostCam</string>
@@ -57,27 +85,7 @@
     <string name="sku_v3_title">V3 Pro — VCam (Rooted)</string>
     <string name="sku_v3_desc">Device camera + Magisk GhostCam. ต้อง root + Magisk + GhostCam module. ภาพ portrait 9:16 native. รองรับ account rotation 50+ บัญชี/เครื่อง (data-dir swap).</string>
 
-    <!-- Accessibility / Autopilot -->
-    <string name="product_keywords_hint">Auto-pin product keywords (บรรทัดละ 1 product)</string>
-    <string name="product_keywords_help">Substring match (case-insensitive) — keyword สั้นๆ ที่ unique ใน product name ก็พอ เช่น "G.K SNACK" หรือ "ธัญพืช"</string>
-
-    <string name="accessibility_label">TiktokRerun Autopilot</string>
-    <string name="accessibility_summary">เปิดเพื่อให้ TiktokRerun ทำ Go Live → Mobile Gaming → Screen Share ให้อัตโนมัติ</string>
-    <string name="accessibility_description">Accessibility service ใช้สำหรับ tap ปุ่มใน TikTok app เพื่อเริ่ม Mobile Gaming Live + Screen Share โดยอัตโนมัติ\n\nไม่อ่าน หรือบันทึก content ในหน้าจอเพื่อวัตถุประสงค์อื่นนอกจากการ navigate UI ของ TikTok</string>
-    <string name="open_accessibility_settings">⚙ เปิด Accessibility</string>
-    <string name="accessibility_status_on">✓ Autopilot พร้อม</string>
-    <string name="accessibility_status_off">⚠ ยังไม่เปิด Accessibility</string>
-    <string name="autopilot_start">หรือเริ่ม Personal Live (ไม่ pin)</string>
-    <string name="autopilot_start_shoppable">▶ ไลฟ์ขายของ (Auto-pin)</string>
-    <string name="autopilot_cancel">⏹ ยกเลิก autopilot</string>
-    <string name="autopilot_cancel_mode">⏹ ยกเลิก %1$s Live</string>
-    <string name="autopilot_mode_personal">Personal</string>
-    <string name="autopilot_mode_shoppable">Shoppable</string>
-    <string name="autopilot_running">🤖 %1$s</string>
-    <string name="debug_dump_ui">🔍 Dump TikTok UI (debug selectors)</string>
-    <string name="dump_saved">บันทึก UI dump ที่ %1$s</string>
-
-    <!-- Smart Overlay POC (tech-arch §3.5) -->
+    <!-- Smart Overlay POC -->
     <string name="section_overlay">Smart Overlay POC</string>
     <string name="section_overlay_subtitle">ทดสอบ: TikTok screen-share จับ overlay window ได้ไหม?</string>
     <string name="overlay_start">▶ เปิด Test Overlay</string>
@@ -88,4 +96,37 @@
     <string name="overlay_status_running_video">กำลังเล่นวิดีโอใน overlay — สลับไป TikTok → Go Live → Screen Share</string>
     <string name="overlay_hint_test_pattern">ยังไม่มีวิดีโอใน playlist → เปิดเป็น test pattern</string>
     <string name="overlay_hint_first_video">จะเล่นวิดีโอแรก: %1$s</string>
+    <string name="diag_overlay_label">Smart Overlay test (G1)</string>
+    <string name="diag_overlay_help">ทดสอบว่า TikTok screen-share จับ overlay window ของเราได้ — ใช้ตรวจ V1 setup</string>
+
+    <!-- Autopilot mode strings -->
+    <string name="autopilot_mode_personal">Personal</string>
+    <string name="autopilot_mode_shoppable">Shoppable</string>
+    <string name="autopilot_start">หรือเริ่ม Personal Live (ไม่ pin)</string>
+    <string name="autopilot_start_shoppable">▶ ไลฟ์ขายของ (Auto-pin)</string>
+    <string name="autopilot_cancel">⏹ ยกเลิก autopilot</string>
+    <string name="autopilot_cancel_mode">⏹ ยกเลิก %1$s Live</string>
+
+    <!-- Notification (foreground service) -->
+    <string name="notif_channel_name">Server Connection</string>
+    <string name="notif_channel_desc">WebSocket ที่เชื่อมต่อกับ TiktokRerun Control panel</string>
+    <string name="notif_online">● Online — %1$s</string>
+    <string name="notif_connecting">● กำลังเชื่อมต่อ…</string>
+    <string name="notif_error">● Error: %1$s</string>
+    <string name="notif_disconnected">● ตัดการเชื่อมต่อ</string>
+
+    <!-- Accessibility / Autopilot -->
+    <string name="product_keywords_hint">Auto-pin product keywords (บรรทัดละ 1 product)</string>
+    <string name="product_keywords_help">Substring match (case-insensitive) — keyword สั้นๆ ที่ unique ใน product name ก็พอ เช่น "G.K SNACK" หรือ "ธัญพืช"</string>
+
+    <string name="accessibility_label">TiktokRerun Autopilot</string>
+    <string name="accessibility_summary">เปิดเพื่อให้ TiktokRerun ทำ Go Live → Device camera + pin product ให้อัตโนมัติ</string>
+    <string name="accessibility_description">Accessibility service ใช้สำหรับ tap ปุ่มใน TikTok app เพื่อเริ่ม Live + pin product โดยอัตโนมัติ\n\nไม่อ่าน หรือบันทึก content ในหน้าจอเพื่อวัตถุประสงค์อื่นนอกจากการ navigate UI ของ TikTok</string>
+    <string name="open_accessibility_settings">⚙ เปิด Accessibility</string>
+    <string name="accessibility_status_on">✓ Autopilot พร้อม</string>
+    <string name="accessibility_status_off">⚠ ยังไม่เปิด Accessibility</string>
+    <string name="autopilot_running">🤖 %1$s</string>
+    <string name="debug_dump_ui">🔍 Dump TikTok UI (debug selectors)</string>
+    <string name="dump_saved">บันทึก UI dump ที่ %1$s</string>
+
 </resources>

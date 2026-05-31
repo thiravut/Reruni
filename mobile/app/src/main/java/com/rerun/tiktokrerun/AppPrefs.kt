@@ -46,6 +46,13 @@ class AppPrefs(context: Context) {
         get() = prefs.getString("device_id", "") ?: ""
         set(value) = prefs.edit().putString("device_id", value).apply()
 
+    /** Email of the portal user this device is paired to. Sent by the server
+     *  in `paired` / `welcome` envelopes; cached so the home screen can show
+     *  the identity even before the next handshake. */
+    var ownerEmail: String
+        get() = prefs.getString("owner_email", "") ?: ""
+        set(value) = prefs.edit().putString("owner_email", value).apply()
+
     var deviceName: String
         get() = prefs.getString("device_name", android.os.Build.MODEL ?: "android") ?: "android"
         set(value) = prefs.edit().putString("device_name", value).apply()
