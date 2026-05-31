@@ -34,19 +34,88 @@
 
 **[ON SLIDE]**
 > ## Approve V1 GA Cycle
-> - Budget: **~120-150K บาท total** (vs original 200K plan — under budget)
+> - Budget: **~25-32K บาท cash-out** (founder time self-funded as equity; line-item breakdown → Slide 2b)
 > - Timeline: **~2 weeks remaining → V1 GA** (90% shipped already in 2 wk vs plan 8 wk)
 > - Team: **Pond solo + Claude**
 > - Outcome: **First 10 paying customers within 30 days of GA**
 
 **[SAY]**
-> "ขอตรง — V1 GA cycle 120-150K บาท × ~2 weeks remaining
-> ผม solo + Claude ตามเดิม
+> "ขอตรง — V1 GA cycle cash-out เพียง 25-32K บาท × ~2 weeks remaining
+> ผม solo + Claude — founder time ผม self-fund as equity ไม่ขอ salary จาก budget
 > ที่สำคัญ — 90% MVP shipped แล้วใน 2 สัปดาห์ (vs plan 8 สัปดาห์)
 > Outcome: paying customers 10 รายแรกใน 30 วันหลัง GA
-> รายละเอียดต่อไป"
+> สไลด์ถัดไปขอเปิด budget ละเอียด — แล้วต่อด้วย progress + product walkthrough"
 
 **[TIME]** 1 นาที
+
+---
+
+## Slide 2b: Investment Breakdown — Cash-out Items Only
+
+**[ON SLIDE]**
+> ## V1 GA Cycle Budget — Cash-Out Line Items
+>
+> **Scope:** End-to-end cycle ~4 weeks total (~2 wk done + ~2 wk remaining) → V1 GA launch
+> **Founder time:** ผม Pond self-fund as equity contribution — ไม่ขอ salary จาก budget
+>
+> ### Cash-out items only
+>
+> | Item | Detail | Cost (2 เดือน) |
+> |---|---|---|
+> | **Claude (AI coding)** | Pro subscription + agent runs (6.5K/mo) | **~13,000** |
+> | **Infrastructure** | Google Cloud (Cloud Run + Cloud SQL + Memorystore) + Cloudflare R2 storage + Cloudflare SSL (free with proxy) + domain reruni.com | **~12,000-18,000** |
+> | **GitHub** | Code hosting + CI/CD (Free tier เพียงพอ; Pro ถ้าต้องการ private features) | **~0-1,000** |
+> | **TOTAL V1 BUILD (cash-out)** | | **~25,000-32,000 บาท** |
+>
+> ### What's INCLUDED ✅
+> - Complete MVP build (backend + portal + backoffice + mobile + VCam module + onboarding wizard)
+> - Production deployment infra (GCP + Cloudflare R2 + Cloudflare proxy/SSL)
+> - Stripe billing integration (live mode)
+> - Design partner cycle (2-3 friendly TH sellers)
+> - Banner Tier 1 (static) completion — Tier 2 dynamic real-time moved to V1.5
+> - Token-gated APK distribution pipeline
+>
+> ### What's NOT in this budget
+>
+> | Item | Treatment |
+> |---|---|
+> | **Founder time** (Pond solo full-stack) | Self-fund as equity — ไม่นับเป็น cash-out |
+> | **Legal review** (TikTok ToS + Thai PDPA + Computer Crime Act + customer ToS) | Separate budget ~50-100K, before paid GA |
+> | **Marketing / paid acquisition** | 0 บาท — bottom-up via design partners → community |
+> | **Customer success / support** | Founder-led until 100+ customers |
+>
+> ### Total to revenue stage
+>
+> | Phase | Cash-out | Status |
+> |---|---|---|
+> | V1 MVP build (cash items only) | 25-32K | ✅ ~90% done |
+> | Legal review (V1 GA gate) | 50-100K | ⏳ Before paid GA |
+> | **TOTAL cash-out pre-revenue** | **~75-132K** | |
+>
+> ### Ongoing run-rate (post-GA)
+> Infrastructure at scale (2,000 users) = ~26,658 บาท/เดือน — see Slide 11
+
+**[SAY]**
+> "เปิด budget ละเอียด — cash-out items อย่างเดียว:
+>
+> **Claude 13K** — Pro subscription × 2 เดือน
+> **Infrastructure 12-18K** — Google Cloud (DB + Go backend), Cloudflare R2 storage, Cloudflare SSL (free with proxy), domain reruni.com × 2 เดือน
+> **GitHub ~0-1K** — Free tier เพียงพอ
+>
+> รวม **25-32K บาท** เท่านั้น
+>
+> **Founder time (ผม Pond) self-fund as equity** — ไม่อยู่ใน budget นี้
+>
+> **ที่ไม่อยู่ใน 25-32K:**
+> - Legal review (50-100K) — separate, ก่อน paid GA สำหรับ ToS + PDPA + Computer Crime Act
+> - Marketing — 0 บาท (bottom-up via design partners → community)
+> - Customer success — founder-led จนถึง 100+ customers
+>
+> **Total cash-out to revenue stage:** 75-132K (V1 build + legal)
+>
+> หลัง GA — ongoing infra ที่ scale 2,000 users = 26,658 บาท/เดือน (Slide 11)"
+
+**[TIME]** 2 นาที
 
 ---
 
@@ -69,18 +138,22 @@
 > | Landing page reruni.com | 0.5 wk | ✅ Shipped |
 >
 > **Remaining (~1-2 wk):**
-> - Banner Tier 2 (dynamic real-time composition)
 > - 2-3 design partner cycle + bug fix
 > - Stripe live-mode + production webhook signing
 > - APK production upload pipeline + token-gate validation
 > - Email Resend domain verify
+>
+> **Moved out of V1 scope (2026-06-01):**
+> - Banner Tier 2 (dynamic real-time composition) → V1.5
+> - Playlist auto-switch mid-live → V2 (POC-gated; current single-file ffmpeg-concat ✅ stays in V1)
 
 **[SAY]**
 > "นี่ไม่ใช่ estimate — นี่คือสิ่งที่ shipped ใน 2 สัปดาห์จริง
 > Plan เดิม 8 สัปดาห์ — สิ่งที่ต้องใช้เวลา ~30 วันจริง
 > Velocity 8-10x ของ industry baseline ไม่ใช่ 5x ที่ POC พิสูจน์ — เพราะ MVP scope กว้างกว่า POC 8-10 เท่า แต่ใช้เวลาแค่ ~3x ของ POC
 >
-> เหลืออะไรบ้าง: Banner Tier 2, design partner cycle, Stripe live, APK pipeline production — ทั้งหมด ~2 weeks"
+> เหลืออะไรบ้าง: design partner cycle, Stripe live, APK pipeline production — ทั้งหมด ~2 weeks
+> Banner Tier 2 ย้ายไป V1.5 เพื่อ keep V1 launch scope ให้ tight"
 
 **[TIME]** 2 นาที
 
@@ -295,7 +368,6 @@
 > | Pin product real-time | ⚠️ App-only | ❌ | ❌ | ✅ |
 > | **Dynamic banner overlay** | ❌ | ❌ | ❌ | ✅ |
 > | TikTok Shop integration | ⚠️ บางส่วน | ❌ | ❌ | ✅ |
-> | Multi-account rotation (V2) | ❌ | ❌ | ❌ | ✅ |
 > | Persistent cloud connection | ❌ | ❌ | ❌ | ✅ |
 > | Scale 100+ phones | ❌ | ❌ (max 3) | ✅ | ✅ |
 > | BYOD (ไม่ต้อง root) | ⚠️ ต้อง root | ✅ | ❌ ต้อง root | ✅ (LSPatch) |
@@ -628,14 +700,15 @@
 
 ---
 
-## Slide 13: Roadmap Overview — V1 ↦ V3
+## Slide 13: Roadmap Overview — V1 ↦ V4
 
 **[ON SLIDE]**
 > ```
-> 2026 Q3 │ V1   — Launch (paying customers)
-> 2026 Q4 │ V1.5 — Stability + QoL
-> 2027 Q1 │ V2   — Multi-profile + Scheduling ✅
-> 2027 Q2 │ V3   — AI + Hybrid Live (exploratory)
+> 2026 Q2 end │ V1   — Launch (paying customers)
+> 2026 Q4     │ V1.5 — Stability + CAPTCHA + Banner Tier 2 + QoL
+> 2027 Q1     │ V2   — Scheduling + Playlist auto-switch + Stability
+> 2027 Q2     │ V3   — Compliance + Live AI moderation (POC-gated)
+> 2027 Q3     │ V4   — AI Content Creation (Phase 4)
 > ```
 >
 > **Tagged with confidence:**
@@ -646,15 +719,17 @@
 > **Removed:**
 > - ❌ SEA expansion (focus TH first)
 > - ❌ Multi-user team / agency
+> - ❌ **Multi-profile rotation** (dropped 2026-05-31 — TikTok account safety)
 
 **[SAY]**
 > "Roadmap 4 versions ใน 12 เดือน
-> V1 ตอนนี้ → V1.5 stability → V2 multi-profile rotation → V3 AI features
+> V1 ตอนนี้ → V1.5 stability+CAPTCHA+Banner T2 → V2 scheduling+playlist → V3 compliance+live moderation → V4 AI content creation
 >
 > ทุก feature tag ด้วย confidence: confirmed / likely / exploratory
 > สำคัญ — V3 หลายอันยัง exploratory ไม่ promise ทำได้แน่
 >
-> ที่ตัดออกถาวร: SEA expansion + agency/multi-user
+> ที่ตัดออกถาวร: SEA expansion + agency/multi-user + multi-profile rotation
+> (multi-profile drop 2026-05-31 เพราะ TikTok account safety risk)
 > Focus TH solo seller ให้ดีก่อน scale"
 
 **[TIME]** 2 นาที
@@ -714,32 +789,26 @@
 
 ---
 
-## Slide 15: V2 — Multi-profile Rotation + Scheduling (Q1 2027)
+## Slide 15: V2 — Scheduling + Stability Hardening (Q1 2027)
 
 **[ON SLIDE]**
-> ## V2 — Ban-resistant + Auto-pilot
->
-> ### 🔄 Multi-profile Rotation ✅
-> **1 device รองรับหลาย TikTok accounts**
->
-> Workflow:
-> 1. ลูกค้า login หลาย accounts ใน TikTok (native switcher อยู่แล้ว 5+ accounts/app)
-> 2. Web dashboard: label accounts + ตั้ง rotation schedule
-> 3. Companion app: ใช้ Accessibility กด switch ตามเวลา
->
-> ผลลัพธ์:
-> - 1 phone × 3 accounts = effective 3x value
-> - บัญชี A โดน ban → auto-skip ใช้ B ต่อ (capacity -33% ไม่ใช่ -100%)
+> ## V2 — Auto-pilot + Reliability
 >
 > ### ⏰ Scheduling ✅
 > - Time-based start/stop (เริ่ม 09:00 หยุด 23:00 อัตโนมัติ)
 > - Playlist rotation — auto-switch video ตามรอบ
 > - Recurring schedule รายวัน/รายสัปดาห์
 >
-> ### 📊 Analytics (in-system)
-> - Live hours per account
+> ### 🛡️ Stability Hardening ✅
+> - Auto-reconnect tuning + crash diagnostics ที่ละเอียดขึ้น
+> - VCam module monitoring + auto-fallback flow ถ้า inject fail
+> - Per-device health score (online %, broadcast uptime, error rate)
+> - Alert system: live ตก, device offline > N นาที, error spike
+>
+> ### 📊 Per-device Analytics
+> - Live hours per device
 > - Viewer count history
-> - Per-profile ban detection — auto-skip
+> - Error/crash logs centralized
 >
 > ### 💬 Comment Monitoring ❓
 > - Real-time comment feed (ถ้าเข้า TikTok comment API ได้)
@@ -747,28 +816,30 @@
 > - **Feasibility: TikTok API ไม่ public — ต้อง R&D scraping**
 >
 > ### 📈 GMV Analytics ❓
-> - Conversion / sales per account
+> - Conversion / sales per device
 > - **Feasibility: ขึ้นกับ TikTok Shop API access**
 >
 > ### 🎓 Onboarding
 > - Self-serve tutorial + video walkthrough
 > - In-app tour สำหรับ feature ใหม่
+>
+> ### ❌ Removed from V2 scope (2026-05-31)
+> - ~~Multi-profile rotation~~ — TikTok account safety risk (CAPTCHA after rapid relogin/swap cycles)
 
 **[SAY]**
-> "V2 = ban-resistant + auto-pilot
+> "V2 = scheduling + stability hardening
 >
-> Killer feature คือ multi-profile rotation —
-> 1 phone รองรับ 3-5 บัญชี TikTok หมุนใช้
-> = ลด ban impact + เพิ่ม effective capacity 3x
->
-> TikTok app มี native switcher อยู่แล้ว — เราแค่ automate ผ่าน Accessibility
-> = ✅ Confirmed feasibility
->
-> Scheduling ✅ — ตั้งเวลา start/stop, playlist rotation
+> Scheduling ✅ — ตั้งเวลา start/stop, playlist rotation, recurring
+> Stability ✅ — auto-reconnect ที่ดีขึ้น, VCam fallback, per-device health
+> Per-device analytics — live hours, viewer count, error logs
 >
 > Comments + GMV analytics — flag ❓
 > ขึ้นกับ TikTok API access ที่เราต้องสำรวจ
-> ไม่ promise — ถ้าทำได้ดี, ถ้าไม่ได้ skip"
+> ไม่ promise — ถ้าทำได้ดี, ถ้าไม่ได้ skip
+>
+> Multi-profile rotation — drop จาก V2 (2026-05-31)
+> เหตุผล: TikTok account safety — เห็น CAPTCHA หลัง rapid relogin/swap
+> = scope V2 แคบลง แต่ shipping risk ต่ำกว่า"
 
 **[TIME]** 2.5 นาที
 
@@ -855,7 +926,7 @@
 **[ON SLIDE]**
 > | # | Decision | Recommendation |
 > |---|---|---|
-> | 1 | Approve V1 GA cycle ~120-150K | ✅ Approve |
+> | 1 | Approve V1 GA cycle ~25-32K cash-out (founder time self-funded) | ✅ Approve |
 > | 2 | Mobile path | ✅ **DECIDED — VCam LSPatch (own-built)** — no further choice needed |
 > | 3 | Legal review budget ~50-100K | ✅ Approve |
 > | 4 | Design partner selection | 2-3 friendly TH sellers |
@@ -865,7 +936,7 @@
 
 **[SAY]**
 > "7 decisions ที่ขอวันนี้ — ลดลงจากเดิมเพราะ #2 mobile path decided แล้ว:
-> ใหญ่สุดคือ #1 — approve V1 GA cycle 120-150K (under original 200K budget)
+> ใหญ่สุดคือ #1 — approve V1 GA cycle cash-out 25-32K (founder time self-funded as equity)
 > #2 — mobile path = VCam LSPatch own-built — ไม่ต้อง hedge อีก
 > #3 — legal review สำหรับ ToS + PDPA
 > #5 — GA target Q2 2026 end (เร็วกว่า Q3 ตามเดิมเพราะ ship เร็ว)
@@ -880,7 +951,7 @@
 **[ON SLIDE]**
 > ## TL;DR
 >
-> > **Approve V1 GA cycle ~120-150K บาท × ~2 weeks remaining**
+> > **Approve V1 GA cycle ~25-32K บาท cash-out × ~2 weeks remaining** (founder time self-funded)
 > > - **~90% MVP shipped ใน 2 wk จริง** (vs plan 8 wk = velocity 8-10x)
 > > - First 10 paying customers within 30 วันหลัง GA
 > > - 2.15M ARR target ใน 12 เดือน, breakeven ~31 customers (3-5 เดือนหลัง GA)
@@ -888,7 +959,7 @@
 > > - No SEA, no multi-user — focus TH solo seller
 
 **[SAY]**
-> "สรุป — Approve 120-150K × ~2 weeks remaining
+> "สรุป — Approve 25-32K cash-out × ~2 weeks remaining (founder time self-funded as equity)
 > ~90% ของ MVP shipped ไปแล้ว — ที่ผ่านมาคือ proof, ไม่ใช่ estimate
 > Mobile path decided แล้ว — VCam LSPatch own-built, no root
 > Focus TH solo seller — ไม่ขยายตลาดอื่นใน V1
@@ -942,21 +1013,20 @@
 
 ---
 
-## A3: V2 Multi-profile Rotation (Confirmed)
+## A3: ~~V2 Multi-profile Rotation~~ DROPPED 2026-05-31
 
 **[ON SLIDE]**
-> ## Why Confirmed
-> - TikTok app มี **built-in account switcher** อยู่แล้ว
-> - 5+ accounts/app เก็บได้ native
-> - Customer setup: login multiple accounts ล่วงหน้า
-> - V2 = automate switch ผ่าน Accessibility Service (ที่เราใช้ V1 อยู่แล้ว)
+> ## Why Dropped
+> - **TikTok account safety** — observed CAPTCHA challenges after rapid relogin/switch cycles
+> - Rotation tooling would amplify ban/CAPTCHA frequency at scale
+> - V2 scope refocused on Scheduling + Stability hardening แทน
 >
-> ## Customer benefit
-> - 1 phone effective × 3 accounts = 3x value
-> - Per-account ban impact = -33% capacity (not -100%)
-> - Justify Pro tier or future Pro+ tier (29,990)
+> ## Implication
+> - 1 phone = 1 TikTok account (เท่า SamuraiLive)
+> - แต่ Reruni ยังขายส่วนที่ SamuraiLive ไม่มี: web control, multi-device fleet, dynamic banner, no-root, SaaS infra
+> - Pricing model unchanged — flat 299/device/month
 
-**[เมื่อใช้]** Q: "V2 multi-profile ทำได้แน่หรือ?"
+**[เมื่อใช้]** Q: "V2 multi-profile ทำได้แน่หรือ?" → "Drop แล้ว 2026-05-31 เพราะ account safety"
 
 ---
 

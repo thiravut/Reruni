@@ -216,7 +216,7 @@ Breakeven case: ~31 Users (234 devices) ที่ V1 fixed cost ~70K/month → 3
 - **Downside:** ถ้า design partner ไม่ adopt → kill before paid GA, ใช้ไปจริง ~120K
 - **Upside scenario:** 2.15M ARR ใน 12 เดือน = ROI ~930% Year 1
 - **Failure modes ที่ early-detect ได้:**
-  - Ban rate สูงเกินใน design partner cycle → pivot การ้ใช้ TikTok native + Multi-profile V2 timeline เร็วขึ้น, no extra cost
+  - Ban rate สูงเกินใน design partner cycle → tighten customer ToS + best-practice guide, no extra cost
   - Design partner ไม่ใช้ใน wk 4 → kill before V1 GA, used ~130K
   - VCam module breaks ตอน TikTok update → 24-48hr rebuild + customer auto-prompt update
 

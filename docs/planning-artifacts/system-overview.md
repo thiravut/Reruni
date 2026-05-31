@@ -355,9 +355,10 @@ Q2 end│ V1 GA — Paid launch               │
 
 ─── 2027 ──────────────────────────────────────────────────────────────▶
 
-Q1  │ V2 — Multi-profile + Scheduling     │
-    │  • TikTok account rotation per dev  │
+Q1  │ V2 — Scheduling + Stability hardening │
     │  • Time-based start/stop            │
+    │  • Playlist rotation                │
+    │  • Per-device health monitoring     │
 Q2  │ V3 — Pro features + AI assist       │
     │  • Hybrid live (exploratory)        │
     │  • AI comment reply (exploratory)   │

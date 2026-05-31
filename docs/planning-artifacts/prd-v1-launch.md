@@ -238,9 +238,9 @@ Flat per-device pricing forces a quantity commitment at signup — V1 launches w
 > - 🔄 **Likely** — เชื่อว่าทำได้ (mostly engineering, dependency known)
 > - ❓ **Exploratory** — ยังไม่รู้, ต้อง R&D ก่อน commit
 
-- Multi-profile rotation (TikTok native switcher + Accessibility automation) — V2 ✅
 - Scheduling (time-based start/stop) — V2 ✅
 - Playlist rotation (auto-switch video) — V2 ✅
+- Stability hardening (auto-reconnect, VCam fallback, health monitoring) — V2 ✅
 - Sentry error tracking — V1.5 ✅
 - Email notifications — V1.5 ✅
 - Banner template library — V1.5 ✅
@@ -250,11 +250,11 @@ Flat per-device pricing forces a quantity commitment at signup — V1 launches w
 - Advanced analytics (GMV, conversion) — V2/V3 ❓ (depends on TikTok Shop API)
 - Out-of-stock warning — V2 ❓ (depends on TikTok Shop API)
 - Hybrid live (human takeover) — V3 ❓ (technical feasibility unclear)
-- Fast snapshot account swap — V3 ❓ (only if V2 native switcher proves too slow)
 - AI Comment Reply / AI Insights — V3 🔄 (depends on data sources)
 - iOS support — no plan
 - Public REST API — no plan
 - Multi-user team / org / agency features — no plan
+- **Multi-profile rotation** — dropped 2026-05-31 (TikTok account safety risk)
 - International / SEA expansion — no plan
 
 ---
@@ -350,17 +350,19 @@ Flat per-device pricing forces a quantity commitment at signup — V1 launches w
 - **Optional:** 1 contractor for legal/ToS review
 - **Optional:** 1 contractor for video tutorial production
 
-### Budget
-- Stripe transaction fee — 2.95% + 10 บาท per transaction (built-in cost)
-- GCP Cloud Run + Cloud SQL + Memorystore — ~6-8K บาท/เดือน at V1 launch scale
-- Cloudflare R2 (storage + CDN) — ~500 บาท/เดือน initial (low usage)
-- Domain reruni.com — 699 บาท/year
-- SSL Certificate — $240/year (~8,400 บาท)
-- Legal review — 50-100K one-time
-- Mobile validation (if needed) — 30-50K
-- Beta customer onboarding labor — Pond time
+### Budget (cash-out only — founder time self-funded)
+- Claude (Pro subscription) — 6.5K/เดือน × 2 mo = ~13K
+- GCP Cloud Run + Cloud SQL + Memorystore — ~6-8K บาท/เดือน × 2 mo = ~12-16K
+- Cloudflare R2 (storage) — ~500 บาท/เดือน × 2 mo = ~1K
+- Cloudflare SSL (free with proxy) — 0
+- Domain reruni.com — 699 บาท/year (~700 บาท one-time)
+- GitHub (free tier; optional Pro ~150 บาท/mo) — 0-1K
+- Stripe transaction fee — 2.95% + 10 บาท per transaction (built-in cost, post-revenue)
+- Legal review — 50-100K one-time (separate phase, before paid GA)
+- Beta customer onboarding labor — Pond time (founder equity, not cash)
 
-**Total V1 phase pre-revenue cost: ~120-150K** (revised down from original 200K plan based on actual velocity)
+**Total V1 phase cash-out (excl. legal): ~25-32K** (founder time self-funded as equity)
+**Total to revenue stage (incl. legal):** ~75-132K (vs original 280K plan = save 50-65%)
 
 → Full cost analysis at scale: ดู [v1-launch-presentation.md](v1-launch-presentation.md) Slide 10 (2,000 users = ~26,658 บาท/เดือน hybrid stack)
 
@@ -368,7 +370,7 @@ Flat per-device pricing forces a quantity commitment at signup — V1 launches w
 
 **Plan was 8 weeks. Reality:**
 - ✅ **Weeks 1-2 (done):** POC + Backend + Portal SPA + Backoffice SPA + Mobile companion + VCam module + Autopilot Phase A-D + Deployment infra + Pricing pivot + Onboarding wizard + Landing page
-- ⏳ **Week 3 (in progress):** Banner Tier 2 (dynamic real-time composition) + Stripe live-mode + APK production pipeline + email Resend domain verify
+- ⏳ **Week 3 (in progress):** Stripe live-mode + APK production pipeline + email Resend domain verify (Banner Tier 2 moved to V1.5 per 2026-06-01 scope decision)
 - ⏳ **Week 4:** Design partner cycle (2-3 friendly TH sellers) + bug fix + legal review kick-off
 
 → **V1 GA target: ~4 weeks total → Q2 2026 end** (revised earlier from Q3)
@@ -379,7 +381,7 @@ Flat per-device pricing forces a quantity commitment at signup — V1 launches w
 
 | # | Decision | Recommendation |
 |---|---|---|
-| 1 | **Approve V1 GA cycle budget** (~120-150K total) | ✅ Approve — under original 200K |
+| 1 | **Approve V1 GA cycle cash-out** (~25-32K, founder time self-funded) | ✅ Approve — far under original 200K plan |
 | 2 | ~~Mobile path~~ | ✅ **DECIDED — VCam LSPatch own-built**, no further choice needed |
 | 3 | **Legal review budget** (~50-100K) | ✅ Approve |
 | 4 | **Design partner selection** | 2-3 friendly TH sellers |
@@ -393,7 +395,7 @@ Flat per-device pricing forces a quantity commitment at signup — V1 launches w
 
 → See `release-roadmap.md`:
 - **V1.5 (Q4 2026):** Stability + QoL — reduce ops burden
-- **V2 (Q1 2027):** Multi-profile rotation ✅ + scheduling ✅ + comments ❓
+- **V2 (Q1 2027):** Scheduling ✅ + stability hardening ✅ + comments ❓ (multi-profile dropped 2026-05-31)
 - **V3 (Q2 2027):** AI features 🔄 + hybrid live ❓ (exploratory)
 
 ---

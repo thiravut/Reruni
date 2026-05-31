@@ -9,7 +9,7 @@
 
 ## ⚡ One-paragraph pitch
 
-**TiktokRerun** คือ web-based control plane สำหรับ **solo TikTok Shop seller** ที่ run หลายบัญชี — คุม Android phones (เริ่ม 3-10, scale ได้ถึง 100+) จากเว็บเดียว, broadcast pre-recorded วิดีโอเป็น live, ปักตะกร้าสินค้า, และเปลี่ยน promo banner real-time MVP **~90% shipped ใน 2 สัปดาห์** (vs plan 8 wk = velocity 8-10x), market gap ชัดเจน (closest competitor **SamuraiLive** เป็น app-only ราคาเท่ากัน 299/device — เราขาย web control + multi-device fleet ที่เขาไม่มี), **pricing flat 299 บาท/device/month** (match SamuraiLive 1:1) ทำ gross margin > 99% at scale **Ask:** approve remaining V1 GA polish + design-partner cycle (**~120-150K total × ~4 สัปดาห์ end-to-end, Pond solo full-stack + Claude**, infra hybrid GCP + Cloudflare R2, legal deferred to V1)
+**TiktokRerun** คือ web-based control plane สำหรับ **solo TikTok Shop seller** ที่ run หลายบัญชี — คุม Android phones (เริ่ม 3-10, scale ได้ถึง 100+) จากเว็บเดียว, broadcast pre-recorded วิดีโอเป็น live, ปักตะกร้าสินค้า, และเปลี่ยน promo banner real-time MVP **~90% shipped ใน 2 สัปดาห์** (vs plan 8 wk = velocity 8-10x), market gap ชัดเจน (closest competitor **SamuraiLive** เป็น app-only ราคาเท่ากัน 299/device — เราขาย web control + multi-device fleet ที่เขาไม่มี), **pricing flat 299 บาท/device/month** (match SamuraiLive 1:1) ทำ gross margin > 99% at scale **Ask:** approve remaining V1 GA polish + design-partner cycle (**~25-32K cash-out × ~4 สัปดาห์ end-to-end, Pond solo + Claude — founder time self-funded as equity**, infra Google Cloud + Cloudflare R2, legal deferred to V1)
 
 ---
 
@@ -108,18 +108,17 @@
 
 ## 5. Investment & Resource Ask
 
-### MVP build (revised — actual + remaining)
+### MVP build (revised — cash-out only, founder time self-funded)
 
 **Plan was** 8 weeks × ~190K **Reality:** ~2 weeks elapsed, ~90% scope shipped; **~2 weeks remaining** for V1 GA polish + design-partner cycle
+**Founder time:** Pond self-funds as equity contribution — not a cash-out item
 
 | Resource | Quantity (4 wk total) | Cost |
 |---|---|---|
-| Pond (founder + full-stack) | 1 FTE × 50K salary × ~2 mo | 100K |
-| Claude (AI coding assistant) | 6.5K/mo × 2 | 13K |
-| Infrastructure (Hybrid: GCP + Cloudflare R2) | × 2 mo | 8-15K |
-| Tools (Linear, GitHub, Sentry, Resend) | × 2 mo | 15-20K |
-| Misc + contingency | | 10-20K |
-| **MVP total (revised)** | | **~120-150K** |
+| Claude (AI coding assistant) | 6.5K/mo × 2 | **~13K** |
+| Infrastructure | Google Cloud (Cloud Run + Cloud SQL + Memorystore) + Cloudflare R2 storage + Cloudflare SSL (free) + domain reruni.com × 2 mo | **~12-18K** |
+| GitHub | Code hosting + CI/CD (Free tier; optional Pro) | **~0-1K** |
+| **MVP total (cash-out)** | | **~25-32K** |
 
 > **Legal review deferred to V1 phase** (before paid GA) — MVP runs with design partners under informal agreement; formal ToS + PDPA review (~50-100K) added when self-serve paid signup opens
 
@@ -127,14 +126,14 @@
 - **Actual velocity proof:** POC 4 วัน + ~90% MVP ใน 2 wk vs traditional 8-week POC + 6-12 wk MVP = **8-10x industry baseline**
 - Claude + Cursor + agent tools = 1 senior full-stack มี productivity เทียบเท่าทีม 3-4 คนยุคก่อน
 - Shipped already: backend (Go), Portal SPA + Backoffice SPA (React), Mobile companion + own-built VCam LSPosed module, deployment infra (Contabo + Caddy + Postgres), landing page, billing + onboarding wizard
-- Remaining: Banner Tier 2, design-partner cycle, Stripe live mode, APK production upload, email Resend domain verify, bug fix from real-world usage
+- Remaining: design-partner cycle, Stripe live mode, APK production upload, email Resend domain verify, bug fix from real-world usage (Banner Tier 2 moved to V1.5)
 - Pond มี domain expertise + ownership = ไม่ต้อง onboard ทีม
 
-### Payback projection
-- Investment: **~150K** (MVP) + ~80K legal (V1 phase) = **~230K total** to revenue stage
+### Payback projection (cash-out only — founder time self-funded)
+- Cash-out investment: **~30K** (MVP build) + ~80K legal (V1 phase) = **~110K total** to revenue stage
 - Year 1 ARR target: 2.15M (80 users × 7.5 devices × 299 × 12)
 - **Breakeven: ~31 customers** (~3-5 เดือนหลัง launch ที่ acquisition 7-10/mo)
-- **ROI Year 1: ~930%** (2.15M ARR / 230K investment)
+- **ROI Year 1 (cash-out basis): ~1,950%** (2.15M ARR / 110K cash investment)
 - ไม่ต้องระดมทุน, self-funded scale ได้
 
 ---
@@ -149,17 +148,17 @@
         │  • Mobile companion + VCam ✅      │
         │  • Pin product, video switching ✅ │
         │  • Onboarding wizard + billing ✅  │
-        │  • Banner Tier 2 (in progress)    │
+        │  • Banner Tier 1 (static) ✅      │
+        │  • Playlist (ffmpeg-concat) ✅    │
         │  • 2-3 design partners (next 1 wk) │
         │
-2026 Q4 │ V1 GA — Paid launch                 │
+Q2 end │ V1 GA — Paid launch                  │
         │  • Self-serve signup + billing      │
-        │  • Scheduling, comment monitoring   │
-        │  • Scheduling                       │
         │
-2027 Q1 │ V2 — Multi-profile + Scheduling     │
-2027 Q2 │ V3 — AI assist + Hybrid Live        │
-        │ (exploratory features)              │
+2026 Q4 │ V1.5 — Stability + CAPTCHA + Banner Tier 2 │
+2027 Q1 │ V2 — Scheduling + Playlist auto-switch + Stability │
+2027 Q2 │ V3 — Compliance + Live AI moderation (POC-gated) │
+2027 Q3 │ V4 — AI Content Creation (Phase 4)  │
 ```
 
 ---
@@ -181,8 +180,8 @@
 
 | # | Decision | Recommendation | Why this matters |
 |---|---|---|---|
-| 1 | **Approve V1 GA cycle** | ✅ Approve | Ship remaining ~10% + design partner validation, **~120-150K บาท total** (vs original 200K plan) |
-| 2 | **Team structure** | Pond solo full-stack + Claude (50K/mo salary) | AI-leveraged, no additional hire for MVP |
+| 1 | **Approve V1 GA cycle** | ✅ Approve | Ship remaining ~10% + design partner validation, **~25-32K cash-out** (founder time self-funded as equity) |
+| 2 | **Team structure** | Pond solo full-stack + Claude (founder equity, no salary) | AI-leveraged, no additional hire for MVP |
 | 3 | **Infrastructure budget** | 5-10K/mo MVP cap | Hybrid GCP + Cloudflare R2 |
 | 4 | **Public positioning** | A1 — Live Commerce Ops Platform | Avoid MOD APK / fraud association |
 | 5 | **Design partners selection** | 2-3 friendly agencies | Validation + early revenue + case study |
@@ -199,8 +198,7 @@
 - OOS auto-handling default behavior
 - Customer ToS draft owner (legal collaboration)
 - TikTok app version compatibility strategy
-- Multi-account login per Device design
-- Backup plan ถ้า TikTok ปิด screen-share API
+- Backup plan ถ้า TikTok ปิด Camera2 path / detect VCam module
 
 ---
 
@@ -217,4 +215,4 @@
 
 ## TL;DR สำหรับ exec ที่อ่านแค่บรรทัดเดียว
 
-> **Approve ~120-150K บาท × ~2 weeks remaining ให้ Pond (solo + Claude) finish V1 TiktokRerun — ~90% MVP shipped ใน 2 wk จริง (velocity 8-10x industry), pricing flat 299/device match competitor, gross margin > 99% at scale, breakeven ~31 customers (3-5 เดือนหลัง GA), ROI Year 1 ~930%**
+> **Approve ~25-32K บาท cash-out × ~2 weeks remaining ให้ Pond (solo + Claude — founder time self-funded as equity) finish V1 TiktokRerun — ~90% MVP shipped ใน 2 wk จริง (velocity 8-10x industry), pricing flat 299/device match SamuraiLive, gross margin > 99% at scale, breakeven ~31 customers (3-5 เดือนหลัง GA), ROI Year 1 ~1,950% on cash-out basis**
