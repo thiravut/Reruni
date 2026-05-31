@@ -9,6 +9,10 @@
 -- (any status — they have transacted at some point) or at least one paired
 -- device. Users signed up between 0006 and this migration who never paid
 -- and never paired stay on 'welcome' so the wizard still applies to them.
+--
+-- Note: this only catches step='welcome'. Paying users who clicked through
+-- the first wizard screen sit at 'pick_quantity' / 'payment' — those are
+-- covered by 0008_backfill_onboarding_complete_widen.sql.
 
 UPDATE users
 SET onboarding_step = 'complete'
