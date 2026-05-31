@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">TiktokRerun</string>
-    <string name="hero_title">TiktokRerun</string>
+    <string name="app_name">Rerun-i</string>
+    <string name="hero_title">Rerun-i</string>
     <string name="hero_subtitle">Live ขายของแบบ autopilot — กดปุ่มเดียวจบ</string>
 
     <!-- Production home screen -->
@@ -55,7 +55,7 @@
     <string name="nav_back">กลับ</string>
     <string name="connect_status_inline">สถานะ: %1$s</string>
     <string name="connect_started">✓ เริ่ม service แล้ว — รอเชื่อมต่อ…</string>
-    <string name="settings_hint">เชื่อมต่อแอปเข้ากับ TiktokRerun Control panel เพื่อสั่งจากระยะไกล — เปิด dashboard บน laptop → กด "สร้าง Pair QR" → สแกนด้วยปุ่มข้างล่าง</string>
+    <string name="settings_hint">เชื่อมต่อแอปเข้ากับ Rerun-i Control panel เพื่อสั่งจากระยะไกล — เปิด dashboard บน laptop → กด "สร้าง Pair QR" → สแกนด้วยปุ่มข้างล่าง</string>
     <string name="section_server">การเชื่อมต่อ Server</string>
     <string name="section_autopilot_perm">สิทธิ์ Autopilot</string>
     <string name="section_autopilot_perm_subtitle">Accessibility service สำหรับกดปุ่มใน TikTok</string>
@@ -109,7 +109,7 @@
 
     <!-- Notification (foreground service) -->
     <string name="notif_channel_name">Server Connection</string>
-    <string name="notif_channel_desc">WebSocket ที่เชื่อมต่อกับ TiktokRerun Control panel</string>
+    <string name="notif_channel_desc">WebSocket ที่เชื่อมต่อกับ Rerun-i Control panel</string>
     <string name="notif_online">● Online — %1$s</string>
     <string name="notif_connecting">● กำลังเชื่อมต่อ…</string>
     <string name="notif_error">● Error: %1$s</string>
@@ -119,8 +119,8 @@
     <string name="product_keywords_hint">Auto-pin product keywords (บรรทัดละ 1 product)</string>
     <string name="product_keywords_help">Substring match (case-insensitive) — keyword สั้นๆ ที่ unique ใน product name ก็พอ เช่น "G.K SNACK" หรือ "ธัญพืช"</string>
 
-    <string name="accessibility_label">TiktokRerun Autopilot</string>
-    <string name="accessibility_summary">เปิดเพื่อให้ TiktokRerun ทำ Go Live → Device camera + pin product ให้อัตโนมัติ</string>
+    <string name="accessibility_label">Rerun-i Autopilot</string>
+    <string name="accessibility_summary">เปิดเพื่อให้ Rerun-i ทำ Go Live → Device camera + pin product ให้อัตโนมัติ</string>
     <string name="accessibility_description">Accessibility service ใช้สำหรับ tap ปุ่มใน TikTok app เพื่อเริ่ม Live + pin product โดยอัตโนมัติ\n\nไม่อ่าน หรือบันทึก content ในหน้าจอเพื่อวัตถุประสงค์อื่นนอกจากการ navigate UI ของ TikTok</string>
     <string name="open_accessibility_settings">⚙ เปิด Accessibility</string>
     <string name="accessibility_status_on">✓ Autopilot พร้อม</string>
