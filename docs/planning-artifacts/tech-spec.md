@@ -63,7 +63,7 @@
 
 ### Infra
 - Dev hosting: localhost
-- Prod hosting: Hetzner CPX21 VPS (per cost-analysis-gcp.md Tier A)
+- Prod hosting: **Hybrid stack** — GCP (Cloud Run for Go backend, Cloud SQL HA for Postgres, Memorystore for Redis) + Cloudflare R2 for object storage + CDN (free egress)
 - TLS: Cloudflare proxy + Let's Encrypt on origin
 - Subdomain split: `app.<domain>` (portal), `backoffice.<domain>`, `api.<domain>`
 
@@ -334,9 +334,7 @@ LOG_LEVEL=info
 STRIPE_PUBLISHABLE_KEY=pk_test_...
 STRIPE_SECRET_KEY=sk_test_...
 STRIPE_WEBHOOK_SECRET=whsec_...
-STRIPE_PRICE_STARTER=price_xxx     # Stripe Price ID for Starter tier
-STRIPE_PRICE_GROWTH=price_xxx
-STRIPE_PRICE_PRO=price_xxx
+STRIPE_PRICE_PER_DEVICE=price_xxx  # Stripe Price ID for flat 299 บาท/device/month (metered/per-unit)
 PORTAL_SUCCESS_URL=http://localhost:5173/billing/success
 PORTAL_CANCEL_URL=http://localhost:5173/billing/cancel
 ```

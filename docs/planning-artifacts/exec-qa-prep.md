@@ -137,29 +137,31 @@ Worst case Tier B = 16 บาท/device, ยังถูกพอ — server cos
 
 ---
 
-### Q11. "Revenue 6.3M ARR ใน 12 เดือน — believable?"
+### Q11. "Revenue 2.15M ARR ใน 12 เดือน — believable?"
 
 **A:** เป็น realistic case (ไม่ใช่ best case) Logic:
-- 80 paying Users × avg 25 devices × 200 บาท = 400K MRR
+- 80 paying Users × avg 7.5 devices × 299 บาท = 179K MRR
 - Customer acquisition rate ~7 Users/เดือน หลัง launch — ไม่ aggressive
-- TH solo seller / multi-account reseller market มี ~5,000-20,000 ที่ run TikTok Shop หลายบัญชี = TAM พอเพียงสำหรับ 80 customers
+- TH solo seller / multi-account reseller market มี ~5,000-20,000 ที่ run TikTok Shop หลายบัญชี = TAM พอเพียงสำหรับ 80+ customers
 
-Conservative case: 30 Users, 2.3M ARR ก็ยัง breakeven (server cost ต่ำมาก)
+Breakeven case: ~31 Users (234 devices) ที่ V1 fixed cost ~70K/month → 3-5 เดือนหลัง launch
 
 **Backup:** cost-analysis-gcp.md §7 Revenue projection
 
 ---
 
-### Q12. "Pricing 3,990 บาท/10 devices — ไม่ถูกเกินไปหรือ?"
+### Q12. "Pricing flat 299 บาท/device — ทำไมเลือก flat?"
 
-**A:** Sweet spot — ไม่ถูกเกิน, ไม่แพงเกิน:
-- ถูกกว่า manual hire 10x (15-20K vs 3,990)
-- แพงกว่า 3-phone tool 2x (1,000 vs 3,990) → justify ด้วย value 5x (web + banner + scale)
-- Margin > 90% → flex ปรับ ±20% หลัง design partner feedback ได้
+**A:** Match industry benchmark + simplicity:
+- **Match competitor 1:1** — 3-phone tool ในไทยราคา 299/device → ลูกค้าเข้าใจราคาทันที, ไม่ต้อง educate
+- **Linear scaling** — ลูกค้าเพิ่ม device 1 ตัว = +299, ไม่ต้อง jump tier
+- **Onboarding friction ต่ำ** — ไม่มี "เลือก plan ไหน" ตัดสินใจ
+- **Revenue ที่ scale สูงกว่า tier** — 100-device customer จ่าย 29,900 (vs 19,990 ใน Pro tier เก่า)
+- Margin > 99% at scale → infra cost <1% revenue
 
-ที่ราคา 3,990 → 80 Users Starter ก็ทำ ~1.9M ARR ได้ → cover cost ทันที
+ที่ราคา 299 flat → 80 Users × 7.5 devices ทำ ~2.15M ARR → cover cost ทันที
 
-**Backup:** cost-analysis-gcp.md §6 pricing structure + §App.B competitor comparison
+**Backup:** cost-analysis-gcp.md §6 pricing structure (DECIDED 2026-05-23) + presentation Slide 12
 
 ---
 
@@ -168,12 +170,12 @@ Conservative case: 30 Users, 2.3M ARR ก็ยัง breakeven (server cost ต
 **A:** Risk-adjusted คุ้มอย่างมาก:
 - **Investment:** ~200K (8 wk × Pond solo + Claude + infra + tools)
 - **Downside:** เสีย dev cost — แต่ผมยังได้ learning + reuse code สำหรับ project อื่น
-- **Upside scenario:** 6.3M ARR ใน 12 เดือน = ROI 2,000% Year 1
+- **Upside scenario:** 2.15M ARR ใน 12 เดือน = ROI ~770% Year 1
 - **Failure modes ที่ early-detect ได้:**
   - Smart Overlay verification fail ใน wk 2 → pivot to plain screen-share, cost แค่ ~50K
   - Design partner ไม่ใช้ใน wk 6 → kill before V1 GA, เสียครึ่งเดียว (~100K)
 
-**Key insight:** ที่ ~200K = ใช้เงิน 1 เดือนของ ARR target — risk เล็กมาก vs upside
+**Key insight:** ที่ ~200K = ใช้เงิน 1-2 เดือนของ ARR target — risk เล็กมาก vs upside
 
 **Backup:** PRD §17 Rollout phase-gates
 
@@ -214,7 +216,7 @@ Native mobile app = Phase 2+ ถ้า demand ชัด
 - เราเข้าใจ TikTok ecosystem ในไทยลึก
 - TH = 70M population, TikTok Shop GMV โต — meaningful TAM พอเดียว
 - Localized UX (Thai language, baht, Shopee/Lazada awareness) เป็น advantage vs global tools
-- TH ตลาดมีลูกค้าศักยภาพ 10K-15K ราย — ไม่ต้อง expand ต่างชาติเพื่อ scale 27M ARR
+- TH ตลาดมีลูกค้าศักยภาพ 10K-15K ราย — ไม่ต้อง expand ต่างชาติเพื่อ scale 8M+ ARR
 - International / SEA = **not in roadmap** (per 2026-05-31 direction) — focus + ship ก่อน
 
 **Backup:** release-roadmap.md (V1-V3 plan, no V4 SEA)
@@ -341,13 +343,14 @@ V1 phase:
 | Pond salary | 50K/เดือน |
 | Claude cost | 6.5K/เดือน |
 | Server cost @ 300 devices | 1,500-3,000 บาท/เดือน |
-| Server cost ratio | 3-7% revenue |
-| Starter pricing | 3,990 บาท / 10 devices |
-| Server cost per device | 5-15 บาท (Tier A) |
-| V1 12-mo ARR target | 6.3M บาท |
-| Year 2 ARR potential | 27.3M บาท |
-| Payback | **~1 เดือนหลัง paid GA** |
-| ROI Year 1 | **1,500-2,000%+** |
+| Server cost ratio | <1% revenue at scale |
+| Pricing model | **Flat 299 บาท/device/month** (no tier) |
+| Server cost per device | 1.78 บาท (hybrid GCP + R2 at 2K users) |
+| V1 12-mo ARR target | 2.15M บาท (80 users × 7.5 devices × 299 × 12) |
+| Year 2 ARR potential | 8.07M บาท (300 users × 7.5 × 299 × 12) |
+| At-scale ARR (2K users) | 53.8M บาท |
+| Breakeven | ~31 customers (3-5 เดือนหลัง launch) |
+| ROI Year 1 | **~770%** (2.15M ARR / 280K investment) |
 | POC velocity proof | 4 วัน vs คาด 2-3 wk (5x) |
 | POC capabilities validated | 8 of 10 |
 | FRs in PRD | 26 |

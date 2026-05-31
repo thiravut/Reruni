@@ -34,7 +34,7 @@
 ### In-scope Features
 | Group | Features |
 |---|---|
-| **Account & Billing** | Signup, login, password change, Stripe checkout, 3 tiers (Starter/Growth/Pro), recheck button |
+| **Account & Billing** | Signup, login, password change, Stripe checkout, flat 299/device/month metered, recheck button |
 | **Device Management** | QR pair, fleet view, status real-time, group |
 | **Video Library** | Upload, list, delete, basic metadata |
 | **Live Operations** | Start/stop live, switch video, restart, volume control |
@@ -129,7 +129,7 @@ Runtime:
 
 ### Success Criteria
 - 80+ paying customers
-- ARR 6.3M
+- ARR 2.15M+ (80 users × 7.5 devices × 299 × 12 at flat pricing)
 - Median TikTok accounts per device ≥ 2.5
 - Per-account ban rate ↓ 30%+ vs V1 baseline
 - Customer NPS > 40
@@ -154,8 +154,8 @@ Runtime:
 
 ### Success Criteria
 - 300+ paying customers
-- AI-features adoption > 50% of Pro tier
-- ARR 15M+
+- AI-features adoption > 50% of customers ที่ใช้ AI add-ons
+- ARR 8M+ (300 users × 7.5 devices × 299 × 12 baseline; AI add-ons additional)
 
 ---
 
@@ -163,7 +163,7 @@ Runtime:
 
 **V1-V1.5:** Build → reliable → 30 customers
 **V2:** Multi-profile rotation → reduce ban impact → 80 customers
-**V3:** AI moat → premium pricing → 300 customers
+**V3:** AI moat → premium add-ons (above flat 299 base) → 300 customers
 
 Each phase grows TAM 2-3x while raising willingness-to-pay through advanced features.
 

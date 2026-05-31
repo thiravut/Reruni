@@ -1,7 +1,11 @@
 package main
 
-// Stripe-backed billing — handlers + webhook processing for the four
-// subscription tiers documented in cost-analysis-gcp.md §6.
+// Stripe-backed billing — handlers + webhook processing for the flat
+// per-device subscription model (299 THB/device/month) documented in
+// cost-analysis-gcp.md §6.
+//
+// Pricing pivot 2026-05-23: previously 3 tiers (Starter/Growth/Pro);
+// now single per-device price + customer-selected quantity.
 //
 // Spec sources:
 //   - api-contract.md §2.7b — REST endpoints
@@ -31,11 +35,16 @@ import (
 )
 
 // -----------------------------------------------------------------------------
-// Tier catalog
+// Tier catalog (flat per-device pricing)
 // -----------------------------------------------------------------------------
 
-// Tier describes a public-facing subscription tier — surfaced verbatim from
+// Tier describes the public-facing subscription model — surfaced verbatim from
 // /api/billing/tiers. Price in THB integer (no float for money).
+//
+// As of 2026-05-23, there is exactly one "tier" — flat 299 THB per device per
+// month. The Devices field represents the unit (1 device = 1 unit of the
+// price); customers pick quantity at checkout time. Kept as a slice in the
+// API response for client-side backwards compatibility.
 type Tier struct {
 	Key           string `json:"key"`
 	Name          string `json:"name"`
@@ -44,25 +53,34 @@ type Tier struct {
 	StripePriceID string `json:"stripe_price_id"`
 }
 
-// tierCatalog returns the runtime list of tiers, pulling Stripe Price IDs
-// from env. Tiers whose Price ID env var is empty are skipped (with a single
-// warning per process) so an unconfigured Stripe Dashboard surfaces clearly
-// instead of crashing with empty checkout sessions.
+// FlatTierKey is the only tier key under the per-device pricing model.
+const FlatTierKey = "device"
+
+// MinDeviceQuantity / MaxDeviceQuantity bound the checkout quantity input.
+const (
+	MinDeviceQuantity = 1
+	MaxDeviceQuantity = 10000
+)
+
+// tierCatalog returns the runtime list of tiers. With flat pricing there's
+// exactly one entry. Hidden when STRIPE_PRICE_PER_DEVICE is unset so an
+// unconfigured Stripe Dashboard surfaces clearly instead of crashing with
+// empty checkout sessions.
 func tierCatalog() []Tier {
-	all := []Tier{
-		{Key: "starter", Name: "Starter", Devices: 10, PriceTHB: 3990, StripePriceID: getenv("STRIPE_PRICE_STARTER", "")},
-		{Key: "growth", Name: "Growth", Devices: 30, PriceTHB: 8990, StripePriceID: getenv("STRIPE_PRICE_GROWTH", "")},
-		{Key: "pro", Name: "Pro", Devices: 100, PriceTHB: 19990, StripePriceID: getenv("STRIPE_PRICE_PRO", "")},
+	priceID := getenv("STRIPE_PRICE_PER_DEVICE", "")
+	if priceID == "" {
+		logBillingMissingPrice(FlatTierKey)
+		return []Tier{}
 	}
-	out := make([]Tier, 0, len(all))
-	for _, t := range all {
-		if t.StripePriceID == "" {
-			logBillingMissingPrice(t.Key)
-			continue
-		}
-		out = append(out, t)
+	return []Tier{
+		{
+			Key:           FlatTierKey,
+			Name:          "Per Device",
+			Devices:       1,
+			PriceTHB:      299,
+			StripePriceID: priceID,
+		},
 	}
-	return out
 }
 
 // tierByKey looks up a single tier (only those with a configured Price ID).
@@ -83,8 +101,7 @@ func logBillingMissingPrice(tier string) {
 		return
 	}
 	loggedMissingPrice[tier] = true
-	log.Printf("billing warn: STRIPE_PRICE_%s not set — tier %q hidden from /api/billing/tiers",
-		strings.ToUpper(tier), tier)
+	log.Printf("billing warn: STRIPE_PRICE_PER_DEVICE not set — flat tier hidden from /api/billing/tiers")
 }
 
 // -----------------------------------------------------------------------------
@@ -268,8 +285,12 @@ func listTiersHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // createCheckoutSessionHandler — POST /api/billing/checkout-session
+//
+// Flat pricing: client supplies Quantity (device count). Tier field is
+// optional and ignored — kept for backwards compatibility with older clients.
 type checkoutSessionReq struct {
-	Tier string `json:"tier"`
+	Tier     string `json:"tier"`
+	Quantity int    `json:"quantity"`
 }
 
 func createCheckoutSessionHandler(w http.ResponseWriter, r *http.Request) {
@@ -284,9 +305,18 @@ func createCheckoutSessionHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "INVALID_INPUT", "invalid JSON")
 		return
 	}
-	tier, ok := tierByKey(body.Tier)
+	tier, ok := tierByKey(FlatTierKey)
 	if !ok {
-		writeError(w, http.StatusBadRequest, "INVALID_TIER", "unknown tier")
+		writeError(w, http.StatusServiceUnavailable, "UNAVAILABLE", "Stripe price not configured")
+		return
+	}
+	quantity := body.Quantity
+	if quantity <= 0 {
+		quantity = MinDeviceQuantity
+	}
+	if quantity > MaxDeviceQuantity {
+		writeError(w, http.StatusBadRequest, "INVALID_QUANTITY",
+			"quantity exceeds maximum")
 		return
 	}
 
@@ -355,11 +385,12 @@ func createCheckoutSessionHandler(w http.ResponseWriter, r *http.Request) {
 		ClientReferenceID:   stripe.String(intToString(u.ID)),
 		AllowPromotionCodes: stripe.Bool(true),
 		LineItems: []*stripe.CheckoutSessionLineItemParams{
-			{Price: stripe.String(tier.StripePriceID), Quantity: stripe.Int64(1)},
+			{Price: stripe.String(tier.StripePriceID), Quantity: stripe.Int64(int64(quantity))},
 		},
 	}
 	cp.AddMetadata("user_id", intToString(u.ID))
 	cp.AddMetadata("tier", tier.Key)
+	cp.AddMetadata("quantity", intToString(int64(quantity)))
 
 	cs, err := checkoutsession.New(cp)
 	if err != nil {

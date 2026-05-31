@@ -4,7 +4,7 @@
 **Date:** 2026-05-24
 **Status:** Revised after challenge — original GCP estimate over-conservative for MVP stage
 
-> **TL;DR:** Run MVP on **Tier A (Scrappy)** at ~1,500-3,000 บาท/เดือน Reserve Google Cloud (Tier C/D) for enterprise customers ที่ต้องการ SOC2-grade infra Pricing recommendation: **3,990 บาท/10 devices/เดือน (Starter)** — value-based, healthy 5-7% server cost ratio
+> **TL;DR:** Run MVP on hybrid GCP + Cloudflare R2 at ~5-8K บาท/เดือน Reserve full-GCP for enterprise customers ที่ต้องการ SOC2-grade infra **Pricing DECIDED: Flat 299 บาท/device/month** — match industry benchmark, gross margin >99% at scale
 
 ---
 
@@ -130,19 +130,25 @@
 
 ---
 
-## 6. Recommended Pricing Structure (REVISED)
+## 6. Recommended Pricing Structure (DECIDED 2026-05-23)
 
-### 4-Tier subscription
+### Flat 299 บาท/device/month — NO tier
 
-| Tier | Devices | บาท/เดือน | บาท/device | Server cost ratio (Tier A infra) |
-|---|---|---|---|---|
-| **Starter** | up to 10 | **3,990** | 399 | ~5% — margin โต |
-| **Growth** | up to 30 | **8,990** | 300 | ~5% |
-| **Pro** | up to 100 | **19,990** | 199 | ~6% |
-| **Enterprise** | 100+ | quote (120-140 บาท/device) | 120-140 | ~7% |
+| Devices | บาท/เดือน | บาท/ปี (20% off) | Server cost ratio |
+|---|---|---|---|
+| 1 device | 299 | 2,870 | ~10% (low scale) |
+| 10 devices | 2,990 | 28,704 | ~5% |
+| 30 devices | 8,970 | 86,112 | ~3% |
+| 100 devices | 29,900 | 287,040 | ~1% |
+| 1,000+ devices | 299,000+ | 2,870,400+ | <1% |
+
+**Rationale:**
+- **Match industry benchmark** — 3-phone tool ในไทยราคา 299/device → ลูกค้าเข้าใจราคาทันที, ไม่ต้อง educate
+- **Linear pricing** — ลูกค้าเพิ่ม device 1 ตัว = +299, ไม่ต้อง jump tier
+- **No volume discount** — keep onboarding simple, revenue ที่ scale สูงกว่า tier model
 
 ### Trial
-- **ไม่มี free trial** — signup → choose tier → enter payment → start subscription
+- **ไม่มี free trial** — signup → enter payment → device count → start subscription
 - Account สมัครได้ฟรี แต่ต้อง active subscription เพื่อใช้ features (pair device, upload, start live)
 
 ### Annual discount
@@ -151,36 +157,33 @@
 
 ---
 
-## 7. Revenue Projection — Revised
+## 7. Revenue Projection — Flat 299
 
 ### Conservative (V1 6-month target)
-- 30 paying Users × average 20 devices = **600 devices**
-- Mix: 20 Starter + 8 Growth + 2 Pro
-  - 20 × 3,990 = 79,800
-  - 8 × 8,990 = 71,920
-  - 2 × 19,990 = 39,980
-- **MRR: ~192,000 บาท ≈ 2.3M บาท ARR**
-- Infra cost (Tier A scale-up to ~3,000 บาท/เดือน) = **1.6% revenue**
+- 30 paying Users × average 7.5 devices = **225 devices**
+- Revenue: 225 × 299 = **~67,275 บาท MRR ≈ 807K บาท ARR**
+- Infra cost (~5K/เดือน) = ~7.4% revenue
 
 ### Realistic (V1 12-month target)
-- 80 paying Users × average 25 devices = **2,000 devices**
-- Mix: 50 Starter + 25 Growth + 5 Pro
-  - 50 × 3,990 = 199,500
-  - 25 × 8,990 = 224,750
-  - 5 × 19,990 = 99,950
-- **MRR: ~524,000 บาท ≈ 6.3M บาท ARR**
-- Infra cost (Tier B ~10,000 บาท/เดือน) = **1.9% revenue**
+- 80 paying Users × average 7.5 devices = **600 devices**
+- Revenue: 600 × 299 = **~179,400 บาท MRR ≈ 2.15M บาท ARR**
+- Infra cost (~8K/เดือน) = ~4.5% revenue
 
 ### Optimistic (Year 2)
-- 300 Users × average 30 devices = **9,000 devices**
-- Mix: 150 Starter + 120 Growth + 30 Pro
-  - 150 × 3,990 = 598,500
-  - 120 × 8,990 = 1,078,800
-  - 30 × 19,990 = 599,700
-- **MRR: ~2.28M บาท ≈ 27.3M บาท ARR**
-- Infra cost (still Tier B + scale ~30,000 บาท/เดือน) = **1.3% revenue**
+- 300 Users × average 7.5 devices = **2,250 devices**
+- Revenue: 2,250 × 299 = **~672,750 บาท MRR ≈ 8.07M บาท ARR**
+- Infra cost (~15K/เดือน) = ~2.2% revenue
 
-→ Gross margin > 98% achievable — typical of vertical SaaS leaders
+### At scale (2,000 users)
+- 2,000 Users × average 7.5 devices = **15,000 devices**
+- Revenue: 15,000 × 299 = **~4.49M บาท MRR ≈ 53.8M บาท ARR**
+- Infra cost (~27K/เดือน hybrid GCP+R2) = **0.6% revenue**
+
+→ Gross margin > 99% achievable at scale — vertical SaaS leader level
+
+### Breakeven
+- V1 launch fixed cost ~70K/เดือน (Pond salary + Claude + tools + infra)
+- Breakeven: **~31 customers** (234 devices) ที่ acquisition 7-10/month → 3-5 เดือนหลัง launch
 
 ---
 

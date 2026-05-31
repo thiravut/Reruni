@@ -9,7 +9,7 @@
 
 ## ⚡ One-paragraph pitch
 
-**TiktokRerun** คือ web-based control plane สำหรับ **solo TikTok Shop seller** ที่ run หลายบัญชี — คุม Android phones (เริ่ม 3-10, scale ได้ถึง 100+) จากเว็บเดียว, broadcast pre-recorded วิดีโอเป็น live, ปักตะกร้าสินค้า, และเปลี่ยน promo banner real-time POC validated (4 วัน vs คาด 2-3 wk = AI-leveraged velocity 5x), market gap ชัดเจน (ไม่มีคู่แข่ง direct), pricing 3,990 บาท/10 devices ทำ gross margin > 90% **Ask:** approve MVP build (**~200K × 8 สัปดาห์, Pond solo full-stack + Claude**, infra Tier A scrappy, legal deferred to V1)
+**TiktokRerun** คือ web-based control plane สำหรับ **solo TikTok Shop seller** ที่ run หลายบัญชี — คุม Android phones (เริ่ม 3-10, scale ได้ถึง 100+) จากเว็บเดียว, broadcast pre-recorded วิดีโอเป็น live, ปักตะกร้าสินค้า, และเปลี่ยน promo banner real-time POC validated (4 วัน vs คาด 2-3 wk = AI-leveraged velocity 5x), market gap ชัดเจน (ไม่มีคู่แข่ง direct), **pricing flat 299 บาท/device/month** (match industry benchmark) ทำ gross margin > 90% **Ask:** approve MVP build (**~200K × 8 สัปดาห์, Pond solo full-stack + Claude**, infra hybrid GCP + Cloudflare R2, legal deferred to V1)
 
 ---
 
@@ -68,28 +68,35 @@
 
 ## 4. Business Model
 
-### Pricing (4-tier subscription)
-| Tier | Devices | บาท/เดือน | บาท/device |
-|---|---|---|---|
-| Starter | up to 10 | **3,990** | 399 |
-| Growth | up to 30 | 8,990 | 300 |
-| Pro | up to 100 | 28,990 | 199 |
-| Enterprise | 100+ | quote | 120-140 |
+### Pricing — Flat 299 บาท/device/month
 
+| Devices | บาท/เดือน | บาท/ปี (20% off) |
+|---|---|---|
+| 1 device | 299 | 2,870 |
+| 5 devices | 1,495 | 14,352 |
+| 10 devices | 2,990 | 28,704 |
+| 30 devices | 8,970 | 86,112 |
+| 100 devices | 29,900 | 287,040 |
+
+- **Flat 299 บาท/device/month** — ไม่มี tier, ไม่มีส่วนลด volume
+- **Match competitor benchmark** — 3-phone tool ในตลาดไทยราคา 299/device → ลูกค้าเข้าใจราคาทันที
 - ไม่มี free trial — pay upfront
 - 20% annual discount
 
 ### Unit economics
-- Server cost per device: **5-15 บาท** (Tier A: Hetzner + Cloudflare R2 = $0 egress)
-- Server cost ratio: **3-7% revenue** (gross margin > 90%)
+- Server cost per device: **1.78 บาท** at 2,000-user scale (Hybrid: GCP + Cloudflare R2 = $0 egress)
+- Server cost ratio: **~0.6% revenue** (gross margin > 99%)
 - Customer acquisition: bottom-up via design partners → community/referral
 
-### Revenue projection
+### Revenue projection (flat 299 × avg 7.5 devices/customer)
 | Stage | Users | Avg devices | MRR (บาท) | ARR (บาท) |
 |---|---|---|---|---|
-| V1 6-mo | 30 | 20 | 192K | 2.3M |
-| V1 12-mo | 80 | 25 | **524K** | **6.3M** |
-| Year 2 | 300 | 30 | 2.28M | **27.3M** |
+| V1 6-mo | 30 | 7.5 | 67K | 807K |
+| V1 12-mo | 80 | 7.5 | **179K** | **2.15M** |
+| Year 2 | 300 | 7.5 | 673K | **8.07M** |
+| At scale (2K users) | 2,000 | 7.5 | **4.49M** | **53.8M** |
+
+**Breakeven:** ~31 customers (234 devices) ที่ V1 fixed cost ~70K/month — 3-5 เดือนหลัง launch ที่ acquisition 7-10 customers/month
 
 ---
 
@@ -100,7 +107,7 @@
 |---|---|---|
 | Pond (founder + full-stack) | 1 FTE × 50K salary | 100K |
 | Claude (AI coding assistant) | 6.5K/mo × 2 | 13K |
-| Infrastructure (Tier A: Hetzner + Cloudflare R2) | | 4K |
+| Infrastructure (Hybrid: GCP + Cloudflare R2) | | 4-8K |
 | Tools (Linear, GitHub, Sentry) | 10K/mo × 2 | 20K |
 | Misc + contingency (specialist contractor if needed) | | 30-50K |
 | **MVP total** | | **~170-190K** |
@@ -115,9 +122,9 @@
 
 ### Payback projection
 - Investment: **~200K** (MVP) + ~80K legal (V1 phase) = ~280K total to revenue stage
-- Year 1 ARR target: 6.3M
-- **Payback: ~1 เดือน หลัง paid GA**
-- **ROI Year 1: 1,500-2,000%+**
+- Year 1 ARR target: 2.15M (80 users × 7.5 devices × 299 × 12)
+- **Breakeven: ~31 customers** (~3-5 เดือนหลัง launch ที่ acquisition 7-10/mo)
+- **ROI Year 1: ~770%** (2.15M ARR / 280K investment)
 - ไม่ต้องระดมทุน, self-funded scale ได้
 
 ---
@@ -162,11 +169,11 @@
 |---|---|---|---|
 | 1 | **Approve MVP phase** | ✅ Approve | Unlock 8-week build, **~200K บาท** |
 | 2 | **Team structure** | Pond solo full-stack + Claude (50K/mo salary) | AI-leveraged, no additional hire for MVP |
-| 3 | **Infrastructure budget** | 5-10K/mo MVP cap | Tier A scrappy stack |
+| 3 | **Infrastructure budget** | 5-10K/mo MVP cap | Hybrid GCP + Cloudflare R2 |
 | 4 | **Public positioning** | A1 — Live Commerce Ops Platform | Avoid MOD APK / fraud association |
 | 5 | **Design partners selection** | 2-3 friendly agencies | Validation + early revenue + case study |
 | 6 | **Legal review (deferred to V1)** | TikTok ToS + Thai PDPA + Computer Crime Act + customer ToS | Before paid GA, ~50-100K |
-| 7 | **Hosting region** | Bangkok-first (Tier A: Hetzner Singapore for now) | Latency + data residency |
+| 7 | **Hosting region** | GCP asia-southeast1 (Singapore) + Cloudflare global edge | Latency + data residency |
 
 ---
 
@@ -196,4 +203,4 @@
 
 ## TL;DR สำหรับ exec ที่อ่านแค่บรรทัดเดียว
 
-> **Approve ~200K บาท × 8 weeks ให้ Pond (solo + Claude) สร้าง MVP TiktokRerun — POC พิสูจน์ velocity 5x แล้ว (4 วัน vs 2-3 wk), gross margin > 90%, payback 1 เดือน หลัง GA, ROI Year 1 = 1,500-2,000%+**
+> **Approve ~200K บาท × 8 weeks ให้ Pond (solo + Claude) สร้าง MVP TiktokRerun — POC พิสูจน์ velocity 5x แล้ว (4 วัน vs 2-3 wk), pricing flat 299/device match competitor, gross margin > 99%, breakeven ~31 customers (3-5 เดือนหลัง GA), ROI Year 1 ~770%**

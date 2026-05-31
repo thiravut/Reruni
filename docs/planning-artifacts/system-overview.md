@@ -231,8 +231,8 @@ User              Backend               Phone
 | Cache/Queue | Redis | Command queue + pub/sub |
 | Storage | S3-compatible (Cloudflare R2) + CDN | Cheap video delivery |
 | Frontend | Next.js + tRPC + Tailwind | Fast dev velocity |
-| Infra (POC→MVP) | Hetzner / Railway → Docker | Cheap, scales |
-| Infra (V1+) | K8s on Hetzner / GKE | When scale demands |
+| Infra (POC→MVP) | GCP Cloud Run + Cloud SQL + Cloudflare R2 | Hybrid: enterprise compute + free egress storage |
+| Infra (V1+) | Same hybrid stack — scale up Cloud Run/SQL tiers | Same architecture, larger instances |
 | Monitoring | Grafana + Loki + Prometheus | Self-hostable, no vendor lock |
 
 ---
@@ -380,13 +380,13 @@ Q2  │ V3 — Pro features + AI assist       │
 | Customer Success | – | 1 | when 10+ paying Users |
 | **Total MVP** | **1 FTE** | **3 FTE** | AI tools = headcount multiplier |
 
-### Infrastructure (REVISED — Tier A scrappy MVP, Cloudflare R2 + Hetzner)
+### Infrastructure (Hybrid: GCP compute + DB + Cloudflare R2 storage)
 | Phase | Concurrent phones | Tier | Infra cost/เดือน | บาท/device |
 |---|---|---|---|---|
-| POC | 10 | Tier A | < 1.5K บาท | 150 |
-| MVP | 100-300 | Tier A | 1.5-3K บาท | 5-15 |
-| V1 | 500-2,000 | Tier B (DO managed) | 5-15K บาท | 5-15 |
-| Scale | 5,000+ | Tier B + optimize | 30-50K บาท | 6-10 |
+| POC | 10 | Hybrid (GCP minimal + R2) | < 2K บาท | 200 |
+| MVP | 100-300 | Hybrid (Cloud Run + Cloud SQL + R2) | 4-8K บาท | 15-30 |
+| V1 launch | 500-2,000 | Hybrid (scale up) | 10-15K บาท | 8-15 |
+| At scale (2,000 users × 7.5 dev) | 15,000 | Hybrid mature | ~27K บาท | ~1.78 |
 | Enterprise (per customer) | varies | Tier C/D (GCP) | premium, quoted | 40-100 |
 
 → Full breakdown in `docs/planning-artifacts/cost-analysis-gcp.md`
@@ -403,27 +403,33 @@ Q2  │ V3 — Pro features + AI assist       │
 - Cooling rack: 30K (one-time)
 - Power + space: 5-10K/เดือน
 
-### Pricing (FINAL — close Open Q #1)
-**4-tier subscription, value-based:**
+### Pricing (FINAL — DECIDED 2026-05-23)
+**Flat 299 บาท/device/month — no tier**
 
-| Tier | Devices | บาท/เดือน | บาท/device |
-|---|---|---|---|
-| **Starter** | up to 10 | **3,990** | 399 |
-| **Growth** | up to 30 | **8,990** | 300 |
-| **Pro** | up to 100 | **19,990** | 199 |
-| **Enterprise** | 100+ | quote (120-140 บาท/device) | 120-140 |
+| Devices | บาท/เดือน | บาท/ปี (20% off) |
+|---|---|---|
+| 1 device | 299 | 2,870 |
+| 5 devices | 1,495 | 14,352 |
+| 10 devices | 2,990 | 28,704 |
+| 30 devices | 8,970 | 86,112 |
+| 100 devices | 29,900 | 287,040 |
+| 1,000 devices | 299,000 | 2,870,400 |
 
-- **ไม่มี free trial** — signup → choose tier → pay → use
+- **Flat 299/device/month** — match industry benchmark (3-phone tool ในตลาดไทย)
+- **ไม่มี free trial** — signup → pay → use
 - **20% annual discount** if pay yearly
+- **No volume discount** — linear pricing keeps onboarding simple
 
-### Revenue projection
+### Revenue projection (flat 299 × avg 7.5 devices)
 | Stage | Customers | Avg devices | MRR | ARR | Server cost % |
 |---|---|---|---|---|---|
-| V1 6-mo | 30 | 20 | 192K บาท | 2.3M บาท | 1.6% |
-| V1 12-mo | 80 | 25 | 524K บาท | 6.3M บาท | 1.9% |
-| Year 2 | 300 | 30 | 2.28M บาท | 27.3M บาท | 1.3% |
+| V1 6-mo | 30 | 7.5 | 67K บาท | 807K บาท | ~10% |
+| V1 12-mo | 80 | 7.5 | 179K บาท | 2.15M บาท | ~6% |
+| Year 2 | 300 | 7.5 | 673K บาท | 8.07M บาท | ~3% |
+| At scale | 2,000 | 7.5 | **4.49M บาท** | **53.8M บาท** | <1% |
 
-→ Gross margin > 95% achievable (vertical SaaS leader level)
+**Breakeven:** ~31 customers (234 devices) ที่ V1 fixed cost ~70K/month
+→ Gross margin > 99% at scale (vertical SaaS leader level)
 
 ---
 
@@ -433,7 +439,7 @@ Q2  │ V3 — Pro features + AI assist       │
 |---|---|---|---|
 | 1 | Approve MVP phase | ✅ Approve | Unlock 8-week build, **~200K บาท investment** |
 | 2 | Team structure | Pond solo full-stack + Claude (50K/mo) | AI-leveraged, no hire for MVP |
-| 3 | Infra budget | 30K/mo MVP cap | Hetzner + R2 → low commitment |
+| 3 | Infra budget | 5-10K/mo MVP cap | Hybrid GCP + Cloudflare R2 |
 | 4 | Public positioning | Live Commerce Ops Platform (A1) | Avoid MOD APK / fraud association |
 | 5 | Design partners | Onboard 2-3 friendly agencies | Validation + early revenue |
 | 6 | Legal review | TikTok ToS + Thai PDPA + Computer Crime Act + **customer ToS (ban risk transfer)** | Before GA |

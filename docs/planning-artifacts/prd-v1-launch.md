@@ -37,7 +37,7 @@ PRD นี้ระบุ **scope ของ V1 launch** ที่จะส่ง
 **TiktokRerun V1** ให้ solo TikTok Shop seller ในไทย run live commerce หลายบัญชีพร้อมกัน 24/7 จาก web dashboard ด้วย:
 - Mobile companion app (Android) วางบนโทรศัพท์ที่ login TikTok seller account
 - Web dashboard ที่ operator สั่ง broadcast video, ปักตะกร้าสินค้า, เปลี่ยน banner real-time
-- Subscription billing 3 tier (Starter 3,990 / Growth 8,990 / Pro 19,990 บาท/เดือน)
+- Subscription billing **flat 299 บาท/device/month** (match industry benchmark, no tier)
 
 **ลูกค้าได้:** Live ตลอด 24/7 ครอบคลุมทุกบัญชี โดยไม่ต้องจ้างคน + เปลี่ยน promo กลาง live ได้
 
@@ -69,7 +69,7 @@ Solo TikTok Shop seller, อายุ 24-38, มี 3-15 บัญชี TikTok 
 | Email/password signup | ✅ | Portal at `/signup` |
 | Email/password login | ✅ | Two-cookie session (portal/admin) |
 | Forced password change after admin reset | ✅ | `/change-password` |
-| Stripe subscription checkout | ✅ | 3 tiers + Stripe Checkout |
+| Stripe subscription checkout | ✅ | Flat 299/device metered + Stripe Checkout |
 | Subscription gating (no trial) | ✅ | Feature endpoints blocked if not active |
 | Admin recheck button (webhook fallback) | ✅ | Backoffice `/admin/subscriptions` |
 | Self-serve billing portal | ✅ | Stripe Customer Portal |
@@ -239,7 +239,7 @@ See §5 Open Decisions.
 - [x] Two-cookie session separation
 - [x] Tests passing across all 3 codebases
 - [ ] Mobile companion — path decided + production build
-- [ ] Production deployment infrastructure (Hetzner + Cloudflare R2 + reruni.com DNS)
+- [ ] Production deployment infrastructure (GCP Cloud Run + Cloud SQL + Cloudflare R2 + reruni.com DNS)
 - [ ] Auto-deploy pipeline
 - [ ] Backup strategy (daily snapshots)
 
@@ -269,7 +269,7 @@ See §5 Open Decisions.
 
 ### Primary
 - **SM-1: First 10 paying customers** — within 30 days of launch
-- **SM-2: MRR ≥ 100K บาท** — within 60 days
+- **SM-2: Reach breakeven (~31 customers)** — within 90 days (flat 299 × 7.5 avg devices = ~70K MRR breakeven)
 - **SM-3: Subscription conversion** — ≥ 30% of signups complete checkout
 - **SM-4: Backend uptime** — ≥ 99% measured over 30 days
 
@@ -293,7 +293,7 @@ See §5 Open Decisions.
 | Stripe webhook unreliable in production | Medium | Recheck button + retry logic (already built) |
 | Customer brick during patched APK install | Medium | Clear waiver + supported device list |
 | TikTok ToS challenge | Medium | Customer ToS shifts liability + A1 positioning |
-| Single-instance backend goes down | Medium | Hetzner snapshots + DB backup + uptime monitor |
+| Single-instance backend goes down | Medium | GCP Cloud Run auto-recover + Cloud SQL HA failover + uptime monitor |
 | Stripe TEST keys accidentally used in prod | Low | Deployment script gates check live key prefix |
 
 ---
@@ -307,14 +307,17 @@ See §5 Open Decisions.
 
 ### Budget
 - Stripe transaction fee — 2.95% + 10 บาท per transaction (built-in cost)
-- Hetzner VPS — ~500 บาท/เดือน
-- Cloudflare R2 — ~300 บาท/เดือน
-- Domain reruni.com — ~500 บาท/year
+- GCP Cloud Run + Cloud SQL + Memorystore — ~6-8K บาท/เดือน at V1 launch scale
+- Cloudflare R2 (storage + CDN) — ~500 บาท/เดือน initial (low usage)
+- Domain reruni.com — 699 บาท/year
+- SSL Certificate — $240/year (~8,400 บาท)
 - Legal review — 50-100K one-time
 - Mobile validation (if needed) — 30-50K
 - Beta customer onboarding labor — Pond time
 
 **Total V1 phase pre-revenue cost: ~100-200K**
+
+→ Full cost analysis at scale: ดู [v1-launch-presentation.md](v1-launch-presentation.md) Slide 10 (2,000 users = ~26,658 บาท/เดือน hybrid stack)
 
 ### Timeline
 - **Weeks 1-2:** Mobile companion final decision + validation (ban rate test)
@@ -356,6 +359,7 @@ See §5 Open Decisions.
 |---|---|
 | 2026-05-23 | POC validated, MVP scope locked |
 | 2026-05-26 | Pricing tiers: 3,990 / 8,990 / 19,990 บาท (no free trial) |
+| 2026-05-23 | **Pricing pivot:** Tier → Flat 299 บาท/device/month (match industry benchmark) |
 | 2026-05-26 | Persona pivot: Agency → Solo Seller |
 | 2026-05-26 | Stripe integration done — 6 endpoints + webhook |
 | 2026-05-26 | Forced password change after admin reset |

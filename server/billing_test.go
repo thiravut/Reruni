@@ -56,17 +56,15 @@ func seedActiveSubscription(t *testing.T, userEmail, tier string) {
 // /api/billing/tiers
 // -----------------------------------------------------------------------------
 
-func TestBillingTiersHidesUnsetPrices(t *testing.T) {
+func TestBillingTiersHiddenWhenPriceUnset(t *testing.T) {
 	srv, done := setupTestServer(t)
 	defer done()
 
-	t.Setenv("STRIPE_PRICE_STARTER", "price_starter_test")
-	t.Setenv("STRIPE_PRICE_GROWTH", "")
-	t.Setenv("STRIPE_PRICE_PRO", "")
+	t.Setenv("STRIPE_PRICE_PER_DEVICE", "")
 
 	jar, _ := newCookieJar()
 	postJSON(t, srv, jar, "/api/auth/signup", map[string]string{
-		"email": "tiers@x.com", "password": "abcd1234",
+		"email": "tiers-empty@x.com", "password": "abcd1234",
 	})
 
 	res := getJSON(t, srv, jar, "/api/billing/tiers")
@@ -77,25 +75,20 @@ func TestBillingTiersHidesUnsetPrices(t *testing.T) {
 		Tiers []Tier `json:"tiers"`
 	}
 	_ = json.NewDecoder(res.Body).Decode(&body)
-	if len(body.Tiers) != 1 {
-		t.Fatalf("expected 1 tier (only starter has price), got %d", len(body.Tiers))
-	}
-	if body.Tiers[0].Key != "starter" || body.Tiers[0].PriceTHB != 3990 || body.Tiers[0].Devices != 10 {
-		t.Fatalf("unexpected starter row: %+v", body.Tiers[0])
+	if len(body.Tiers) != 0 {
+		t.Fatalf("expected 0 tiers when price unset, got %d", len(body.Tiers))
 	}
 }
 
-func TestBillingTiersAllSet(t *testing.T) {
+func TestBillingTiersFlatPricing(t *testing.T) {
 	srv, done := setupTestServer(t)
 	defer done()
 
-	t.Setenv("STRIPE_PRICE_STARTER", "price_s")
-	t.Setenv("STRIPE_PRICE_GROWTH", "price_g")
-	t.Setenv("STRIPE_PRICE_PRO", "price_p")
+	t.Setenv("STRIPE_PRICE_PER_DEVICE", "price_per_device_test")
 
 	jar, _ := newCookieJar()
 	postJSON(t, srv, jar, "/api/auth/signup", map[string]string{
-		"email": "all@x.com", "password": "abcd1234",
+		"email": "tiers-flat@x.com", "password": "abcd1234",
 	})
 
 	res := getJSON(t, srv, jar, "/api/billing/tiers")
@@ -103,15 +96,12 @@ func TestBillingTiersAllSet(t *testing.T) {
 		Tiers []Tier `json:"tiers"`
 	}
 	_ = json.NewDecoder(res.Body).Decode(&body)
-	if len(body.Tiers) != 3 {
-		t.Fatalf("expected 3 tiers, got %d", len(body.Tiers))
+	if len(body.Tiers) != 1 {
+		t.Fatalf("expected 1 flat tier, got %d", len(body.Tiers))
 	}
-	keys := []string{body.Tiers[0].Key, body.Tiers[1].Key, body.Tiers[2].Key}
-	want := []string{"starter", "growth", "pro"}
-	for i, k := range want {
-		if keys[i] != k {
-			t.Fatalf("tier[%d] = %q, want %q", i, keys[i], k)
-		}
+	got := body.Tiers[0]
+	if got.Key != FlatTierKey || got.PriceTHB != 299 || got.Devices != 1 {
+		t.Fatalf("unexpected flat tier row: %+v", got)
 	}
 }
 
