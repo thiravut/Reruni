@@ -227,6 +227,20 @@ class MainActivity : AppCompatActivity() {
                     return@collect
                 }
 
+                // Stage into VcamContentProvider so the patched TikTok's vcam module
+                // can read this video over Binder the moment Autopilot opens Device
+                // camera. Best-effort: don't block the autopilot on stage failure —
+                // vcam falls back to the legacy on-disk path and the user can still
+                // run V1 (Screen Share) which doesn't need vcam at all.
+                try {
+                    withContext(Dispatchers.IO) {
+                        VcamContentProvider.stage(this@MainActivity, localFile)
+                    }
+                    Log.i(TAG, "vcam staged: ${localFile.length()} bytes")
+                } catch (t: Throwable) {
+                    Log.w(TAG, "vcam stage failed (continuing)", t)
+                }
+
                 val uri = FileProvider.getUriForFile(
                     this@MainActivity,
                     "$packageName.fileprovider",
@@ -288,4 +302,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    companion object {
+        private const val TAG = "MainActivity"
+    }
 }
