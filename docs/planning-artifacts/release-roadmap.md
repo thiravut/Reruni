@@ -43,7 +43,7 @@
 | **Live Metadata** | Title + caption + hashtag automation |
 | **Web Dashboard (Portal)** | All operator workflows |
 | **Backoffice (Admin)** | Users, devices, videos, lives, metrics, subscriptions, recheck |
-| **Mobile Companion** | Patched APK OR Smart Overlay (decision pending) |
+| **Mobile Companion** | Own-built VCam LSPosed module + LSPatch shim (no root, BYOD) |
 | **Auth** | Two-cookie separation (portal + admin) |
 
 ### Out-of-scope (deferred to later versions)
@@ -61,8 +61,9 @@
 - Ban rate < 30%/month (acceptable starting baseline)
 
 ### Investment
-- ~100-200K (mobile validation + final polish)
+- ~120-150K total (~90% spent already; ~20-30K remaining for design partner + final polish)
 - Pond solo + Claude
+- **Velocity:** ~90% MVP shipped in 2 wk vs plan 8 wk = 8-10x industry baseline
 
 ---
 
@@ -173,7 +174,7 @@ Each phase grows TAM 2-3x while raising willingness-to-pay through advanced feat
 
 | # | Question | Decision needed by |
 |---|---|---|
-| 1 | Mobile path — Smart Overlay OR patched APK OR both? | V1 launch |
+| 1 | ~~Mobile path~~ — DECIDED 2026-05-31: VCam LSPatch own-built (no root) | ✅ Resolved |
 | 2 | TikTok Shop API access for GMV/analytics — available to third-party? | V2 design |
 | 3 | Comments access — TikTok API, scraping, or skip feature? | V2 design |
 | 4 | AI cost model — pass-through OR absorbed in tier price? | V3 design |

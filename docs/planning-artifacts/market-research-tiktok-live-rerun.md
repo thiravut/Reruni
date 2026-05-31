@@ -43,7 +43,25 @@
 
 ## 3. คู่แข่ง / เครื่องมือในตลาด
 
-### กลุ่ม "Broadcast pre-recorded as live"
+### กลุ่ม "TikTok Live commerce ops tool" (TH local market — direct comparable)
+
+**SamuraiLive** ⭐ direct competitor (confirmed 2026-05-31)
+- **ราคา:** **299 บาท/device/month** (ตรงกับ pricing ของ Reruni)
+- **Distribution:** LINE OA + api.depend.live
+- **Architecture:** patched TikTok APK + own LSPosed VCam module + Magisk root (เรา decompile V1.0.0 confirm แล้ว — stack เดียวกับ V3 plan ของเราตอนแรก)
+- **ข้อจำกัด vs Reruni:**
+  - ❌ **App-only — ไม่มี web control plane**
+  - ❌ **1 phone 1 user** — ไม่มี multi-device fleet management
+  - ❌ **ต้อง root** (Magisk + LSPosed) — เราใช้ LSPatch ไม่ต้อง root
+  - ❌ ไม่มี dynamic banner overlay (countdown/price/promo composite)
+  - ❌ ไม่มี multi-tenant SaaS (admin, billing, quota built-in)
+- **ความหมายต่อ positioning:** เรา = ops platform (web + fleet + SaaS); SamuraiLive = single-user mobile app เราขายสิ่งที่เขาขาดที่ราคาเดียวกัน
+
+**3-phone PC tool (TH vendor — name unknown)**
+- ราคา ~299 บาท/device/month
+- PC-tethered, max 3 phones, ไม่มี mid-live control, ไม่มี web
+
+### กลุ่ม "Broadcast pre-recorded as live" (global)
 - **OneStream Live** — schedule pre-recorded, loop playlist 60 วัน, multi-platform restream
 - **OBS + virtual camera** — DIY, ฟรี, เสี่ยง detect สูง
 
@@ -55,10 +73,11 @@
 - **Apify TikTok LIVE Unlimited**
 
 ### Gap ที่สังเกตได้
-1. **ไม่มีเครื่องมือไหนแก้ปัญหา "ทำ rerun โดยไม่โดนแบน"** ได้จริง
-2. **Replay → repurpose pipeline** (auto download / clip / re-post) ยังไม่มี player ที่เด่น
-3. **Search ภายใน live archive** (semantic search สิ่งที่ creator พูด/แสดง) ยังไม่มี
-4. **Thai-localized tool** สำหรับ TikTok Shop seller เกือบไม่มี
+1. **SamuraiLive มี broadcast + commerce แต่ขาด web control + multi-device fleet** — เป็นช่องทาง direct ของ Reruni
+2. **ไม่มีเครื่องมือไหนแก้ปัญหา "ทำ rerun โดยไม่โดนแบน"** ได้จริง
+3. **Replay → repurpose pipeline** (auto download / clip / re-post) ยังไม่มี player ที่เด่น
+4. **Search ภายใน live archive** (semantic search สิ่งที่ creator พูด/แสดง) ยังไม่มี
+5. **Thai-localized tool** สำหรับ TikTok Shop seller ที่ run หลายเครื่อง = SamuraiLive (app-only) vs Reruni (web + fleet) — duopoly ในตลาด TH
 
 ---
 

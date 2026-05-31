@@ -9,7 +9,7 @@
 
 ## ⚡ One-paragraph pitch
 
-**TiktokRerun** คือ web-based control plane สำหรับ **solo TikTok Shop seller** ที่ run หลายบัญชี — คุม Android phones (เริ่ม 3-10, scale ได้ถึง 100+) จากเว็บเดียว, broadcast pre-recorded วิดีโอเป็น live, ปักตะกร้าสินค้า, และเปลี่ยน promo banner real-time POC validated (4 วัน vs คาด 2-3 wk = AI-leveraged velocity 5x), market gap ชัดเจน (ไม่มีคู่แข่ง direct), **pricing flat 299 บาท/device/month** (match industry benchmark) ทำ gross margin > 90% **Ask:** approve MVP build (**~200K × 8 สัปดาห์, Pond solo full-stack + Claude**, infra hybrid GCP + Cloudflare R2, legal deferred to V1)
+**TiktokRerun** คือ web-based control plane สำหรับ **solo TikTok Shop seller** ที่ run หลายบัญชี — คุม Android phones (เริ่ม 3-10, scale ได้ถึง 100+) จากเว็บเดียว, broadcast pre-recorded วิดีโอเป็น live, ปักตะกร้าสินค้า, และเปลี่ยน promo banner real-time MVP **~90% shipped ใน 2 สัปดาห์** (vs plan 8 wk = velocity 8-10x), market gap ชัดเจน (closest competitor **SamuraiLive** เป็น app-only ราคาเท่ากัน 299/device — เราขาย web control + multi-device fleet ที่เขาไม่มี), **pricing flat 299 บาท/device/month** (match SamuraiLive 1:1) ทำ gross margin > 99% at scale **Ask:** approve remaining V1 GA polish + design-partner cycle (**~120-150K total × ~4 สัปดาห์ end-to-end, Pond solo full-stack + Claude**, infra hybrid GCP + Cloudflare R2, legal deferred to V1)
 
 ---
 
@@ -22,15 +22,21 @@
 
 ### Pain ที่ตลาดมีจริง
 ตลาดมี solution แต่ทุกตัวขาด:
-| Solution | Capability | Gap |
-|---|---|---|
-| 3-phone Wi-Fi ADB tool (TH local) | Broadcast loop video | ❌ no mid-live control, no banner, max 3 phones, no web |
-| TikMatrix ($29-149/mo) | Engagement farm 100+ phones | ❌ no broadcast, no commerce, desktop only |
-| OBS + LIVE Studio | Pro broadcaster setup | ❌ 1 device/PC, ต้อง stream key 1K followers, ไม่ scale |
-| MOD APK tools | Unlock features | ❌ illegal, malware risk, ban risk สูง |
-| Manual: จ้างคนคุม | Full ops | ❌ salary 15-20K บาท/คน, ไม่ scale |
+| Solution | ราคา | Capability | Gap |
+|---|---|---|---|
+| **SamuraiLive (TH direct competitor)** | **299 บาท/device/month** | Broadcast + VCam + pin product (Magisk+LSPosed) | ❌ **app-only, ไม่มี web control, 1 phone 1 user, ต้อง root** |
+| 3-phone Wi-Fi ADB tool (TH local) | ~299 บาท/device/month | Broadcast loop video | ❌ no mid-live control, no banner, max 3 phones, PC tethered |
+| TikMatrix ($29-149/mo) | 1,650-4,200 บาท/month | Engagement farm 100+ phones | ❌ no broadcast, no commerce, desktop only |
+| OBS + LIVE Studio | Free | Pro broadcaster setup | ❌ 1 device/PC, ต้อง stream key 1K followers, ไม่ scale |
+| MOD APK tools | Various | Unlock features | ❌ illegal, malware risk, ban risk สูง |
+| Manual: จ้างคนคุม | 15-20K บาท/month | Full ops | ❌ salary expensive, ไม่ scale |
 
-**ช่องว่างที่ไม่มีใครเล่น:** Live Commerce Ops Platform — broadcast + commerce control + multi-device + web
+**ช่องว่างที่ Reruni เล่นเฉพาะ (vs SamuraiLive — direct comparable):**
+- **Web control plane** — operator คุม 10-100 phones จาก laptop ตัวเดียว (SamuraiLive = 1 phone 1 user, app-only)
+- **Multi-device fleet management** + multi-tenant SaaS
+- **Dynamic banner overlay** (countdown / price / promo composite real-time)
+- **No root required** (LSPatch) vs SamuraiLive (Magisk+LSPosed = ต้อง root)
+- **Same price (299/device)** — แข่งบน capability, ไม่แข่งบน price
 
 ---
 
@@ -38,7 +44,7 @@
 
 ### 5 core capabilities
 1. **Web control plane** — operator คนเดียวคุม 100+ phones จากเว็บ anywhere (vs commodity tools ที่ "set-and-forget")
-2. **Smart Overlay broadcast** — Companion App วาด video เป็น overlay บน TikTok screen-share → no flicker, no UI exposure
+2. **VCam Camera2 hijack** — own-built LSPosed module + LSPatch shim ฉีดวิดีโอเข้า TikTok's Camera2 preview directly → no root required สำหรับ R3 Lite (BYOD), no overlay, no screen-share permission
 3. **Mid-live commerce control** — pin/unpin/switch product จาก web real-time (POC validated)
 4. **Dynamic Banner composition** — banner, countdown, price tag ทับ video real-time ⭐ killer differentiator
 5. **Persistent WebSocket** — fleet always reachable (vs Wi-Fi ADB tools ที่ขาดเมื่อ phone ไป 5G)
@@ -57,9 +63,9 @@
 
 ## 3. Why Us, Why Now
 
-- **POC validated** — Smart Overlay broadcast + pin product + audio routing ทำงานครบ
+- **POC + MVP validated** — VCam Camera2 hijack + pin product + audio routing + onboarding wizard ทำงานครบ; **~90% MVP shipped ใน 2 wk จริง**
 - **Technical moat:** WebSocket-always-connected = fundamental capability ที่ commodity tools ไม่มี
-- **Architectural moat:** Smart Overlay + Banner composition = ไม่มีคู่แข่งทำได้
+- **Architectural moat:** Own-built VCam LSPosed module + Banner composition + no-root path = ไม่มีคู่แข่งทำได้ครบ
 - **First-mover** ในตลาด Live Commerce Ops Platform (อยู่ใน category ที่ยังว่าง)
 - **Timing:** ก่อน TikTok ออก stricter policy หรือ partner program ที่ปิดประตู
 - **Founder-market fit:** ทีมเข้าใจ TikTok ecosystem ในไทยลึก
@@ -79,7 +85,7 @@
 | 100 devices | 29,900 | 287,040 |
 
 - **Flat 299 บาท/device/month** — ไม่มี tier, ไม่มีส่วนลด volume
-- **Match competitor benchmark** — 3-phone tool ในตลาดไทยราคา 299/device → ลูกค้าเข้าใจราคาทันที
+- **Match SamuraiLive 1:1** — direct competitor ในไทยราคา 299/device → ลูกค้าตัดสินใจ on capability, ไม่ใช่ on price
 - ไม่มี free trial — pay upfront
 - 20% annual discount
 
@@ -102,29 +108,33 @@
 
 ## 5. Investment & Resource Ask
 
-### MVP phase (8 สัปดาห์, Q3 2026) — AI-leveraged solo execution
-| Resource | Quantity | Cost |
+### MVP build (revised — actual + remaining)
+
+**Plan was** 8 weeks × ~190K **Reality:** ~2 weeks elapsed, ~90% scope shipped; **~2 weeks remaining** for V1 GA polish + design-partner cycle
+
+| Resource | Quantity (4 wk total) | Cost |
 |---|---|---|
-| Pond (founder + full-stack) | 1 FTE × 50K salary | 100K |
+| Pond (founder + full-stack) | 1 FTE × 50K salary × ~2 mo | 100K |
 | Claude (AI coding assistant) | 6.5K/mo × 2 | 13K |
-| Infrastructure (Hybrid: GCP + Cloudflare R2) | | 4-8K |
-| Tools (Linear, GitHub, Sentry) | 10K/mo × 2 | 20K |
-| Misc + contingency (specialist contractor if needed) | | 30-50K |
-| **MVP total** | | **~170-190K** |
+| Infrastructure (Hybrid: GCP + Cloudflare R2) | × 2 mo | 8-15K |
+| Tools (Linear, GitHub, Sentry, Resend) | × 2 mo | 15-20K |
+| Misc + contingency | | 10-20K |
+| **MVP total (revised)** | | **~120-150K** |
 
 > **Legal review deferred to V1 phase** (before paid GA) — MVP runs with design partners under informal agreement; formal ToS + PDPA review (~50-100K) added when self-serve paid signup opens
 
-### Why 1-person + AI = realistic
-- **POC velocity proof:** ทำเสร็จใน 3-4 วัน vs คาด 2-3 wk = **5x ของ industry baseline**
+### Why 1-person + AI = proven, not estimated
+- **Actual velocity proof:** POC 4 วัน + ~90% MVP ใน 2 wk vs traditional 8-week POC + 6-12 wk MVP = **8-10x industry baseline**
 - Claude + Cursor + agent tools = 1 senior full-stack มี productivity เทียบเท่าทีม 3-4 คนยุคก่อน
-- Scope MVP = ~8-10x ของ POC → maintain velocity = 6-8 wk MVP
+- Shipped already: backend (Go), Portal SPA + Backoffice SPA (React), Mobile companion + own-built VCam LSPosed module, deployment infra (Contabo + Caddy + Postgres), landing page, billing + onboarding wizard
+- Remaining: Banner Tier 2, design-partner cycle, Stripe live mode, APK production upload, email Resend domain verify, bug fix from real-world usage
 - Pond มี domain expertise + ownership = ไม่ต้อง onboard ทีม
 
 ### Payback projection
-- Investment: **~200K** (MVP) + ~80K legal (V1 phase) = ~280K total to revenue stage
+- Investment: **~150K** (MVP) + ~80K legal (V1 phase) = **~230K total** to revenue stage
 - Year 1 ARR target: 2.15M (80 users × 7.5 devices × 299 × 12)
 - **Breakeven: ~31 customers** (~3-5 เดือนหลัง launch ที่ acquisition 7-10/mo)
-- **ROI Year 1: ~770%** (2.15M ARR / 280K investment)
+- **ROI Year 1: ~930%** (2.15M ARR / 230K investment)
 - ไม่ต้องระดมทุน, self-funded scale ได้
 
 ---
@@ -133,11 +143,14 @@
 
 ```
 2026 Q2 │ POC                                 ✅ Complete (validated)
-2026 Q3 │ MVP build (3 months)                ◀── REQUESTING APPROVAL
-        │  • Smart Overlay + Banner Tier 1+2  │
-        │  • Multi-tenant web + Companion App │
-        │  • Pin product, video switching     │
-        │  • 2-3 design partners onboarded    │
+2026 May│ MVP build (actual: ~2 wk so far)    🟢 ~90% shipped
+        │  • Backend (Go) + DB + auth ✅     │
+        │  • Portal SPA + Backoffice SPA ✅  │
+        │  • Mobile companion + VCam ✅      │
+        │  • Pin product, video switching ✅ │
+        │  • Onboarding wizard + billing ✅  │
+        │  • Banner Tier 2 (in progress)    │
+        │  • 2-3 design partners (next 1 wk) │
         │
 2026 Q4 │ V1 GA — Paid launch                 │
         │  • Self-serve signup + billing      │
@@ -157,7 +170,8 @@
 |---|---|---|
 | TikTok updates break Accessibility selectors | High | Selector versioning + 24-48hr patch SLA |
 | Mass account ban กระทบ customer retention | High | Customer ToS shifts liability; best-practice docs; aggregate telemetry |
-| Smart Overlay verification gates fail | Medium | POC extension before MVP build; fallback to plain screen-share |
+| VCam module breaks on TikTok app update | Medium | Camera2 hook + LSPatch shim modular; module versioning + 24-48hr rebuild SLA |
+| APK distribution / patching pipeline fragile | Low-Med | Token-gated download already wired; CI patch+sign flow proven (3 phases shipped) |
 | Competitor copies Banner feature | Low-Med | First-mover + UX execution + faster iteration |
 | Legal challenge from TikTok | Medium | A1 positioning, no public ToS bypass claim, legal review pre-GA |
 
@@ -167,7 +181,7 @@
 
 | # | Decision | Recommendation | Why this matters |
 |---|---|---|---|
-| 1 | **Approve MVP phase** | ✅ Approve | Unlock 8-week build, **~200K บาท** |
+| 1 | **Approve V1 GA cycle** | ✅ Approve | Ship remaining ~10% + design partner validation, **~120-150K บาท total** (vs original 200K plan) |
 | 2 | **Team structure** | Pond solo full-stack + Claude (50K/mo salary) | AI-leveraged, no additional hire for MVP |
 | 3 | **Infrastructure budget** | 5-10K/mo MVP cap | Hybrid GCP + Cloudflare R2 |
 | 4 | **Public positioning** | A1 — Live Commerce Ops Platform | Avoid MOD APK / fraud association |
@@ -203,4 +217,4 @@
 
 ## TL;DR สำหรับ exec ที่อ่านแค่บรรทัดเดียว
 
-> **Approve ~200K บาท × 8 weeks ให้ Pond (solo + Claude) สร้าง MVP TiktokRerun — POC พิสูจน์ velocity 5x แล้ว (4 วัน vs 2-3 wk), pricing flat 299/device match competitor, gross margin > 99%, breakeven ~31 customers (3-5 เดือนหลัง GA), ROI Year 1 ~770%**
+> **Approve ~120-150K บาท × ~2 weeks remaining ให้ Pond (solo + Claude) finish V1 TiktokRerun — ~90% MVP shipped ใน 2 wk จริง (velocity 8-10x industry), pricing flat 299/device match competitor, gross margin > 99% at scale, breakeven ~31 customers (3-5 เดือนหลัง GA), ROI Year 1 ~930%**

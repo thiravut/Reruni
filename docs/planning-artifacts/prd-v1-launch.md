@@ -159,19 +159,26 @@ Solo TikTok Shop seller, อายุ 24-38, มี 3-15 บัญชี TikTok 
 | `/admin/lives` (with force-stop) | ✅ |
 | `/admin/subscriptions` (with recheck) | ✅ |
 
-### 3.10 Mobile Companion App ⚠️ Decision Pending
+### 3.10 Mobile Companion App ✅ Built (DECIDED — VCam LSPatch)
 
-**Current state:**
-- Smart Overlay POC validated (no root, BYOD)
-- Patched TikTok APK + VCAM tested (Samsung A15 5G) — using competitor's APK
-- Ban rate baseline NOT yet measured
+**Production path: VCam Camera2 hijack via own-built LSPosed module + LSPatch shim**
 
-**V1 Decision Required:**
-- **Path A:** Smart Overlay (POC original) — proven, BYOD, lower quality
-- **Path B:** Patched APK + VCAM — better quality, dependency on competitor, untested ban rate
-- **Path C:** Both — Smart Overlay for entry users, patched APK for advanced
+| Component | Status |
+|---|---|
+| Own-built VCam LSPosed module (Camera2 EGL/OES render) | ✅ Validated A15 5G Android 16 |
+| LSPatch shim (non-root Xposed) | ✅ Working — no root needed |
+| Companion app (Pair QR, autopilot scripts, WebSocket, foreground service) | ✅ Built |
+| Autopilot scripts (JSON-driven, server-fetched) Phase A-D | ✅ Shipped |
+| Audio routing (video → TikTok mic) | ✅ Working |
+| Diagnostics + caps collector | ✅ Built |
 
-See §5 Open Decisions.
+**Deprecated paths (do not pursue):**
+- ~~Smart Overlay (SAW + MediaProjection)~~ — quality + UX worse than VCam
+- ~~Patched APK using competitor's VCAM~~ — dependency + legal risk
+
+**Remaining:**
+- Ban rate baseline via design-partner cycle (next 1-2 wk)
+- APK production upload pipeline + token-gate validation in prod
 
 ### 3.11 Auth Infrastructure ✅ Built
 
@@ -256,12 +263,12 @@ Flat per-device pricing forces a quantity commitment at signup — V1 launches w
 
 | # | Decision | Owner | Deadline |
 |---|---|---|---|
-| 1 | **Mobile path — Smart Overlay / Patched APK / Both?** | Pond | Before launch |
-| 2 | **Patched APK hosting** — เราโฮสต์, ลิงค์ไปคู่แข่ง, หรือ bundle ใน companion? | Pond + Legal | Before launch (if Path B) |
-| 3 | **Ban rate acceptable threshold** — กี่ %/เดือนถึงเรียกว่า production-ready? | Pond | Before launch |
+| 1 | ~~Mobile path — Smart Overlay / Patched APK / Both?~~ | — | ✅ **DECIDED 2026-05-31 — VCam LSPatch own-built** |
+| 2 | **APK hosting** — token-gated download via /api/downloads/companion-apk | ✅ | Built |
+| 3 | **Ban rate acceptable threshold** — กี่ %/เดือนถึงเรียกว่า production-ready? | Pond | Design-partner cycle |
 | 4 | **Customer ToS draft** — ทนายร่างหรือใช้ template? | Pond + Lawyer | Before paid GA |
-| 5 | **Re-patch cadence** — ใครรับผิดชอบ update เมื่อ TikTok ออกเวอร์ชั่นใหม่? | Pond | Before launch |
-| 6 | **Smart Overlay maintain หรือ deprecate?** | Pond | Within V1 |
+| 5 | **Re-patch cadence** — ใครรับผิดชอบ update VCam module เมื่อ TikTok ออกเวอร์ชั่นใหม่? | Pond | Before paid GA — 24-48hr SLA committed |
+| 6 | ~~Smart Overlay maintain หรือ deprecate?~~ | — | ✅ **DECIDED 2026-05-31 — Deprecated** |
 | 7 | **Auto-update mechanism** — ลูกค้า manual download หรือ automated? | Pond | V1.5 |
 
 ---
@@ -326,9 +333,10 @@ Flat per-device pricing forces a quantity commitment at signup — V1 launches w
 
 | Risk | Severity | Mitigation |
 |---|---|---|
-| Mobile companion fails at scale | High | Validate ban rate before public launch + fallback Path C |
+| VCam module breaks on TikTok app update | Medium | Module versioning + 24-48hr rebuild SLA + LSPatch shim modular |
+| Ban rate higher than expected | Medium | Validate via design-partner cycle before paid GA |
 | Stripe webhook unreliable in production | Medium | Recheck button + retry logic (already built) |
-| Customer brick during patched APK install | Medium | Clear waiver + supported device list |
+| Customer device incompatible with LSPatch | Low-Med | Clear supported-device list + diagnostics report |
 | TikTok ToS challenge | Medium | Customer ToS shifts liability + A1 positioning |
 | Single-instance backend goes down | Medium | GCP Cloud Run auto-recover + Cloud SQL HA failover + uptime monitor |
 | Stripe TEST keys accidentally used in prod | Low | Deployment script gates check live key prefix |
@@ -352,18 +360,18 @@ Flat per-device pricing forces a quantity commitment at signup — V1 launches w
 - Mobile validation (if needed) — 30-50K
 - Beta customer onboarding labor — Pond time
 
-**Total V1 phase pre-revenue cost: ~100-200K**
+**Total V1 phase pre-revenue cost: ~120-150K** (revised down from original 200K plan based on actual velocity)
 
 → Full cost analysis at scale: ดู [v1-launch-presentation.md](v1-launch-presentation.md) Slide 10 (2,000 users = ~26,658 บาท/เดือน hybrid stack)
 
-### Timeline
-- **Weeks 1-2:** Mobile companion final decision + validation (ban rate test)
-- **Weeks 3:** Production deployment + DNS setup + auto-deploy pipeline
-- **Week 4:** Legal review + ToS finalization
-- **Week 5-6:** Beta with 2-3 design partners
-- **Week 7-8:** Iterate + launch
+### Timeline (revised — actual + remaining)
 
-→ V1 GA target: **Q3 2026 (within 8 weeks)**
+**Plan was 8 weeks. Reality:**
+- ✅ **Weeks 1-2 (done):** POC + Backend + Portal SPA + Backoffice SPA + Mobile companion + VCam module + Autopilot Phase A-D + Deployment infra + Pricing pivot + Onboarding wizard + Landing page
+- ⏳ **Week 3 (in progress):** Banner Tier 2 (dynamic real-time composition) + Stripe live-mode + APK production pipeline + email Resend domain verify
+- ⏳ **Week 4:** Design partner cycle (2-3 friendly TH sellers) + bug fix + legal review kick-off
+
+→ **V1 GA target: ~4 weeks total → Q2 2026 end** (revised earlier from Q3)
 
 ---
 
@@ -371,13 +379,13 @@ Flat per-device pricing forces a quantity commitment at signup — V1 launches w
 
 | # | Decision | Recommendation |
 |---|---|---|
-| 1 | **Approve V1 launch budget** (~100-200K) | ✅ Approve |
-| 2 | **Mobile path — recommend Smart Overlay primary + patched APK pilot** | ✅ Hedge both initially |
+| 1 | **Approve V1 GA cycle budget** (~120-150K total) | ✅ Approve — under original 200K |
+| 2 | ~~Mobile path~~ | ✅ **DECIDED — VCam LSPatch own-built**, no further choice needed |
 | 3 | **Legal review budget** (~50-100K) | ✅ Approve |
 | 4 | **Design partner selection** | 2-3 friendly TH sellers |
-| 5 | **GA target Q3 2026** | ✅ Confirm |
-| 6 | **Subscription gating without trial** | ✅ Keep (already decided) |
-| 7 | **Two-cookie auth + admin separation** | ✅ Confirm |
+| 5 | **GA target Q2 2026 end** (revised earlier from Q3) | ✅ Confirm |
+| 6 | **Subscription gating without trial + flat 299/device** | ✅ Keep (decided) |
+| 7 | **Two-cookie auth + admin separation** | ✅ Confirm (deployed) |
 
 ---
 

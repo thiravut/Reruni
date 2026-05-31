@@ -166,6 +166,42 @@
   .pricing-list li::before { content: "✓ "; color: var(--accent); font-weight: 700; margin-right: 6px; }
   .pricing-card .note { font-size: 13px; color: var(--muted); margin-top: 16px; }
 
+  /* compare */
+  .compare { padding: 64px 0; border-top: 1px solid var(--border); }
+  .compare-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin-top: 40px;
+  }
+  @media (max-width: 720px) {
+    .compare-grid { grid-template-columns: 1fr; }
+  }
+  .compare-card {
+    padding: 28px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.02);
+  }
+  .compare-card.us {
+    border-color: rgba(251, 113, 133, 0.4);
+    background: linear-gradient(180deg, rgba(251, 113, 133, 0.06), rgba(251, 113, 133, 0.01));
+  }
+  .compare-card h3 { font-size: 18px; margin-bottom: 14px; letter-spacing: -0.01em; }
+  .compare-card .label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .compare-card.us .label { color: var(--accent); }
+  .compare-list { list-style: none; padding: 0; color: var(--muted); font-size: 14px; line-height: 1.8; }
+  .compare-list li::before { margin-right: 6px; }
+  .compare-card.us .compare-list li::before { content: "✓"; color: var(--accent); font-weight: 700; }
+  .compare-card:not(.us) .compare-list li::before { content: "✗"; color: var(--muted); }
+
   /* steps */
   .steps { padding: 64px 0; border-top: 1px solid var(--border); }
   .steps-list {
@@ -226,6 +262,7 @@
     <div class="logo">Rerun<span>i</span></div>
     <div class="nav-links">
       <a href="#features">Features</a>
+      <a href="#compare">เปรียบเทียบ</a>
       <a href="#pricing">Pricing</a>
       <a href="#how-it-works">เริ่มต้น</a>
       <a href="https://app.reruni.com/login">Login</a>
@@ -311,6 +348,40 @@
         เริ่มต้นใช้งาน
       </a>
       <p class="note">ตัวอย่าง: 10 เครื่อง = 2,990 บาท/เดือน · 30 เครื่อง = 8,970 บาท/เดือน</p>
+    </div>
+  </div>
+</section>
+
+<section id="compare" class="compare">
+  <div class="container">
+    <span class="section-title">Why Reruni</span>
+    <h2 class="section-heading">ราคาเดียวกัน แต่ scale ได้กว่า</h2>
+    <p style="color: var(--muted); margin-top: 12px; max-width: 56ch;">
+      เครื่องมืออื่นในตลาดราคาใกล้กัน — แต่ออกแบบให้ใช้คนละแบบ
+    </p>
+    <div class="compare-grid">
+      <div class="compare-card">
+        <span class="label">เครื่องมือ app-only ทั่วไป</span>
+        <h3>1 phone, 1 user</h3>
+        <ul class="compare-list">
+          <li>ต้องอยู่หน้าโทรศัพท์ทุกเครื่อง</li>
+          <li>คุมได้เครื่องเดียวต่อ session</li>
+          <li>ต้อง root device (Magisk + LSPosed)</li>
+          <li>ไม่มี banner overlay กลาง live</li>
+          <li>ไม่มี admin / billing / quota แยก</li>
+        </ul>
+      </div>
+      <div class="compare-card us">
+        <span class="label">Reruni</span>
+        <h3>1 operator, 100 phones</h3>
+        <ul class="compare-list">
+          <li>คุมจาก laptop / web anywhere</li>
+          <li>Multi-device fleet — 10-100 phones จากหน้าจอเดียว</li>
+          <li>ไม่ต้อง root (LSPatch — non-root path)</li>
+          <li>Dynamic banner: countdown, price, promo composite</li>
+          <li>Multi-tenant SaaS — Stripe billing + quota built-in</li>
+        </ul>
+      </div>
     </div>
   </div>
 </section>

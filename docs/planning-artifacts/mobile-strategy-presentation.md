@@ -6,6 +6,11 @@
 **Target audience:** Executive Sponsor & Decision Committee
 **ความยาวคาดหวัง:** 10 นาที walkthrough
 
+> ⚠️ **Architecture refined since this doc:** initial breakthrough was patched-APK-with-VCAM-embedded approach.
+> **Current production path (2026-05-31 evening):** own-built VCam LSPosed module + LSPatch shim — same no-root benefit, cleaner separation (TikTok app เปิดผ่าน LSPatch + VCam module load ผ่าน LSPosed). All other strategic conclusions (no root, BYOD, 2-3 wk timeline, re-patch SLA) still hold.
+>
+> See [system-overview.md](system-overview.md) §9 + [v1-launch-presentation.md](v1-launch-presentation.md) Slide 9 for current architecture.
+
 > **Use:** ไฟล์นี้สำหรับ NotebookLM → แปลงเป็นสไลด์อีกที แต่ละ section คือ 1-2 slides
 
 ---
@@ -146,7 +151,7 @@
 | 4 | **Ban rate validation 1-2 wk before scale** | ✅ Mandatory gate |
 | 5 | **Custom ROM as Phase 2 hedge** | Keep on roadmap but defer |
 | 6 | **Re-patch SLA: 24-48hr per TikTok release** | ✅ Commit operationally |
-| 7 | **Smart Overlay (POC original) — deprecate?** | Decide based on patch reliability |
+| 7 | ~~Smart Overlay (POC original) — deprecate?~~ | ✅ **DECIDED — Deprecated** (own-built VCam LSPosed module replaces it) |
 
 ---
 
@@ -206,7 +211,7 @@ Week 3   | Beta test with 2-3 design partners
 2. **TikTok signature** — เราใช้ signature ของเรา (ลูกค้าต้อง enable "install from unknown") หรือ?
 3. **Update mechanism** — companion app push update โดย auto?
 4. **Patched APK hosting** — ของเรา (legal risk) หรือ require customer self-source?
-5. **Fallback path** — ถ้า patch fail or detected, fallback กลับไป screen-share/Smart Overlay หรือ?
+5. **Fallback path** — ถ้า VCam module break ตอน TikTok update, 24-48hr rebuild SLA หรือ fallback อื่น? (Smart Overlay deprecated, ไม่ใช่ option แล้ว)
 
 ---
 
