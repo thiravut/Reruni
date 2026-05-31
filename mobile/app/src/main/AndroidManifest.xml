@@ -58,6 +58,20 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
+        <provider
+            android:name=".VcamContentProvider"
+            android:authorities="com.rerun.tiktokrerun.vcam"
+            android:exported="true"
+            android:grantUriPermissions="true" />
+
+        <receiver
+            android:name=".VcamStageReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.rerun.tiktokrerun.VCAM_STAGE" />
+            </intent-filter>
+        </receiver>
+
         <service
             android:name=".ConnectionService"
             android:exported="false"

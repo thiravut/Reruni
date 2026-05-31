@@ -45,10 +45,9 @@ object Mp4FrameProducer {
             stop()
             return
         }
-        if (!VcamConfig.videoReady()) {
-            log("video not staged at ${VcamConfig.videoFile.absolutePath}; idle")
-            return
-        }
+        // Defer the videoReady check to runOnePass — the producer retry loop
+        // will keep polling VcamBridge so the user can stage the video after
+        // navigating into the camera preview.
         stop()
         start()
     }
@@ -76,7 +75,7 @@ object Mp4FrameProducer {
             running.set(false)
             return
         }
-        log("start: file=${VcamConfig.videoFile.absolutePath}, target=$targetSurface")
+        log("start: target=$targetSurface")
 
         while (running.get() && !Thread.interrupted()) {
             val ok = runOnePass(targetSurface)
@@ -95,10 +94,22 @@ object Mp4FrameProducer {
         val extractor = MediaExtractor()
         var decoder: MediaCodec? = null
         var renderer: GlFrameRenderer? = null
+        var pfd: android.os.ParcelFileDescriptor? = null
         var framesRendered = 0
 
         try {
-            extractor.setDataSource(VcamConfig.videoFile.absolutePath)
+            val source = VcamBridge.resolve() ?: run {
+                log("no staged video; idle"); return false
+            }
+            when (source) {
+                is VcamBridge.Source.Pfd -> {
+                    pfd = source.pfd
+                    extractor.setDataSource(pfd.fileDescriptor)
+                }
+                is VcamBridge.Source.Path -> {
+                    extractor.setDataSource(source.absolutePath)
+                }
+            }
             val (track, format) = pickVideoTrack(extractor) ?: run {
                 log("no video track"); return false
             }
@@ -203,6 +214,7 @@ object Mp4FrameProducer {
             try { decoder?.release() } catch (_: Throwable) {}
             try { renderer?.release() } catch (_: Throwable) {}
             try { extractor.release() } catch (_: Throwable) {}
+            try { pfd?.close() } catch (_: Throwable) {}
         }
     }
 

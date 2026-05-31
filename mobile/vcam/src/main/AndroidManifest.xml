@@ -1,6 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Package visibility for Android 11+: declare the TiktokRerun
+         ContentProvider so resolution from the patched TikTok process
+         can locate it. Without this, ContentResolver returns null on
+         openFileDescriptor / query. -->
+    <queries>
+        <provider android:authorities="com.rerun.tiktokrerun.vcam" />
+        <package android:name="com.rerun.tiktokrerun" />
+    </queries>
+
     <application
         android:allowBackup="false"
         android:icon="@android:drawable/ic_media_play"
