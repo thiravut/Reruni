@@ -67,6 +67,7 @@ func main() {
 	bootstrapAdmin()
 	initStripe()
 	sweepOrphanLiveSessions()
+	startReminderCron()
 
 	mux := buildRouter()
 
@@ -98,6 +99,12 @@ func buildRouter() *http.ServeMux {
 	mux.HandleFunc("GET /api/downloads/manifest", downloadsManifestHandler)
 	mux.Handle("/downloads/", http.StripPrefix("/downloads/", http.FileServer(http.Dir(downloadsDir))))
 
+	// Automation scripts — Reruni app fetches these so the backend can update
+	// the tap sequence when TikTok's UI shifts, without an APK rebuild.
+	// GET is public (devices need it on every launch); PUT is admin-gated.
+	mux.HandleFunc("GET /api/scripts/{name}", getScriptHandler)
+	mux.HandleFunc("PUT /api/admin/scripts/{name}", requireAdmin(putScriptHandler))
+
 	// -------------------------------------------------------------------------
 	// Auth (public, except logout/me which need a session)
 	// -------------------------------------------------------------------------
@@ -120,6 +127,17 @@ func buildRouter() *http.ServeMux {
 	mux.HandleFunc("POST /api/billing/portal-session", requireAuth(createPortalSessionHandler))
 	mux.HandleFunc("POST /api/billing/cancel", requireAuth(cancelSubscriptionHandler))
 	mux.HandleFunc("POST /api/billing/sync", requireAuth(syncSubscriptionHandler))
+
+	// -------------------------------------------------------------------------
+	// Onboarding wizard (PRD §3.12) — auth-only, no active-sub requirement
+	// because the wizard *is* how a new user gets to active subscription.
+	// -------------------------------------------------------------------------
+	mux.HandleFunc("GET /api/onboarding", requireAuth(getOnboardingHandler))
+	mux.HandleFunc("POST /api/onboarding/advance", requireAuth(advanceOnboardingHandler))
+	mux.HandleFunc("POST /api/onboarding/skip", requireAuth(skipOnboardingHandler))
+
+	// Token-gated APK download (companion app) — must have active subscription.
+	mux.HandleFunc("GET /api/downloads/companion-apk", requireAuth(gatedCompanionAPKHandler))
 
 	// -------------------------------------------------------------------------
 	// Videos — feature endpoints require active subscription

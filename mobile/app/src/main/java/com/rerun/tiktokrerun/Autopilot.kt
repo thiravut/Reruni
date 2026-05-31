@@ -9,6 +9,9 @@ import android.graphics.Rect
 import android.os.Build
 import android.util.Log
 import android.view.accessibility.AccessibilityNodeInfo
+import com.rerun.tiktokrerun.script.ScriptContext
+import com.rerun.tiktokrerun.script.ScriptRunner
+import com.rerun.tiktokrerun.script.ScriptStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -215,32 +218,23 @@ object Autopilot {
     private suspend fun runEndLiveFlow(context: Context, launchIntent: Intent) {
         state.value = AutopilotState.Running
 
-        // 1. Bring TikTok back to foreground — when PlayerActivity or the
-        //    VCam pipeline was driving the broadcast, TikTok may be in the
-        //    background. Need its UI in front before we can tap the end button.
-        setStep("จบไลฟ์: เปิด TikTok…")
-        context.startActivity(launchIntent)
-        delay(2000)
-
-        // 2. Find + tap the end-live button. Position varies across TikTok
-        //    versions and broadcast modes (Mobile Gaming vs Device camera) so
-        //    we rely on label matching rather than fixed coordinates.
-        setStep("กด End live")
-        if (!tapByText(END_LIVE_LABELS, allowContentDesc = true, retries = 8, verifyDisappear = true)) {
-            return fail("ไม่พบปุ่ม End live — ดู dump")
+        val script = try {
+            ScriptStore(context).getScript(
+                ScriptStore.END_LIVE,
+                R.raw.script_end_live_v1,
+            )
+        } catch (t: Throwable) {
+            Log.e(TAG, "ScriptStore.getScript(end_live) failed", t)
+            return fail("โหลด script_end_live ไม่สำเร็จ")
         }
-        delay(1200)
-
-        // 3. Confirmation dialog ("Are you sure you want to end?"). Best-
-        //    effort — some TikTok variants end without confirmation. Don't
-        //    fail the run if the dialog isn't present.
-        setStep("ยืนยัน End")
-        tapByText(END_LIVE_CONFIRM_LABELS, allowContentDesc = true, retries = 4)
-        delay(1500)
-
-        setStep("✓ Live จบแล้ว")
-        state.value = AutopilotState.Done
-        activeMode.value = null
+        val runner = ScriptRunner(buildScriptContext(context, launchIntent))
+        when (val result = runner.execute(script)) {
+            is ScriptRunner.Result.Success -> {
+                state.value = AutopilotState.Done
+                activeMode.value = null
+            }
+            is ScriptRunner.Result.Failed -> return fail(result.message)
+        }
     }
 
     /**
@@ -250,62 +244,169 @@ object Autopilot {
     private suspend fun runFlow(context: Context, launchIntent: Intent) {
         state.value = AutopilotState.Running
 
-        setStep("เปิด TikTok…")
-        context.startActivity(launchIntent)
-        delay(3000)
-
-        setStep("กลับไปหน้าหลัก TikTok…")
-        ensureTikTokHome()
-        delay(500)
-
-        setStep("กด + (Create)")
-        if (!tapByText(CREATE_BUTTON_LABELS, allowContentDesc = true, retries = 8)) {
-            return fail("ไม่พบปุ่ม + บน TikTok — UI อาจเปลี่ยน")
+        // V1 Personal is executed from a JSON script. ScriptStore returns the
+        // freshest copy it has — disk cache (last server fetch) first, then
+        // the bundled baseline in res/raw. The fetch itself is triggered from
+        // MainActivity on launch + on demand; this code path is read-only.
+        val script = try {
+            ScriptStore(context).getScript(
+                ScriptStore.PERSONAL_LIVE,
+                R.raw.script_personal_live_v1,
+            )
+        } catch (t: Throwable) {
+            Log.e(TAG, "ScriptStore.getScript(personal_live) failed", t)
+            return fail("โหลด script_personal_live ไม่สำเร็จ")
         }
-        delay(2500)
-
-        setStep("กด LIVE")
-        if (!tapByText(LIVE_TAB_LABELS, allowContentDesc = true, retries = 8)) {
-            return fail("ไม่พบแท็บ LIVE — ดู logcat tag 'Autopilot' สำหรับ node dump")
+        val runner = ScriptRunner(buildScriptContext(context, launchIntent))
+        when (val result = runner.execute(script)) {
+            is ScriptRunner.Result.Success -> {
+                state.value = AutopilotState.Done
+                activeMode.value = null
+            }
+            is ScriptRunner.Result.Failed -> return fail(result.message)
         }
-        delay(1800)
-
-        setStep("กด Mobile Gaming")
-        if (!tapByText(MOBILE_GAMING_LABELS, allowContentDesc = true, retries = 8)) {
-            return fail("ไม่พบแท็บ Mobile Gaming — บัญชีอาจไม่มีสิทธิ์ Gaming category")
-        }
-        delay(1800)
-
-        setStep("กด Go LIVE")
-        if (!tapByText(GO_LIVE_LABELS, allowContentDesc = true, retries = 8)) {
-            return fail("ไม่พบปุ่ม Go LIVE — UI อาจมีหน้า setup เพิ่มเติม (title/game) ก่อน")
-        }
-        delay(2000)
-
-        setStep("กด Screen Share")
-        if (!tapByText(SCREEN_SHARE_LABELS, allowContentDesc = true, retries = 8)) {
-            return fail("ไม่พบ Screen Share — UI อาจเปลี่ยน หรือบัญชีไม่มีสิทธิ์")
-        }
-        delay(1500)
-
-        setStep("กด Start (system dialog)")
-        if (!tapByText(RECORDING_OK_LABELS)) {
-            Log.w(TAG, "no recording dialog button found yet; proceeding")
-        }
-        delay(800)
-
-        tapByText(RECORDING_OK_LABELS, retries = 2)
-
-        deliverBroadcastContent(context)
-
-        setStep("ซ่อน TikTok overlay panel…")
-        delay(4000)
-        collapseTikTokOverlay()
-
-        setStep("✓ พร้อม Live")
-        state.value = AutopilotState.Done
-        activeMode.value = null
     }
+
+    /**
+     * Wraps Autopilot's private primitives in the [ScriptContext] surface
+     * [ScriptRunner] expects. Created per-run so it can close over the
+     * caller-supplied [launchIntent].
+     */
+    private fun buildScriptContext(androidContext: Context, intent: Intent): ScriptContext =
+        object : ScriptContext {
+            override val context: Context = androidContext
+            override val launchIntent: Intent = intent
+
+            override suspend fun setStep(label: String) {
+                this@Autopilot.setStep(label)
+            }
+
+            override suspend fun delayMs(ms: Long) {
+                delay(ms)
+            }
+
+            override suspend fun tapByText(
+                labels: List<String>,
+                allowContentDesc: Boolean,
+                retries: Int,
+                verifyDisappear: Boolean,
+            ): Boolean = this@Autopilot.tapByText(
+                labels = labels,
+                retries = retries,
+                allowContentDesc = allowContentDesc,
+                verifyDisappear = verifyDisappear,
+            )
+
+            override suspend fun waitForAny(
+                labels: List<String>,
+                timeoutMs: Long,
+                intervalMs: Long,
+            ): Boolean = this@Autopilot.waitForAny(labels, timeoutMs, intervalMs)
+
+            override suspend fun swipeHorizontal(
+                startX: Float,
+                endX: Float,
+                y: Float,
+                durationMs: Long,
+            ): Boolean = this@Autopilot.swipeHorizontal(startX, endX, y, durationMs)
+
+            override suspend fun ensureTikTokHome() {
+                this@Autopilot.ensureTikTokHome()
+            }
+
+            override suspend fun deliverBroadcastContent() {
+                this@Autopilot.deliverBroadcastContent(androidContext)
+            }
+
+            override suspend fun collapseTikTokOverlay() {
+                this@Autopilot.collapseTikTokOverlay()
+            }
+
+            override suspend fun swipeToFindTab(
+                tabLabel: String,
+                confirmMarkers: List<String>,
+                swipeX1: Float,
+                swipeX2: Float,
+                swipeY: Float,
+                swipeDurationMs: Long,
+                maxIterations: Int,
+                settleDelayMs: Long,
+                betweenSwipeDelayMs: Long,
+            ): Boolean = this@Autopilot.swipeToFindTab(
+                tabLabel, confirmMarkers,
+                swipeX1, swipeX2, swipeY, swipeDurationMs,
+                maxIterations, settleDelayMs, betweenSwipeDelayMs,
+            )
+
+            override suspend fun setLiveTitleIfProvided(): Boolean {
+                if (liveTitleOverride.isBlank()) return true
+                return this@Autopilot.setLiveTitle(liveTitleOverride)
+            }
+
+            override suspend fun removePreSelectedProducts(): Int =
+                this@Autopilot.removePreSelectedProducts()
+
+            override suspend fun searchInPickerFirstKeyword(): Boolean {
+                val keywords = effectiveKeywords(androidContext)
+                if (keywords.isEmpty()) return false
+                return this@Autopilot.searchInPicker(keywords.first())
+            }
+
+            override suspend fun autoPinProducts(): Int {
+                val keywords = effectiveKeywords(androidContext)
+                if (keywords.isEmpty()) return 0
+                return this@Autopilot.autoPinProducts(keywords)
+            }
+
+            override fun warn(message: String) {
+                Log.w(TAG, message)
+            }
+        }
+
+    /** Shared keyword resolution for picker-related ops — server override
+     *  wins over the user's saved keyword list. */
+    private fun effectiveKeywords(androidContext: Context): List<String> =
+        keywordsOverride ?: AppPrefs(androidContext).productKeywordList
+
+    /** Phase C helper — generalizes the "swipe a tab strip until a marker
+     *  confirms the destination" pattern used twice in the old Shoppable
+     *  flow (Device camera, Mobile gaming). */
+    private suspend fun swipeToFindTab(
+        tabLabel: String,
+        confirmMarkers: List<String>,
+        swipeX1: Float,
+        swipeX2: Float,
+        swipeY: Float,
+        swipeDurationMs: Long,
+        maxIterations: Int,
+        settleDelayMs: Long,
+        betweenSwipeDelayMs: Long,
+    ): Boolean {
+        fun present(): Boolean {
+            val root = TikTokAutopilotService.instance?.activeRoot() ?: return false
+            return findMatch(root, confirmMarkers, allowContentDesc = true) != null
+        }
+
+        var found = present()
+        for (iter in 0 until maxIterations) {
+            if (found) break
+            val tabNode = findTabLabelIfVisible(tabLabel)
+            if (tabNode != null) {
+                val r = Rect(); tabNode.getBoundsInScreen(r)
+                Log.i(TAG, "swipeToFindTab: gesture tap '$tabLabel' at (${r.centerX()},${r.centerY()})")
+                gestureTap(tabNode)
+                delay(settleDelayMs)
+                found = present()
+                if (found) break
+            }
+            Log.i(TAG, "swipeToFindTab: swipe #$iter for '$tabLabel'")
+            swipeHorizontal(swipeX1, swipeX2, swipeY, swipeDurationMs)
+            delay(betweenSwipeDelayMs)
+            found = present()
+        }
+        return found
+    }
+
 
     /**
      * Get the broadcast content (video) onto the screen so TikTok's screen-share
@@ -514,6 +615,33 @@ object Autopilot {
     private suspend fun runShoppableFlow(context: Context, launchIntent: Intent, vcam: Boolean = true) {
         state.value = AutopilotState.Running
 
+        if (vcam) {
+            // V3/V2 path now lives in a JSON script (Phase C). The V1 path
+            // (Mobile Gaming + Screen Share) keeps its Kotlin implementation
+            // below until it gets its own script — both share early setup
+            // but differ enough at the end that duplicating is simpler than
+            // weaving the two paths through one script.
+            val script = try {
+                ScriptStore(context).getScript(
+                    ScriptStore.SHOPPABLE_VCAM,
+                    R.raw.script_shoppable_vcam_v1,
+                )
+            } catch (t: Throwable) {
+                Log.e(TAG, "ScriptStore.getScript(shoppable_vcam) failed", t)
+                return fail("โหลด script_shoppable_vcam ไม่สำเร็จ")
+            }
+            val runner = ScriptRunner(buildScriptContext(context, launchIntent))
+            when (val result = runner.execute(script)) {
+                is ScriptRunner.Result.Success -> {
+                    state.value = AutopilotState.Done
+                    activeMode.value = null
+                }
+                is ScriptRunner.Result.Failed -> return fail(result.message)
+            }
+            return
+        }
+
+        // V1 (Mobile Gaming + Screen Share) — Kotlin until ported in Phase D.
         // 1. Launch TikTok (CLEAR_TASK → fresh start at Home)
         setStep("เปิด TikTok…")
         context.startActivity(launchIntent)
@@ -695,24 +823,6 @@ object Autopilot {
             return fail("auto-pin หลัง Done ไม่กลับมาที่ Device camera — ดู dump")
         }
         delay(500)
-
-        if (vcam) {
-            // V2/V3 path: stay in Device camera → Go LIVE directly. VCam (Magisk GhostCam
-            // or partner-modded TikTok) is already feeding the prerecorded video into
-            // camera2, so TikTok captures that as the live stream. No Screen Share, no
-            // foreground switch.
-            setStep("กด Go LIVE (Device camera)")
-            if (!tapByText(GO_LIVE_LABELS, allowContentDesc = true, retries = 8)) {
-                return fail("ไม่พบ Go LIVE (Device camera)")
-            }
-            delay(2000)
-            tapByText(RECORDING_OK_LABELS, retries = 2)
-            delay(1500)
-            setStep("✓ Shoppable Live พร้อม (VCam feeding camera)")
-            state.value = AutopilotState.Done
-            activeMode.value = null
-            return
-        }
 
         // V1 path: switch to Mobile gaming tab — broadcast mode for screen-share.
         // After pinning product on Device camera mode, the tab strip typically shows

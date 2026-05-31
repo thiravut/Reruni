@@ -20,6 +20,7 @@ import { BillingSuccessPage } from './pages/BillingSuccessPage';
 import { BillingCancelPage } from './pages/BillingCancelPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { SetupGuidePage } from './pages/SetupGuidePage';
+import { OnboardingPage } from './pages/OnboardingPage';
 
 export default function App() {
   return (
@@ -66,6 +67,14 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <BillingCancelPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/onboarding"
+              element={
+                <ProtectedRoute>
+                  <OnboardingPage />
                 </ProtectedRoute>
               }
             />

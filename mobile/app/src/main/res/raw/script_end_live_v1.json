@@ -1,0 +1,31 @@
+{
+  "name": "end_live",
+  "version": 1,
+  "min_tiktok_version": "45.0.0",
+  "description": "Bring TikTok forward + tap End live + dismiss confirm dialog. Driven from server-side `end_live` command or operator UI.",
+  "steps": [
+    {"op": "step", "label": "จบไลฟ์: เปิด TikTok…"},
+    {"op": "launch_tiktok"},
+    {"op": "delay", "ms": 2000},
+
+    {"op": "step", "label": "กด End live"},
+    {"op": "tap_by_text",
+     "labels": ["End", "End live", "End LIVE", "End broadcast", "Stop live", "Stop LIVE", "Stop broadcast", "ปิดไลฟ์", "จบไลฟ์", "ปิด LIVE", "สิ้นสุดไลฟ์", "หยุดไลฟ์", "หยุด"],
+     "retries": 8,
+     "allow_content_desc": true,
+     "verify_disappear": true,
+     "fail": "ไม่พบปุ่ม End live — ดู dump"},
+    {"op": "delay", "ms": 1200},
+
+    {"op": "step", "label": "ยืนยัน End"},
+    {"op": "tap_by_text",
+     "labels": ["End", "End LIVE", "End broadcast", "Confirm", "ยืนยัน", "ปิดไลฟ์", "ใช่", "Yes", "OK", "ตกลง"],
+     "retries": 4,
+     "allow_content_desc": true,
+     "ignore_failure": true,
+     "warn_on_fail": "no End confirm dialog — some TikTok variants skip it"},
+    {"op": "delay", "ms": 1500},
+
+    {"op": "step", "label": "✓ Live จบแล้ว"}
+  ]
+}

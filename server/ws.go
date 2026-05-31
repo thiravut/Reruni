@@ -188,6 +188,10 @@ func runDeviceLoop(conn *websocket.Conn, deviceID string, ownerID int64) {
 	connectionsMu.Unlock()
 	log.Printf("device connected: %s (owner=%d)", deviceID, ownerID)
 
+	// Onboarding hook — first device online lands user on first_video.
+	// Idempotent: advance functions check current step.
+	onDeviceFirstOnline(ownerID)
+
 	// Broadcast initial status to owner's portal sockets.
 	broadcastToPortal(ownerID, "device_status_changed", map[string]any{
 		"device_id":    deviceID,
