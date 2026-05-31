@@ -4,6 +4,8 @@ import type { SubscriptionStatus, TierKey } from '../types/api';
 
 export function tierLabel(tier: TierKey | string): string {
   switch (tier) {
+    case 'device':
+      return 'Per Device';
     case 'starter':
       return 'Starter';
     case 'growth':

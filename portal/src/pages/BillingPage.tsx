@@ -97,14 +97,17 @@ export function BillingPage() {
             </div>
 
             <dl className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+              <Stat label="จำนวน device">
+                {sub.device_quota ?? '—'}
+              </Stat>
+              <Stat label="ต่ออายุอัตโนมัติ">
+                {sub.cancel_at_period_end ? 'ปิดอยู่ — จะยกเลิกตอนสิ้นรอบ' : 'เปิดอยู่'}
+              </Stat>
               <Stat label="รอบบิลปัจจุบันเริ่ม">
                 {formatDateTime(sub.current_period_start)}
               </Stat>
               <Stat label="รอบบิลปัจจุบันสิ้นสุด">
                 {formatDateTime(sub.current_period_end)}
-              </Stat>
-              <Stat label="ต่ออายุอัตโนมัติ">
-                {sub.cancel_at_period_end ? 'ปิดอยู่ — จะยกเลิกตอนสิ้นรอบ' : 'เปิดอยู่'}
               </Stat>
               <Stat label="Stripe Subscription ID">
                 <code className="font-mono text-xs">
@@ -115,11 +118,8 @@ export function BillingPage() {
 
             <div className="mt-6 flex flex-wrap gap-2">
               <Button onClick={handlePortal} loading={busy === 'portal'}>
-                จัดการการชำระเงิน
+                จัดการการชำระเงิน / เปลี่ยนจำนวน device
               </Button>
-              <Link to="/subscribe">
-                <Button variant="secondary">เปลี่ยนแผน</Button>
-              </Link>
               {!sub.cancel_at_period_end && sub.status === 'active' ? (
                 <Button
                   variant="danger"
