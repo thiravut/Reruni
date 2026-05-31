@@ -33,44 +33,129 @@
 ## Slide 2: The Ask (Lead with it)
 
 **[ON SLIDE]**
-> ## Approve V1 Launch
-> - Budget: **~100-200K บาท** (final polish + mobile + legal)
-> - Timeline: **8 weeks → Q3 2026 GA**
+> ## Approve V1 GA Cycle
+> - Budget: **~25-32K บาท cash-out** (founder time self-funded as equity; line-item breakdown → Slide 2b)
+> - Timeline: **~2 weeks remaining → V1 GA** (90% shipped already in 2 wk vs plan 8 wk)
 > - Team: **Pond solo + Claude**
-> - Outcome: **First 10 paying customers within 30 days of launch**
+> - Outcome: **First 10 paying customers within 30 days of GA**
 
 **[SAY]**
-> "ขอตรง — V1 launch ต้องการ 100-200K บาท × 8 สัปดาห์
-> ผม solo + Claude ตามเดิม
-> Outcome: paying customers 10 รายแรกใน 30 วันหลัง launch
-> รายละเอียดต่อไป"
+> "ขอตรง — V1 GA cycle cash-out เพียง 25-32K บาท × ~2 weeks remaining
+> ผม solo + Claude — founder time ผม self-fund as equity ไม่ขอ salary จาก budget
+> ที่สำคัญ — 90% MVP shipped แล้วใน 2 สัปดาห์ (vs plan 8 สัปดาห์)
+> Outcome: paying customers 10 รายแรกใน 30 วันหลัง GA
+> สไลด์ถัดไปขอเปิด budget ละเอียด — แล้วต่อด้วย progress + product walkthrough"
 
 **[TIME]** 1 นาที
 
 ---
 
-## Slide 3: Why Now — POC Done, Code Built
+## Slide 2b: Investment Breakdown — Cash-out Items Only
 
 **[ON SLIDE]**
-> ## เราอยู่ไหนตอนนี้
+> ## V1 GA Cycle Budget — Cash-Out Line Items
 >
-> | Component | Status |
+> **Scope:** End-to-end cycle ~4 weeks total (~2 wk done + ~2 wk remaining) → V1 GA launch
+> **Founder time:** ผม Pond self-fund as equity contribution — ไม่ขอ salary จาก budget
+>
+> ### Cash-out items only
+>
+> | Item | Detail | Cost (2 เดือน) |
+> |---|---|---|
+> | **Claude (AI coding)** | Pro subscription + agent runs (6.5K/mo) | **~13,000** |
+> | **Infrastructure** | Google Cloud (Cloud Run + Cloud SQL + Memorystore) + Cloudflare R2 storage + Cloudflare SSL (free with proxy) + domain reruni.com | **~12,000-18,000** |
+> | **GitHub** | Code hosting + CI/CD (Free tier เพียงพอ; Pro ถ้าต้องการ private features) | **~0-1,000** |
+> | **TOTAL V1 BUILD (cash-out)** | | **~25,000-32,000 บาท** |
+>
+> ### What's INCLUDED ✅
+> - Complete MVP build (backend + portal + backoffice + mobile + VCam module + onboarding wizard)
+> - Production deployment infra (GCP + Cloudflare R2 + Cloudflare proxy/SSL)
+> - Stripe billing integration (live mode)
+> - Design partner cycle (2-3 friendly TH sellers)
+> - Banner Tier 1 (static) completion — Tier 2 dynamic real-time moved to V1.5
+> - Token-gated APK distribution pipeline
+>
+> ### What's NOT in this budget
+>
+> | Item | Treatment |
 > |---|---|
-> | POC (broadcast + pin + audio) | ✅ Validated |
-> | API Backend (Go) | ✅ Built + tested |
-> | Portal SPA | ✅ Built |
-> | Backoffice SPA | ✅ Built |
-> | Stripe Billing | ✅ Integrated (3 tiers) |
-> | Two-cookie sessions | ✅ Deployed |
-> | Mobile companion | ⚠️ Decision pending |
-> | Production deploy | ⏳ Pending domain reruni.com |
+> | **Founder time** (Pond solo full-stack) | Self-fund as equity — ไม่นับเป็น cash-out |
+> | **Legal review** (TikTok ToS + Thai PDPA + Computer Crime Act + customer ToS) | Separate budget ~50-100K, before paid GA |
+> | **Marketing / paid acquisition** | 0 บาท — bottom-up via design partners → community |
+> | **Customer success / support** | Founder-led until 100+ customers |
+>
+> ### Total to revenue stage
+>
+> | Phase | Cash-out | Status |
+> |---|---|---|
+> | V1 MVP build (cash items only) | 25-32K | ✅ ~90% done |
+> | Legal review (V1 GA gate) | 50-100K | ⏳ Before paid GA |
+> | **TOTAL cash-out pre-revenue** | **~75-132K** | |
+>
+> ### Ongoing run-rate (post-GA)
+> Infrastructure at scale (2,000 users) = ~26,658 บาท/เดือน — see Slide 11
 
 **[SAY]**
-> "Infrastructure 90% ของ V1 build เสร็จแล้ว
-> Backend, Portal, Backoffice, Stripe billing, session security — ทำงานครบ
-> เหลือแค่: mobile path decision + production deploy"
+> "เปิด budget ละเอียด — cash-out items อย่างเดียว:
+>
+> **Claude 13K** — Pro subscription × 2 เดือน
+> **Infrastructure 12-18K** — Google Cloud (DB + Go backend), Cloudflare R2 storage, Cloudflare SSL (free with proxy), domain reruni.com × 2 เดือน
+> **GitHub ~0-1K** — Free tier เพียงพอ
+>
+> รวม **25-32K บาท** เท่านั้น
+>
+> **Founder time (ผม Pond) self-fund as equity** — ไม่อยู่ใน budget นี้
+>
+> **ที่ไม่อยู่ใน 25-32K:**
+> - Legal review (50-100K) — separate, ก่อน paid GA สำหรับ ToS + PDPA + Computer Crime Act
+> - Marketing — 0 บาท (bottom-up via design partners → community)
+> - Customer success — founder-led จนถึง 100+ customers
+>
+> **Total cash-out to revenue stage:** 75-132K (V1 build + legal)
+>
+> หลัง GA — ongoing infra ที่ scale 2,000 users = 26,658 บาท/เดือน (Slide 11)"
 
-**[TIME]** 1.5 นาที
+**[TIME]** 2 นาที
+
+---
+
+## Slide 3: Actual Progress — Plan 8 weeks vs Reality 2 weeks
+
+**[ON SLIDE]**
+> ## ที่ Build ไปแล้ว (2 wk จริง vs 8 wk plan = velocity 8-10x)
+>
+> | Layer | Plan (8 wk) | Reality (2 wk) |
+> |---|---|---|
+> | POC validation | 2-3 wk | ✅ 4 days |
+> | API Backend (Go) — auth, billing, devices, lives, videos, banners, accounts, ws, admin | 2 wk | ✅ Shipped |
+> | Portal SPA — login, signup, dashboard, devices, videos, lives, billing, onboarding wizard | 2 wk | ✅ Shipped |
+> | Backoffice SPA + admin recheck | 0.5 wk | ✅ Shipped |
+> | Mobile companion + **own-built VCam LSPosed module** | 2 wk | ✅ Shipped + validated A15 5G Android 16 |
+> | Autopilot scripts (JSON-driven, server-fetched) | 1 wk | ✅ Phase A-D shipped |
+> | Deployment infra (Contabo + Caddy + Postgres) | 1 wk | ✅ Shipped |
+> | Pricing pivot — flat 299/device + Stripe quantity | 0.5 wk | ✅ Shipped |
+> | First-time onboarding wizard (7-step) | 1 wk | ✅ Shipped |
+> | Landing page reruni.com | 0.5 wk | ✅ Shipped |
+>
+> **Remaining (~1-2 wk):**
+> - 2-3 design partner cycle + bug fix
+> - Stripe live-mode + production webhook signing
+> - APK production upload pipeline + token-gate validation
+> - Email Resend domain verify
+>
+> **Moved out of V1 scope (2026-06-01):**
+> - Banner Tier 2 (dynamic real-time composition) → V1.5
+> - Playlist auto-switch mid-live → V2 (POC-gated; current single-file ffmpeg-concat ✅ stays in V1)
+
+**[SAY]**
+> "นี่ไม่ใช่ estimate — นี่คือสิ่งที่ shipped ใน 2 สัปดาห์จริง
+> Plan เดิม 8 สัปดาห์ — สิ่งที่ต้องใช้เวลา ~30 วันจริง
+> Velocity 8-10x ของ industry baseline ไม่ใช่ 5x ที่ POC พิสูจน์ — เพราะ MVP scope กว้างกว่า POC 8-10 เท่า แต่ใช้เวลาแค่ ~3x ของ POC
+>
+> เหลืออะไรบ้าง: design partner cycle, Stripe live, APK pipeline production — ทั้งหมด ~2 weeks
+> Banner Tier 2 ย้ายไป V1.5 เพื่อ keep V1 launch scope ให้ tight"
+
+**[TIME]** 2 นาที
 
 ---
 
@@ -176,12 +261,13 @@
 > - Heartbeat ทุก 30 วินาที
 > - แม้เครื่องอยู่ 4G/5G — ยัง reachable จาก web
 >
-> ### 🎬 Broadcast Execution (V1 — Path A: Smart Overlay)
+> ### 🎬 Broadcast Execution (V1 — VCam Camera2 Hijack)
 > - รับ command "start_live" จาก backend
-> - Accessibility Service: เปิด TikTok → Go Live → Screen Share
-> - วาด video เป็น overlay เต็มจอ (SAW)
-> - TikTok screen-share จับ overlay → broadcast
-> - Banner layer วาดบน video — เปลี่ยน real-time ตาม command
+> - Autopilot (Accessibility Service): เปิด TikTok → Go Live → Device camera
+> - **VCam LSPosed module** (own-built) ฉีดวิดีโอ MP4 เข้า Camera2 preview pipeline
+> - TikTok เห็น "frame" จาก camera = วิดีโอเรา (ไม่ใช่ feed กล้องจริง)
+> - **No root required** — ใช้ LSPatch shim (non-root Xposed)
+> - Banner layer composite บน video — เปลี่ยน real-time ตาม command
 >
 > ### 🛒 TikTok Shop Control
 > - รับ command "pin_product" → Accessibility tap UI ของ TikTok
@@ -199,17 +285,15 @@
 **[SAY]**
 > "Mobile companion — สิ่งที่ติดตั้งบนโทรศัพท์ลูกค้า
 >
-> Setup ครั้งเดียว: scan QR → pair → ไม่ต้องแตะอีก
+> Setup ครั้งเดียว: ดาวน์โหลด APK → ติดตั้ง → scan QR → pair → ไม่ต้องแตะอีก
 >
 > หลังจากนั้น app ทำงาน background ตลอด:
 > - รับ command จาก web ผ่าน WebSocket
-> - ใช้ Accessibility Service เป็น 'มือ' ที่กดปุ่ม TikTok แทนลูกค้า
-> - วาด video + banner เป็น overlay → TikTok broadcast ออกไป
+> - ใช้ Autopilot (Accessibility Service) เป็น 'มือ' ที่กดปุ่ม TikTok แทนลูกค้า
+> - **VCam module** (LSPosed/LSPatch) ฉีดวิดีโอเข้า Camera2 = TikTok เห็นวิดีโอเป็น "กล้อง" ตรงๆ → broadcast quality สูงกว่า screen-share
+> - ทั้งหมดไม่ต้อง root เครื่อง (R3 Lite tier) — ลูกค้าใช้ Android phone อะไรก็ได้ที่รองรับ LSPatch
 >
-> Diagnostics view ช่วย support team debug ได้เมื่อมีปัญหา
->
-> นี่คือ V1 path A — Smart Overlay
-> หาก choose Path B (Patched APK) flow จะต่างกัน — แต่ portal เห็นเหมือนกัน"
+> Diagnostics view ช่วย support team debug ได้เมื่อมีปัญหา"
 
 **[TIME]** 3 นาที
 
@@ -276,82 +360,96 @@
 >
 > ### Capability Matrix
 >
-> | Capability | คู่แข่ง 3-phone PC (TH) | TikMatrix (global) | **TiktokRerun (เรา)** |
-> |---|---|---|---|
-> | Web-based control | ❌ | ❌ | ✅ |
-> | Mid-live control (เปลี่ยน video/SKU ระหว่าง live) | ❌ | ❌ | ✅ |
-> | Pin product real-time | ❌ | ❌ | ✅ |
-> | **Dynamic banner overlay** | ❌ | ❌ | ✅ |
-> | TikTok Shop integration | ❌ | ❌ | ✅ |
-> | Multi-account rotation (V2) | ❌ | ❌ | ✅ |
-> | Persistent cloud connection | ❌ (PC dies = phone หาย) | ❌ | ✅ |
-> | Scale 100+ phones | ❌ (max 3) | ✅ | ✅ |
-> | BYOD (ไม่ต้อง root) | ✅ | ❌ ต้อง root | ✅ |
-> | Multi-tenant SaaS (web account) | ❌ | ❌ | ✅ |
+> | Capability | **SamuraiLive** (TH direct competitor) | 3-phone PC tool (TH) | TikMatrix (global) | **Reruni (เรา)** |
+> |---|---|---|---|---|
+> | **Web-based control** | ❌ App-only | ❌ | ❌ | ✅ |
+> | **Multi-device fleet management** | ❌ | ❌ (max 3) | ✅ | ✅ |
+> | Mid-live control (เปลี่ยน video/SKU ระหว่าง live) | ⚠️ App-only | ❌ | ❌ | ✅ |
+> | Pin product real-time | ⚠️ App-only | ❌ | ❌ | ✅ |
+> | **Dynamic banner overlay** | ❌ | ❌ | ❌ | ✅ |
+> | TikTok Shop integration | ⚠️ บางส่วน | ❌ | ❌ | ✅ |
+> | Persistent cloud connection | ❌ | ❌ | ❌ | ✅ |
+> | Scale 100+ phones | ❌ | ❌ (max 3) | ✅ | ✅ |
+> | BYOD (ไม่ต้อง root) | ⚠️ ต้อง root | ✅ | ❌ ต้อง root | ✅ (LSPatch) |
+> | Multi-tenant SaaS (web account) | ❌ | ❌ | ❌ | ✅ |
 >
-> ### Pricing Reference (ตลาด TH)
+> ### Pricing Comparison (ตลาด TH)
 >
 > | Tool | ราคา | Note |
 > |---|---|---|
-> | 3-phone PC tool (Thai vendor) | **~299 บาท/device/month** | Industry reference price |
+> | **SamuraiLive** (direct competitor) | **299 บาท/device/month** | **Same price — app-only, no web** |
+> | 3-phone PC tool (Thai vendor) | ~299 บาท/device/month | max 3 phones, PC-tethered |
 > | TikMatrix Pro | $59-149/month (1,650-4,200 บาท) | per account tier, ไม่ใช่ per device |
 > | Manual hire (1 operator คุม 3 phones) | ~15,000-20,000 บาท/month | ราคา salary |
 >
-> ### Why Customer Choose Us
-> 1. **Mid-live control** — เปลี่ยน promo/banner/SKU กลาง live (คู่แข่งไม่มี)
-> 2. **Cloud-based** — คุมจาก anywhere, ไม่ต้องอยู่หน้าคอม
-> 3. **No root required** — ลูกค้าใช้ phone อะไรก็ได้
-> 4. **TikTok Shop ready** — เพิ่ม commerce features
-> 5. **Multi-profile rotation (V2)** — 1 phone × 3 accounts = 3x effective value
+> ### Why Customer Choose Us Over SamuraiLive (Same Price)
+> 1. **Web control plane** — คุมจาก laptop/anywhere; SamuraiLive ต้องอยู่หน้าโทรศัพท์
+> 2. **Multi-device fleet** — operator 1 คนคุม 10-100 phones; SamuraiLive 1 phone 1 user
+> 3. **Dynamic banner composition** — countdown, price tag, promo บน video; SamuraiLive ไม่มี
+> 4. **No root required** (LSPatch) — SamuraiLive ใช้ Magisk+LSPosed ต้อง root
+> 5. **Multi-tenant SaaS** — admin / billing / quota built-in; SamuraiLive standalone app
 
 **[SAY]**
-> "ตลาด TikTok live commerce tools ในไทยมี 2 player หลัก:
+> "ตลาด TikTok live commerce tools ในไทยมี 3 player หลัก:
 >
-> 1. 3-phone PC tool ของไทย — ราคา **299 บาท/device/เดือน** = industry reference
->    ข้อจำกัด: max 3 phones, ไม่มี web, ไม่มี mid-live control
+> 1. **SamuraiLive — direct competitor ที่สำคัญที่สุด**
+>    ราคาเท่ากัน **299 บาท/device/เดือน**
+>    Architecture เดียวกัน (LSPosed-based VCam) — เรา decompile ดูแล้ว ใช้ stack เดียวกับเรา
+>    **ข้อจำกัด:** app-only, ไม่มี web control, ต้องอยู่หน้าโทรศัพท์ทุกเครื่อง, ต้อง root
 >
-> 2. TikMatrix global — engagement farm, ไม่ใช่ commerce tool
->    ต้อง root, ไม่มี TikTok Shop integration
+> 2. 3-phone PC tool ของไทย — ราคา ~299 บาท/device/เดือน
+>    ข้อจำกัด: max 3 phones, PC tethered, ไม่มี mid-live control
 >
-> เรา **ครอบคลุมทุก capability ที่คู่แข่งมี** + เพิ่ม:
-> - Web-based control (จาก anywhere)
-> - Mid-live control (killer feature)
+> 3. TikMatrix global — engagement farm, ไม่ใช่ commerce tool
+>
+> ราคาเท่า SamuraiLive — **เราขายส่วนที่เขาไม่มี:**
+> - Web control plane — operator คุมจาก laptop คุม 10-100 phones พร้อมกัน
+> - Multi-device fleet management
 > - Dynamic banner overlay
-> - TikTok Shop integration
-> - Multi-profile rotation (V2)
+> - No root required (LSPatch แทน Magisk)
+> - Multi-tenant SaaS infrastructure
 >
-> ราคา industry reference = 299 บาท/device/เดือน
-> ผมเอามาเป็น benchmark ตอน plan pricing — slide ถัดไป"
+> **Positioning:** ราคาเท่ากัน, แต่ Reruni = ops tool สำหรับคนที่ run หลายเครื่อง; SamuraiLive = app สำหรับคน 1 เครื่อง 1 บัญชี"
 
 **[TIME]** 2.5 นาที
 
 ---
 
-## Slide 9: Mobile Path Decision
+## Slide 9: Mobile Path — DECIDED
 
 **[ON SLIDE]**
-> ## Mobile Path — 3 Options
+> ## Mobile Path — DECIDED: VCam LSPatch (own-built)
 >
-> | Path | Pros | Cons |
-> |---|---|---|
-> | **A. Smart Overlay** (POC original) | ไม่ root, BYOD, proven | quality กลาง, screen capture artifact |
-> | **B. Patched APK + VCAM** | quality สูง, no root | ใช้คู่แข่ง APK (dependency + legal risk) |
-> | **C. Both** — Smart Overlay default + Patched APK pilot | Hedge | Maintain 2 paths |
+> **Smart Overlay (POC original) → deprecated**
+> **Patched APK ที่ใช้ของคู่แข่ง → deprecated**
 >
-> **Open questions:**
-> - Ban rate ยังไม่ทดสอบ
-> - APK hosting strategy
+> | Path | Status |
+> |---|---|
+> | ~~Smart Overlay (SAW + MediaProjection)~~ | ❌ Deprecated — quality + UX ต่ำกว่า VCam |
+> | ~~Patched APK + competitor VCAM~~ | ❌ Deprecated — dependency + legal risk |
+> | **VCam Camera2 hijack (own-built LSPosed module + LSPatch)** | ✅ **PRODUCTION PATH** |
+>
+> ### Why this won
+> - **Quality:** Camera2 hijack = TikTok เห็น "frame" จาก camera โดยตรง ไม่มี screen-capture artifact
+> - **No root required** — LSPatch (non-root Xposed shim) ทำให้ R3 Lite (BYOD) ใช้ได้บน phone ที่ไม่ root
+> - **No external dependency** — เรา own module เอง ไม่ต้องพึ่ง APK คู่แข่ง
+> - **Validated** — ทดสอบบน Samsung A15 5G Android 16 แล้ว ทำงานครบ
+> - **Defensible** — Same architecture ที่ SamuraiLive (TH competitor) ใช้ แต่เราทำเอง
 
 **[SAY]**
-> "Mobile mit 3 ทางเลือก:
-> A — Smart Overlay POC ที่ validated แล้ว — proven, ไม่ root, แต่ quality กลาง
-> B — Patched APK + VCAM ที่เราทำงานได้แล้วบน Samsung A15 — quality ดีกว่า แต่ใช้ APK ของคู่แข่ง
-> C — Hedge ทั้งคู่
+> "Mobile path — decided แล้ว ไม่ใช่ open question อีกต่อไป
 >
-> ที่ต้องตัดสินใจก่อน launch:
-> - Path ไหน
-> - APK hosting ทางไหน (legal risk)
-> - Ban rate threshold ที่ acceptable"
+> ตัวเลือกเดิมมี 3: Smart Overlay POC, Patched APK ของคู่แข่ง, hedge ทั้งคู่
+>
+> ตัดสินใจ: **VCam Camera2 hijack ที่เรา build เอง** เป็น production path
+>
+> เหตุผล:
+> 1. Quality ดีกว่า Smart Overlay (Camera2 hijack vs screen-share)
+> 2. ไม่ต้อง root เครื่อง — ลูกค้า BYOD ใช้ phone อะไรก็ได้ (ตามที่ R3 Lite tier วาง)
+> 3. ไม่พึ่ง APK คู่แข่ง — เราเขียน LSPosed module เอง ไม่มี legal/dependency risk
+> 4. Validated แล้วบน Samsung A15 5G Android 16
+>
+> Smart Overlay POC ตอน Q1 = stepping stone — paid off เป็น learning, แต่ไม่ใช่ production"
 
 **[TIME]** 2 นาที
 
@@ -363,10 +461,11 @@
 > ## Flat Pricing — 299 บาท/device/month
 >
 > ### หลักการ
-> - **เริ่มต้นที่ 299 บาท/device/month** (industry benchmark — ราคาคู่แข่ง 3-phone tool)
+> - **299 บาท/device/month** — match **SamuraiLive direct competitor 1:1**
 > - **ไม่มี free trial** — signup → ใส่ payment → ใช้
 > - **ไม่มี tier** — จ่ายตาม devices ที่ใช้จริง
 > - **Annual discount 20%** (commit yearly)
+> - **Positioning:** ราคาเท่า SamuraiLive, แต่เพิ่ม web control + multi-device fleet + dynamic banner
 >
 > ### ตัวอย่างราคา
 >
@@ -378,10 +477,11 @@
 > | 30 devices | 8,970 | 86,112 |
 > | 100 devices | 29,900 | 287,040 |
 >
-> ### Why Flat Pricing
-> - **Match competitor** — ลูกค้าเข้าใจราคาทันที (เทียบกับ 3-phone tool ที่ 299)
-> - **Simple sales pitch** — ไม่ต้องอธิบาย tier
-> - **Aligned with usage** — ลูกค้าจ่ายเท่าที่ใช้, ไม่มี waste
+> ### Why Flat Pricing (and why 299 specifically)
+> - **Match SamuraiLive 1:1** — direct competitor ที่ราคา 299/device → ลูกค้าตัดสินใจ on feature, ไม่ใช่ on price
+> - **Sales pitch:** "ราคาเท่า SamuraiLive แต่ Reruni คุมจาก web ได้, รัน 100 เครื่องจาก laptop ตัวเดียว"
+> - **Simple** — ไม่ต้องอธิบาย tier
+> - **Aligned with usage** — ลูกค้าจ่ายเท่าที่ใช้
 > - **Encourages scaling** — เพิ่ม devices ได้ทันทีไม่ต้องเปลี่ยน tier
 >
 > ## Revenue Projection (flat 299 model)
@@ -394,7 +494,7 @@
 > | At scale (2,000 users target) | 2,000 | 7.5 | 4.49M | **~53.8M** |
 
 **[SAY]**
-> "Pricing — เลือก **flat 299 บาท/device** ตาม industry reference จากคู่แข่ง 3-phone tool ในไทย
+> "Pricing — เลือก **flat 299 บาท/device** เพื่อ match **SamuraiLive (direct competitor)** 1:1
 >
 > หลักการ:
 > - ราคาเดียว 299 ทุก device
@@ -407,8 +507,9 @@
 > - 10 phones = 2,990 (ถูกกว่า Starter เดิม 25%)
 > - 100 phones = 29,900 (แพงกว่า Pro เดิม 50%)
 >
-> เหตุผลเลือก flat:
-> 1. Match competitor → ลูกค้าตัดสินใจเร็ว
+> เหตุผลเลือก flat 299:
+> 1. Match SamuraiLive 1:1 → ลูกค้าตัดสินใจ on capability, ไม่ใช่ on price
+> 2. Sales pitch ตรง: "ราคาเท่า SamuraiLive, แต่เราคุมจาก web + รัน 100 เครื่องจาก laptop ตัวเดียว"
 > 2. Sales pitch ง่าย ไม่ต้องอธิบาย tier
 > 3. Scale ได้ smooth (เพิ่ม device ไม่ต้องเปลี่ยน plan)
 >
@@ -599,14 +700,18 @@
 
 ---
 
-## Slide 13: Roadmap Overview — V1 ↦ V3
+## Slide 13: Roadmap Overview — V1 ↦ V4
 
 **[ON SLIDE]**
 > ```
-> 2026 Q3 │ V1   — Launch (paying customers)
-> 2026 Q4 │ V1.5 — Stability + QoL
-> 2027 Q1 │ V2   — Multi-profile + Scheduling ✅
-> 2027 Q2 │ V3   — AI + Hybrid Live (exploratory)
+> 2026-06 wk 1-2  │ V1   — Launch (paying customers, MVP ~done)
+> 2026-06 wk 3    │ V1.5 — CAPTCHA + Banner Tier 2 + Stability
+> 2026-07 wk 1-2  │ V2   — Scheduling + Playlist auto-switch + Stability
+> 2026-07 wk 3 → 08 wk 1 │ V3 — Compliance + Live AI moderation (POC-gated)
+> 2026-08 wk 2-3  │ V4   — AI Content Creation (POC-gated)
+>
+> **All 4 versions wrap by ~late August 2026** (~2-2.5 mo from today, 5-10x velocity)
+> V1+V1.5 (MVP) = ~8 วันรวมจาก today; V2+V3+V4 = ~5-6 wk additional
 > ```
 >
 > **Tagged with confidence:**
@@ -617,15 +722,17 @@
 > **Removed:**
 > - ❌ SEA expansion (focus TH first)
 > - ❌ Multi-user team / agency
+> - ❌ **Multi-profile rotation** (dropped 2026-05-31 — TikTok account safety)
 
 **[SAY]**
 > "Roadmap 4 versions ใน 12 เดือน
-> V1 ตอนนี้ → V1.5 stability → V2 multi-profile rotation → V3 AI features
+> V1 ตอนนี้ → V1.5 stability+CAPTCHA+Banner T2 → V2 scheduling+playlist → V3 compliance+live moderation → V4 AI content creation
 >
 > ทุก feature tag ด้วย confidence: confirmed / likely / exploratory
 > สำคัญ — V3 หลายอันยัง exploratory ไม่ promise ทำได้แน่
 >
-> ที่ตัดออกถาวร: SEA expansion + agency/multi-user
+> ที่ตัดออกถาวร: SEA expansion + agency/multi-user + multi-profile rotation
+> (multi-profile drop 2026-05-31 เพราะ TikTok account safety risk)
 > Focus TH solo seller ให้ดีก่อน scale"
 
 **[TIME]** 2 นาที
@@ -685,32 +792,26 @@
 
 ---
 
-## Slide 15: V2 — Multi-profile Rotation + Scheduling (Q1 2027)
+## Slide 15: V2 — Scheduling + Stability Hardening (Q1 2027)
 
 **[ON SLIDE]**
-> ## V2 — Ban-resistant + Auto-pilot
->
-> ### 🔄 Multi-profile Rotation ✅
-> **1 device รองรับหลาย TikTok accounts**
->
-> Workflow:
-> 1. ลูกค้า login หลาย accounts ใน TikTok (native switcher อยู่แล้ว 5+ accounts/app)
-> 2. Web dashboard: label accounts + ตั้ง rotation schedule
-> 3. Companion app: ใช้ Accessibility กด switch ตามเวลา
->
-> ผลลัพธ์:
-> - 1 phone × 3 accounts = effective 3x value
-> - บัญชี A โดน ban → auto-skip ใช้ B ต่อ (capacity -33% ไม่ใช่ -100%)
+> ## V2 — Auto-pilot + Reliability
 >
 > ### ⏰ Scheduling ✅
 > - Time-based start/stop (เริ่ม 09:00 หยุด 23:00 อัตโนมัติ)
 > - Playlist rotation — auto-switch video ตามรอบ
 > - Recurring schedule รายวัน/รายสัปดาห์
 >
-> ### 📊 Analytics (in-system)
-> - Live hours per account
+> ### 🛡️ Stability Hardening ✅
+> - Auto-reconnect tuning + crash diagnostics ที่ละเอียดขึ้น
+> - VCam module monitoring + auto-fallback flow ถ้า inject fail
+> - Per-device health score (online %, broadcast uptime, error rate)
+> - Alert system: live ตก, device offline > N นาที, error spike
+>
+> ### 📊 Per-device Analytics
+> - Live hours per device
 > - Viewer count history
-> - Per-profile ban detection — auto-skip
+> - Error/crash logs centralized
 >
 > ### 💬 Comment Monitoring ❓
 > - Real-time comment feed (ถ้าเข้า TikTok comment API ได้)
@@ -718,28 +819,30 @@
 > - **Feasibility: TikTok API ไม่ public — ต้อง R&D scraping**
 >
 > ### 📈 GMV Analytics ❓
-> - Conversion / sales per account
+> - Conversion / sales per device
 > - **Feasibility: ขึ้นกับ TikTok Shop API access**
 >
 > ### 🎓 Onboarding
 > - Self-serve tutorial + video walkthrough
 > - In-app tour สำหรับ feature ใหม่
+>
+> ### ❌ Removed from V2 scope (2026-05-31)
+> - ~~Multi-profile rotation~~ — TikTok account safety risk (CAPTCHA after rapid relogin/swap cycles)
 
 **[SAY]**
-> "V2 = ban-resistant + auto-pilot
+> "V2 = scheduling + stability hardening
 >
-> Killer feature คือ multi-profile rotation —
-> 1 phone รองรับ 3-5 บัญชี TikTok หมุนใช้
-> = ลด ban impact + เพิ่ม effective capacity 3x
->
-> TikTok app มี native switcher อยู่แล้ว — เราแค่ automate ผ่าน Accessibility
-> = ✅ Confirmed feasibility
->
-> Scheduling ✅ — ตั้งเวลา start/stop, playlist rotation
+> Scheduling ✅ — ตั้งเวลา start/stop, playlist rotation, recurring
+> Stability ✅ — auto-reconnect ที่ดีขึ้น, VCam fallback, per-device health
+> Per-device analytics — live hours, viewer count, error logs
 >
 > Comments + GMV analytics — flag ❓
 > ขึ้นกับ TikTok API access ที่เราต้องสำรวจ
-> ไม่ promise — ถ้าทำได้ดี, ถ้าไม่ได้ skip"
+> ไม่ promise — ถ้าทำได้ดี, ถ้าไม่ได้ skip
+>
+> Multi-profile rotation — drop จาก V2 (2026-05-31)
+> เหตุผล: TikTok account safety — เห็น CAPTCHA หลัง rapid relogin/swap
+> = scope V2 แคบลง แต่ shipping risk ต่ำกว่า"
 
 **[TIME]** 2.5 นาที
 
@@ -799,20 +902,23 @@
 **[ON SLIDE]**
 > | Risk | Severity | Mitigation |
 > |---|---|---|
-> | Mobile fails at scale | High | Validate ban rate 2 wk before public launch |
+> | VCam module breaks ตอน TikTok app update | Medium | Camera2 hook + LSPatch shim modular — 24-48hr rebuild SLA |
 > | Stripe webhook unreliable | Medium | Recheck button built (workaround) |
 > | TikTok ToS challenge | Medium | Customer ToS shifts liability |
-> | Production deploy delay | Medium | reruni.com + Hetzner ready to provision |
-> | Patched APK legal exposure | Medium | Path A (Smart Overlay) as safer alternative |
+> | APK distribution pipeline fragile | Low-Med | Token-gated download wired; CI patch+sign proven (3 phases shipped) |
+> | Production deploy delay | Low | reruni.com + Contabo + Caddy ready, infra deployed already |
+> | Ban rate higher than expected at scale | Medium | Design partner cycle ก่อน paid GA — validate ก่อน scale |
 
 **[SAY]**
-> "5 risks หลัก — ทุกอันมี mitigation:
-> Mobile = validate ก่อน scale
+> "Risks หลัก — ทุกอันมี mitigation:
+> VCam = ถ้า TikTok update break = rebuild module ใน 24-48hr (modular design)
 > Stripe = recheck button รองรับ
 > Legal = customer ToS shift liability
-> Deploy = infrastructure plan แล้ว
+> APK pipeline = ทำ + ship แล้ว (Phase A-D)
+> Deploy = infrastructure ทำงานอยู่แล้ว
+> Ban rate = validate ที่ design partner cycle ก่อน paid GA
 >
-> ไม่มี risk ที่ block launch ตอนนี้"
+> ไม่มี risk ที่ block GA ตอนนี้"
 
 **[TIME]** 1.5 นาที
 
@@ -823,19 +929,20 @@
 **[ON SLIDE]**
 > | # | Decision | Recommendation |
 > |---|---|---|
-> | 1 | Approve V1 launch ~100-200K | ✅ Approve |
-> | 2 | Mobile path | Path C (hedge — Smart Overlay primary + Patched APK pilot) |
+> | 1 | Approve V1 GA cycle ~25-32K cash-out (founder time self-funded) | ✅ Approve |
+> | 2 | Mobile path | ✅ **DECIDED — VCam LSPatch (own-built)** — no further choice needed |
 > | 3 | Legal review budget ~50-100K | ✅ Approve |
 > | 4 | Design partner selection | 2-3 friendly TH sellers |
-> | 5 | GA target Q3 2026 | ✅ Confirm |
-> | 6 | Subscription gating without trial | ✅ Keep (decided) |
+> | 5 | GA target | ✅ **June 2026 wk 1-2** (~1-2 wk from today; full V1-V4 wraps Aug 2026) |
+> | 6 | Subscription gating without trial + flat 299/device | ✅ Keep (decided) |
 > | 7 | Two-cookie auth + admin separation | ✅ Confirm (deployed) |
 
 **[SAY]**
-> "7 decisions ที่ขอวันนี้:
-> ใหญ่สุดคือ #1 — approve V1 launch 100-200K
-> #2 — mobile path ผมแนะนำ hedge ทั้งคู่
+> "7 decisions ที่ขอวันนี้ — ลดลงจากเดิมเพราะ #2 mobile path decided แล้ว:
+> ใหญ่สุดคือ #1 — approve V1 GA cycle cash-out 25-32K (founder time self-funded as equity)
+> #2 — mobile path = VCam LSPatch own-built — ไม่ต้อง hedge อีก
 > #3 — legal review สำหรับ ToS + PDPA
+> #5 — GA target **June wk 1-2 2026** (~1-2 wk from today); full V1 → V4 roadmap wraps ~August 2026 (2-2.5 mo from today, supported by 5-10x velocity proof)
 > ที่เหลือ confirm decisions ที่เคยทำไว้แล้ว"
 
 **[TIME]** 1.5 นาที
@@ -847,18 +954,19 @@
 **[ON SLIDE]**
 > ## TL;DR
 >
-> > **Approve V1 launch ~100-200K บาท × 8 สัปดาห์**
-> > - Infrastructure 90% built — มี code จริง ทำงานได้
+> > **Approve V1 GA cycle ~25-32K บาท cash-out × ~2 weeks remaining** (founder time self-funded)
+> > - **~90% MVP shipped ใน 2 wk จริง** (vs plan 8 wk = velocity 8-10x)
 > > - First 10 paying customers within 30 วันหลัง GA
-> > - 6.3M ARR target ใน 12 เดือน
-> > - Mobile path = primary risk → mitigation planned
+> > - 2.15M ARR target ใน 12 เดือน, breakeven ~31 customers (3-5 เดือนหลัง GA)
+> > - Mobile path decided: VCam LSPatch own-built, no root, validated A15 5G
 > > - No SEA, no multi-user — focus TH solo seller
 
 **[SAY]**
-> "สรุป — Approve 200K × 8 สัปดาห์
-> Infrastructure ที่ build ไว้ → ดีพอ launch
-> Risk หลักคือ mobile — มี plan รับมือ
+> "สรุป — Approve 25-32K cash-out × ~2 weeks remaining (founder time self-funded as equity)
+> ~90% ของ MVP shipped ไปแล้ว — ที่ผ่านมาคือ proof, ไม่ใช่ estimate
+> Mobile path decided แล้ว — VCam LSPatch own-built, no root
 > Focus TH solo seller — ไม่ขยายตลาดอื่นใน V1
+> Breakeven ~31 customers, ROI Year 1 ~930%
 >
 > Open สำหรับคำถามครับ"
 
@@ -908,21 +1016,20 @@
 
 ---
 
-## A3: V2 Multi-profile Rotation (Confirmed)
+## A3: ~~V2 Multi-profile Rotation~~ DROPPED 2026-05-31
 
 **[ON SLIDE]**
-> ## Why Confirmed
-> - TikTok app มี **built-in account switcher** อยู่แล้ว
-> - 5+ accounts/app เก็บได้ native
-> - Customer setup: login multiple accounts ล่วงหน้า
-> - V2 = automate switch ผ่าน Accessibility Service (ที่เราใช้ V1 อยู่แล้ว)
+> ## Why Dropped
+> - **TikTok account safety** — observed CAPTCHA challenges after rapid relogin/switch cycles
+> - Rotation tooling would amplify ban/CAPTCHA frequency at scale
+> - V2 scope refocused on Scheduling + Stability hardening แทน
 >
-> ## Customer benefit
-> - 1 phone effective × 3 accounts = 3x value
-> - Per-account ban impact = -33% capacity (not -100%)
-> - Justify Pro tier or future Pro+ tier (29,990)
+> ## Implication
+> - 1 phone = 1 TikTok account (เท่า SamuraiLive)
+> - แต่ Reruni ยังขายส่วนที่ SamuraiLive ไม่มี: web control, multi-device fleet, dynamic banner, no-root, SaaS infra
+> - Pricing model unchanged — flat 299/device/month
 
-**[เมื่อใช้]** Q: "V2 multi-profile ทำได้แน่หรือ?"
+**[เมื่อใช้]** Q: "V2 multi-profile ทำได้แน่หรือ?" → "Drop แล้ว 2026-05-31 เพราะ account safety"
 
 ---
 

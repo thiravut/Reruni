@@ -1,5 +1,10 @@
-# TiktokRerun — Presentation Script
-**สำหรับ Pond ใช้พรีเซนต์ exec**
+# TiktokRerun — Presentation Script (LEGACY / SUPERSEDED)
+
+> ⚠️ **This file is superseded by [v1-launch-presentation.md](v1-launch-presentation.md)** (current 19-slide version).
+> Kept for historical reference only — pricing tiers, Smart Overlay, and 8-week timeline shown below are all **outdated**.
+> Pricing pivot (flat 299/device), mobile decision (VCam LSPatch own-built), and revised timeline (4 wk total) are reflected in v1-launch-presentation.md.
+
+**สำหรับ Pond ใช้พรีเซนต์ exec (legacy)**
 
 **Total time:** 25-30 นาที walkthrough + 30-45 นาที Q&A
 **Format:** 16 main slides + 8 appendix slides

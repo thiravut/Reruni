@@ -25,14 +25,19 @@
 
 ---
 
-### Q2. "Smart Overlay technique — ถ้า TikTok ตรวจเจอแล้ว block ทำยังไง?"
+### Q2. "VCam Camera2 hijack — ถ้า TikTok app update แล้ว module break ทำยังไง?"
 
 **A:** 3 layered mitigation:
-1. **POC extension** (1-2 wks) ทดสอบ G1-G3 verification gates ก่อน commit MVP build
-2. **Fallback path:** plain screen-share + overlay-only-during-pin (degraded UX แต่ functional)
-3. **Selector versioning** + 24-48hr patch SLA สำหรับ TikTok UI update
+1. **Modular design** — VCam LSPosed module + LSPatch shim แยกเป็น component, hook layer module เดียวที่ต้อง patch
+2. **24-48hr rebuild SLA** — Pond + Claude rebuild + sign + publish APK ใหม่ ใน 1-2 วัน, customer auto-prompt ดาวน์โหลด
+3. **Validated build pipeline** — Phase A-D autopilot script + APK patching/signing/upload pipeline shipped + tested
 
-**Backup:** technical-architecture-draft.md §3.5 (Smart Overlay verification + fallback)
+**Why VCam path beats Smart Overlay POC (deprecated):**
+- Quality สูงกว่า (Camera2 hijack vs screen-share artifact)
+- ไม่ต้อง root (LSPatch shim) — R3 Lite BYOD friendly
+- Own-built module = no external dependency, no legal/IP risk
+
+**Backup:** system-overview.md §9 (VCam DECIDED 2026-05-31); decision log
 
 ---
 
@@ -58,17 +63,25 @@
 
 ---
 
-### Q5. "ทำไมไม่ใช้ Virtual Camera แบบ VCAM/Magisk ที่ phone farm จีนใช้?"
+### Q5. "ทำไมไม่ใช้ Magisk + VCAM แบบ phone farm จีน?"
 
-**A:** เคยพิจารณา rejected:
-1. **ต้องการ rooted phones** → ลูกค้า BYOD ยาก → ตลาดแคบ
-2. **SafetyNet/Play Integrity** ของ TikTok 2026 ตรวจ root → ban risk สูงกว่า
-3. **Setup time 30-60 นาที per phone** vs 5 นาที ของเรา
-4. **Maintenance load สูงมาก** (Android × LSPosed × VCAM × TikTok version matrix)
+**A:** Magisk-based VCAM ต้อง root — แต่เรา**ได้ VCAM แบบไม่ต้อง root** ผ่าน LSPatch:
 
-Smart Overlay ของเราได้ quality เท่ากันโดยไม่ต้อง root → BYOD friendly
+**สถาปัตยกรรมที่เลือก (2026-05-31):**
+- **VCam Camera2 hijack** — own-built LSPosed module
+- **LSPatch shim** (non-root Xposed) แทน Magisk+LSPosed → ไม่ต้อง root device
+- **R3 Lite (BYOD)** — ลูกค้าใช้ phone ตัวเองได้, ไม่ต้องส่งเครื่อง
+- Concierge tier (advanced) ยังคงเสนอ rooted devices สำหรับ feature เพิ่มเติม
 
-**Backup:** addendum.md §A.1 (rejected alternatives); decision log
+**Why this beats Magisk path:**
+1. BYOD friendly — ลูกค้าไม่ต้อง root (ลด market friction)
+2. ลด ban risk จาก SafetyNet/Play Integrity detection (no root signal)
+3. Setup time ~5 นาที (download APK + scan QR + install) vs 30-60 นาที rooted setup
+4. Maintenance pipeline modular — module versioning + 24-48hr rebuild SLA
+
+**Validated:** Samsung A15 5G Android 16, end-to-end broadcast working
+
+**Backup:** decision log 2026-05-31; system-overview.md §9
 
 ---
 
@@ -89,23 +102,53 @@ Smart Overlay ของเราได้ quality เท่ากันโดย
 - TikMatrix ✅ engagement, ❌ broadcast, ❌ commerce, ❌ web
 - เรา ✅ broadcast, ✅ commerce, ✅ banner, ✅ web
 
-ลูกค้าที่ต้องการ live commerce ops ไม่มี solution ที่ดี — เราเป็น first ในตลาด
+ลูกค้าที่ต้องการ live commerce ops ไม่มี solution ที่ดี — เราเป็น first ใน TH ที่มี web control
 
 **Backup:** market-research §8 (TikMatrix analysis)
 
 ---
 
-### Q8. "3-phone Wi-Fi ADB tool ในไทยขายอยู่แล้ว — เขาจะลอกเราไหม?"
+### Q7b. "SamuraiLive ขาย 299 บาท/device เท่ากันเลย — เราจะแข่งยังไง?"
+
+**A:** ราคาเท่ากันก็จริง แต่ขายคนละ segment + product:
+
+**SamuraiLive:**
+- App-only (ไม่มี web control)
+- 1 user 1 phone (ไม่มี multi-device fleet)
+- Magisk + LSPosed = **ต้อง root**
+- ไม่มี multi-tenant SaaS (no admin / billing / quota)
+- ไม่มี dynamic banner composition
+
+**Reruni (เรา):**
+- ✅ Web control plane — operator คุม 10-100 phones จาก laptop
+- ✅ Multi-device fleet management
+- ✅ **No root required** (LSPatch แทน Magisk)
+- ✅ Multi-tenant SaaS (Stripe billing, admin backoffice, quota enforcement built-in)
+- ✅ Dynamic banner overlay (countdown, price, promo composite)
+
+**Positioning:** ราคาเท่ากัน → ลูกค้าตัดสินใจ on capability + scale ไม่ใช่ on price
+- SamuraiLive ลูกค้า = single seller 1-3 phones, hands-on operator
+- Reruni ลูกค้า = multi-account seller 5-100 phones, operator คุมจาก laptop
+
+Reruni capture market ที่ SamuraiLive serve ไม่ได้ (ลูกค้าที่ scale เกิน 3-5 phones)
+
+**Backup:** market-research §3 SamuraiLive entry; Slide 8 capability matrix
+
+---
+
+### Q8. "3-phone Wi-Fi ADB tool ในไทยขายอยู่แล้ว + SamuraiLive แล้ว — เขาจะลอกเราไหม?"
 
 **A:** มี architectural moat ที่เลียนแบบยาก:
-1. **Persistent WebSocket cloud architecture** — เขาเป็น PC desktop tool, ไม่มี cloud backend
-2. **Web-anywhere control** — เขาต้องอยู่หน้า PC
-3. **Mid-live commerce control** — เขา set-and-forget, เปลี่ยนระหว่าง live ไม่ได้
-4. **Banner composition** — เขา lock content ใน video file
+1. **Persistent WebSocket cloud architecture** — 3-phone tool เป็น PC desktop, SamuraiLive เป็น standalone app, ทั้งคู่ไม่มี cloud backend
+2. **Web-anywhere control** — เขาต้องอยู่หน้า PC / phone
+3. **Multi-tenant SaaS infrastructure** (Stripe billing + admin backoffice + onboarding wizard + quota enforcement) — เขาไม่มี
+4. **Mid-live commerce control** — 3-phone tool set-and-forget
+5. **Banner composition** — เขา lock content ใน video file
+6. **No-root (LSPatch)** — SamuraiLive ใช้ Magisk = ต้อง root
 
-เขาจะลอกได้แต่ต้อง rebuild ทั้ง architecture = 6-12 เดือน effort เราใช้เวลานี้สร้าง brand + customer base + iterate
+เขาจะลอกได้แต่ต้อง rebuild ทั้ง architecture + SaaS layer = 6-12 เดือน effort เราใช้เวลานี้สร้าง brand + customer base + iterate
 
-**Backup:** market-research §9 capability gap table
+**Backup:** market-research §3 + Slide 8 capability matrix
 
 ---
 
@@ -165,17 +208,19 @@ Breakeven case: ~31 Users (234 devices) ที่ V1 fixed cost ~70K/month → 3
 
 ---
 
-### Q13. "ถ้า MVP fail — เสีย ~200K บาท จะคุ้มไหม?"
+### Q13. "ถ้า MVP fail — เสีย ~150K บาท จะคุ้มไหม?"
 
-**A:** Risk-adjusted คุ้มอย่างมาก:
-- **Investment:** ~200K (8 wk × Pond solo + Claude + infra + tools)
-- **Downside:** เสีย dev cost — แต่ผมยังได้ learning + reuse code สำหรับ project อื่น
-- **Upside scenario:** 2.15M ARR ใน 12 เดือน = ROI ~770% Year 1
+**A:** Risk-adjusted คุ้มอย่างมาก — และ ~90% MVP shipped แล้ว (ไม่ใช่ pre-build risk):
+- **Investment:** ~120-150K (~4 wk total × Pond solo + Claude + infra + tools), 90% spent already
+- **Remaining risk:** Banner Tier 2 + design partner cycle + Stripe live mode + APK production pipeline
+- **Downside:** ถ้า design partner ไม่ adopt → kill before paid GA, ใช้ไปจริง ~120K
+- **Upside scenario:** 2.15M ARR ใน 12 เดือน = ROI ~930% Year 1
 - **Failure modes ที่ early-detect ได้:**
-  - Smart Overlay verification fail ใน wk 2 → pivot to plain screen-share, cost แค่ ~50K
-  - Design partner ไม่ใช้ใน wk 6 → kill before V1 GA, เสียครึ่งเดียว (~100K)
+  - Ban rate สูงเกินใน design partner cycle → tighten customer ToS + best-practice guide, no extra cost
+  - Design partner ไม่ใช้ใน wk 4 → kill before V1 GA, used ~130K
+  - VCam module breaks ตอน TikTok update → 24-48hr rebuild + customer auto-prompt update
 
-**Key insight:** ที่ ~200K = ใช้เงิน 1-2 เดือนของ ARR target — risk เล็กมาก vs upside
+**Key insight:** ที่ ~150K = ใช้เงิน <1 เดือนของ ARR target — risk เล็กมาก vs upside
 
 **Backup:** PRD §17 Rollout phase-gates
 
@@ -227,9 +272,9 @@ Native mobile app = Phase 2+ ถ้า demand ชัด
 
 ### Q17. "1 คนทำเสร็จจริงๆ หรือ? หา hire ไหม?"
 
-**A:** MVP = solo (Pond) ครับ — ไม่ต้อง hire
-- POC validated velocity ของผม + Claude = 5x ของ baseline (4 วัน vs คาด 2-3 wk)
-- MVP scope ~8-10x ของ POC → 6-8 wk timeline
+**A:** MVP = solo (Pond) ครับ — ไม่ต้อง hire และ ~90% shipped แล้ว
+- POC validated velocity = 5x ของ baseline (4 วัน vs คาด 2-3 wk)
+- MVP shipped ~90% ใน 2 wk vs plan 8 wk = **velocity 8-10x** (proof จริง ไม่ใช่ estimate)
 - Pond มี full-stack expertise + ownership + domain knowledge → ไม่ต้อง onboard
 
 **V1 phase (Q4):** hire 1 full-stack engineer เพื่อ reduce single-person risk + เพิ่ม velocity
@@ -337,8 +382,8 @@ V1 phase:
 
 | Metric | Number |
 |---|---|
-| MVP investment | **~200K บาท** |
-| MVP timeline | **8 สัปดาห์** |
+| MVP investment | **~120-150K บาท** (revised down from 200K) |
+| MVP timeline | **~4 สัปดาห์ end-to-end** (~2 wk done + ~2 wk remaining) |
 | MVP team | **1 (Pond solo + Claude)** |
 | Pond salary | 50K/เดือน |
 | Claude cost | 6.5K/เดือน |

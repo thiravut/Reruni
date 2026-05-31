@@ -3,7 +3,7 @@
 **สถานะ:** Draft v1 / pre-implementation
 **วันที่:** 2026-05-26
 **Owner:** TBD (agent hand-off)
-**Track:** Parallel to mobile-app Smart Overlay POC (see [technical-architecture-draft.md](technical-architecture-draft.md) §3.5)
+**Track:** Parallel to mobile-app track (own-built VCam LSPosed module — see [system-overview.md](system-overview.md) §9)
 
 ---
 
@@ -16,9 +16,9 @@ Portal + Backoffice = production-grade user-facing layer ที่ wraps POC:
 - **Backoffice (admin-facing):** ทีมเรา monitor ทั้ง platform, support members, intervene เมื่อจำเป็น
 
 แยกออกจาก mobile-app track เพราะ:
-- ไม่ block / ไม่ถูก block ด้วย Smart Overlay decisions
+- ไม่ block / ไม่ถูก block ด้วย mobile broadcast decisions
 - ใช้ stack คนละชุด (web frontend vs Android)
-- reusable regardless of broadcast technology (plain screen-share, Smart Overlay, future RTMP, etc.)
+- reusable regardless of broadcast technology (VCam Camera2 hijack, future RTMP, etc.)
 
 ---
 

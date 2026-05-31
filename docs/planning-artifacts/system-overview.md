@@ -11,7 +11,7 @@
 
 TiktokRerun คือ **web-based control plane** ที่ช่วยให้ **solo seller / reseller ที่ run TikTok Shop หลายบัญชี** จัดการ live commerce ของทุกบัญชีจากเว็บเดียว — broadcast วิดีโอ + ปักตะกร้าสินค้า + **เพิ่ม banner/promo/countdown ทับวิดีโอแบบ real-time** โดยไม่ต้องจ้างทีม ไม่ต้องเดินไปแตะเครื่อง
 
-**Smart Overlay broadcast technology** — Companion App วาด video + banner เป็น overlay บน TikTok screen-share → TikTok UI ซ่อนใต้ overlay → pin product, switch product, เปลี่ยน promo banner ทำได้กลาง live โดยไม่มี flicker, ไม่ต้อง root device, ลูกค้าใช้ phone อะไรก็ได้
+**VCam Camera2 hijack** (own-built LSPosed module + LSPatch shim) — Companion App ฉีดวิดีโอ MP4 เข้า Camera2 preview pipeline → TikTok เห็น "frame" จาก camera ตรงๆ ไม่ใช่ feed จริง → pin product, switch product, เปลี่ยน promo banner composite real-time, **ไม่ต้อง root device** (R3 Lite BYOD), ลูกค้าใช้ Android phone ที่รองรับ LSPatch ได้
 
 **ปัญหาที่แก้:** TikTok Shop seller ในไทยต้องการ live presence 24/7 เพื่อ algorithm boost + sales conversion แต่ live สดเองไม่ไหว และเครื่องมือปัจจุบัน (TikMatrix, PRISM, MOD APK) ขาด web UX, ขาด broadcast capability, หรือผิด ToS
 
@@ -205,7 +205,7 @@ User              Backend               Phone
 |---|---|---|
 | **Fleet Management** | Onboard, pair, status, group devices | MVP |
 | **Video Broadcasting** | Upload, assign, loop, switch on-demand | MVP |
-| **Smart Overlay** | SAW-based composition, no root, BYOD-friendly | MVP |
+| **VCam Camera2 hijack** | Own-built LSPosed module + LSPatch shim — no root, BYOD-friendly | MVP |
 | **Live Lifecycle** | Start/stop/restart live remotely | MVP |
 | **TikTok Shop Control** | Pin/unpin/switch products | MVP |
 | **Banner Composition** | Static + Dynamic banner, countdown, price tag | MVP |
@@ -275,26 +275,27 @@ User              Backend               Phone
 - **Multi-device fanout** — สั่งหลายเครื่องพร้อมกันได้
 
 ### ✅ TikTok Automation
-- **Start/stop live** — Accessibility Service เปิด TikTok → Go Live → Screen Share ได้
+- **Start/stop live** — Autopilot (Accessibility Service) เปิด TikTok → Go Live → Device Camera
 - **Pin/unpin product** — สลับสินค้าระหว่าง live ได้จาก web, ผู้ชมเห็น product anchor update real-time
 - **Switch video on-demand** — operator เปลี่ยนวิดีโอที่กำลัง broadcast ได้โดยไม่ต้องปิด live
 
-### 🟡 Smart Overlay Verification — POC Extension Gate (ก่อน MVP build)
+### ✅ VCam Camera2 Hijack — DECIDED + Validated (2026-05-31)
 
-**Decision:** ย้าย default broadcast mode จาก plain screen-share → **Smart Overlay**
-- Companion App วาด video เป็น SYSTEM_ALERT_WINDOW overlay บน TikTok app
-- TikTok screen-share จับ overlay layer (MediaProjection capture)
-- TikTok UI ยังคงอยู่ใต้ overlay → pin product ไม่ต้องสลับ foreground
-- **Banner layer = overlay layer เดียวกัน** → render banner/countdown/price บนวิดีโอได้
+**Production broadcast path:** Own-built LSPosed module + LSPatch shim
+- Companion App stages MP4 ใน VcamContentProvider (cross-process IPC)
+- LSPosed module hijack Camera2 preview pipeline → render MP4 frames เป็น OES texture บน EGL surface
+- TikTok เห็น "frame" จาก camera ตรงๆ (ไม่ใช่ feed กล้องจริง) → broadcast quality สูง, ไม่มี screen-capture artifact
+- **No root required** — LSPatch (non-root Xposed shim) ทำให้ R3 Lite BYOD ใช้ได้บน phone ที่ไม่ root
+- **Banner layer composite** บน video preview ก่อน hand-off ให้ TikTok
 
-**3 verification ต้องผ่านก่อน MVP build commit:**
-1. ☐ TikTok screen-share จับ SAW overlay จริงในทุก Android version target (10+)
-2. ☐ TikTok app ไม่ block live เมื่อ detect overlay running
-3. ☐ Touch passthrough ให้ Accessibility Service tap TikTok UI ใต้ overlay ได้สำเร็จ
+**Validation status:**
+- ✅ Samsung A15 5G Android 16 — looping MP4 broadcast works end-to-end
+- ✅ Build pipeline operational (Phase A-D ของ autopilot scripts shipped)
+- ✅ Token-gated APK download (`/api/downloads/companion-apk`) wired
 
-**Effort:** POC extension 1-2 สัปดาห์ — must-do gate
-
-**Fallback ถ้าไม่ผ่าน:** stay กับ plain screen-share + ใช้ overlay trick เฉพาะ pin product moment (degraded UX แต่ functional)
+**Deprecated paths:**
+- ~~Smart Overlay (SAW + MediaProjection screen-share)~~ — quality + UX inferior
+- ~~Patched APK using competitor's VCAM~~ — external dependency + legal risk
 
 ### 📋 Customer-Managed Risk (by ToS)
 
@@ -318,18 +319,18 @@ User              Backend               Phone
 | 6 | Pin/unpin product | ✅ |
 | 7 | Switch video on-demand | ✅ |
 | 8 | Multi-device concurrent control | ✅ |
-| 9 | Smart Overlay broadcast (SAW + MediaProjection capture) | 🟡 POC extension |
-| 10 | Banner layer render on overlay | 🟡 POC extension |
-| ~~Ban rate baseline~~ | ~~Customer-managed via ToS~~ | N/A |
+| 9 | VCam Camera2 hijack (own-built LSPosed module + LSPatch) | ✅ Validated A15 5G Android 16 |
+| 10 | Banner layer composite on Camera2 preview | ⏳ V1 GA cycle (in progress) |
+| ~~Ban rate baseline~~ | ~~Customer-managed via ToS + design partner cycle~~ | Design partner cycle |
 
-**Conclusion: POC core successful — pending Smart Overlay verification (1-2 wks) ก่อน MVP build**
+**Conclusion: POC + ~90% MVP shipped; remaining = Banner Tier 2 + design partner cycle + Stripe live mode**
 
-### Open Risks for MVP
-- TikTok app version changes → Accessibility selectors break (mitigation: selector versioning + auto-update)
-- TikTok may detect/block overlay during screen-share (mitigation: POC verify; fallback to plain screen-share)
-- Scale 10 → 100 phones (mitigation: load test ใน MVP)
+### Open Risks for V1 GA
+- TikTok app version changes → Accessibility selectors + VCam hook may break (mitigation: selector versioning + module versioning + 24-48hr rebuild SLA)
+- Scale 10 → 100 phones (mitigation: load test during design partner cycle)
 - Long-run stability 24/7 operation (mitigation: instrumentation + auto-recovery)
-- Banner rendering performance @ overlay layer (mitigation: hardware-accelerated rendering, fps monitoring)
+- Banner rendering performance on Camera2 preview (mitigation: hardware-accelerated EGL render path, fps monitoring)
+- LSPatch device compatibility — some Android skins / OEM camera HALs may differ (mitigation: supported-device list + diagnostics caps collector)
 
 ---
 
@@ -339,27 +340,25 @@ User              Backend               Phone
 ─── 2026 ──────────────────────────────────────────────────────────────▶
 
 Q2  │ POC (5-10 phones, in-house)         ✅ Complete
+    │ MVP build (2 wk actual, ~90%)        🟢 ~90% shipped
+    │  • Backend + Portal + Backoffice ✅ │
+    │  • Mobile companion + VCam ✅       │
+    │  • Onboarding wizard + billing ✅   │
+    │  • Banner Tier 2 (in progress)      │
+    │  • 2-3 design partners (next 1 wk)  │
     │ ─────────────────────────────────────────
-Q3  │ MVP (3 เดือน)                       ◀── ขอ approval ที่นี่
-    │  • Smart Overlay broadcast mode     │
-    │  • Banner composition (Tier 1+2)    │
-    │  • User account web (signup/login)  │
-    │  • Onboarding flow                  │
-    │  • Pin product (POC-validated path) │
-    │  • Beta with 2-3 design partners    │
-    │  • Target: 50 phones / 500 lives    │
-    │ ─────────────────────────────────────────
-Q4  │ V1 GA — Paid launch                 │
-    │  • Pricing tiers ($X-$Y per phone)  │
+Q2 end│ V1 GA — Paid launch               │
+    │  • Flat 299 บาท/device/month        │
     │  • Self-serve signup                │
-    │  • Scheduling + comment monitoring  │
+    │  • Scheduling + comment monitoring (V1.5) │
     │ ─────────────────────────────────────────
 
 ─── 2027 ──────────────────────────────────────────────────────────────▶
 
-Q1  │ V2 — Multi-profile + Scheduling     │
-    │  • TikTok account rotation per dev  │
+Q1  │ V2 — Scheduling + Stability hardening │
     │  • Time-based start/stop            │
+    │  • Playlist rotation                │
+    │  • Per-device health monitoring     │
 Q2  │ V3 — Pro features + AI assist       │
     │  • Hybrid live (exploratory)        │
     │  • AI comment reply (exploratory)   │

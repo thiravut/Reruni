@@ -25,7 +25,7 @@
 │   └── web/           # legacy POC dashboard — keep until portal stable
 ├── portal/            # NEW — Vite + React (member-facing SPA)
 ├── backoffice/        # NEW — Vite + React (admin-facing SPA)
-├── mobile/            # Android Companion App (separate track, Smart Overlay POC)
+├── mobile/            # Android Companion App + own-built VCam LSPosed module
 └── docs/planning-artifacts/  # specs + decision log
 ```
 

@@ -159,19 +159,26 @@ Solo TikTok Shop seller, อายุ 24-38, มี 3-15 บัญชี TikTok 
 | `/admin/lives` (with force-stop) | ✅ |
 | `/admin/subscriptions` (with recheck) | ✅ |
 
-### 3.10 Mobile Companion App ⚠️ Decision Pending
+### 3.10 Mobile Companion App ✅ Built (DECIDED — VCam LSPatch)
 
-**Current state:**
-- Smart Overlay POC validated (no root, BYOD)
-- Patched TikTok APK + VCAM tested (Samsung A15 5G) — using competitor's APK
-- Ban rate baseline NOT yet measured
+**Production path: VCam Camera2 hijack via own-built LSPosed module + LSPatch shim**
 
-**V1 Decision Required:**
-- **Path A:** Smart Overlay (POC original) — proven, BYOD, lower quality
-- **Path B:** Patched APK + VCAM — better quality, dependency on competitor, untested ban rate
-- **Path C:** Both — Smart Overlay for entry users, patched APK for advanced
+| Component | Status |
+|---|---|
+| Own-built VCam LSPosed module (Camera2 EGL/OES render) | ✅ Validated A15 5G Android 16 |
+| LSPatch shim (non-root Xposed) | ✅ Working — no root needed |
+| Companion app (Pair QR, autopilot scripts, WebSocket, foreground service) | ✅ Built |
+| Autopilot scripts (JSON-driven, server-fetched) Phase A-D | ✅ Shipped |
+| Audio routing (video → TikTok mic) | ✅ Working |
+| Diagnostics + caps collector | ✅ Built |
 
-See §5 Open Decisions.
+**Deprecated paths (do not pursue):**
+- ~~Smart Overlay (SAW + MediaProjection)~~ — quality + UX worse than VCam
+- ~~Patched APK using competitor's VCAM~~ — dependency + legal risk
+
+**Remaining:**
+- Ban rate baseline via design-partner cycle (next 1-2 wk)
+- APK production upload pipeline + token-gate validation in prod
 
 ### 3.11 Auth Infrastructure ✅ Built
 
@@ -231,9 +238,9 @@ Flat per-device pricing forces a quantity commitment at signup — V1 launches w
 > - 🔄 **Likely** — เชื่อว่าทำได้ (mostly engineering, dependency known)
 > - ❓ **Exploratory** — ยังไม่รู้, ต้อง R&D ก่อน commit
 
-- Multi-profile rotation (TikTok native switcher + Accessibility automation) — V2 ✅
 - Scheduling (time-based start/stop) — V2 ✅
 - Playlist rotation (auto-switch video) — V2 ✅
+- Stability hardening (auto-reconnect, VCam fallback, health monitoring) — V2 ✅
 - Sentry error tracking — V1.5 ✅
 - Email notifications — V1.5 ✅
 - Banner template library — V1.5 ✅
@@ -243,11 +250,11 @@ Flat per-device pricing forces a quantity commitment at signup — V1 launches w
 - Advanced analytics (GMV, conversion) — V2/V3 ❓ (depends on TikTok Shop API)
 - Out-of-stock warning — V2 ❓ (depends on TikTok Shop API)
 - Hybrid live (human takeover) — V3 ❓ (technical feasibility unclear)
-- Fast snapshot account swap — V3 ❓ (only if V2 native switcher proves too slow)
 - AI Comment Reply / AI Insights — V3 🔄 (depends on data sources)
 - iOS support — no plan
 - Public REST API — no plan
 - Multi-user team / org / agency features — no plan
+- **Multi-profile rotation** — dropped 2026-05-31 (TikTok account safety risk)
 - International / SEA expansion — no plan
 
 ---
@@ -256,12 +263,12 @@ Flat per-device pricing forces a quantity commitment at signup — V1 launches w
 
 | # | Decision | Owner | Deadline |
 |---|---|---|---|
-| 1 | **Mobile path — Smart Overlay / Patched APK / Both?** | Pond | Before launch |
-| 2 | **Patched APK hosting** — เราโฮสต์, ลิงค์ไปคู่แข่ง, หรือ bundle ใน companion? | Pond + Legal | Before launch (if Path B) |
-| 3 | **Ban rate acceptable threshold** — กี่ %/เดือนถึงเรียกว่า production-ready? | Pond | Before launch |
+| 1 | ~~Mobile path — Smart Overlay / Patched APK / Both?~~ | — | ✅ **DECIDED 2026-05-31 — VCam LSPatch own-built** |
+| 2 | **APK hosting** — token-gated download via /api/downloads/companion-apk | ✅ | Built |
+| 3 | **Ban rate acceptable threshold** — กี่ %/เดือนถึงเรียกว่า production-ready? | Pond | Design-partner cycle |
 | 4 | **Customer ToS draft** — ทนายร่างหรือใช้ template? | Pond + Lawyer | Before paid GA |
-| 5 | **Re-patch cadence** — ใครรับผิดชอบ update เมื่อ TikTok ออกเวอร์ชั่นใหม่? | Pond | Before launch |
-| 6 | **Smart Overlay maintain หรือ deprecate?** | Pond | Within V1 |
+| 5 | **Re-patch cadence** — ใครรับผิดชอบ update VCam module เมื่อ TikTok ออกเวอร์ชั่นใหม่? | Pond | Before paid GA — 24-48hr SLA committed |
+| 6 | ~~Smart Overlay maintain หรือ deprecate?~~ | — | ✅ **DECIDED 2026-05-31 — Deprecated** |
 | 7 | **Auto-update mechanism** — ลูกค้า manual download หรือ automated? | Pond | V1.5 |
 
 ---
@@ -326,9 +333,10 @@ Flat per-device pricing forces a quantity commitment at signup — V1 launches w
 
 | Risk | Severity | Mitigation |
 |---|---|---|
-| Mobile companion fails at scale | High | Validate ban rate before public launch + fallback Path C |
+| VCam module breaks on TikTok app update | Medium | Module versioning + 24-48hr rebuild SLA + LSPatch shim modular |
+| Ban rate higher than expected | Medium | Validate via design-partner cycle before paid GA |
 | Stripe webhook unreliable in production | Medium | Recheck button + retry logic (already built) |
-| Customer brick during patched APK install | Medium | Clear waiver + supported device list |
+| Customer device incompatible with LSPatch | Low-Med | Clear supported-device list + diagnostics report |
 | TikTok ToS challenge | Medium | Customer ToS shifts liability + A1 positioning |
 | Single-instance backend goes down | Medium | GCP Cloud Run auto-recover + Cloud SQL HA failover + uptime monitor |
 | Stripe TEST keys accidentally used in prod | Low | Deployment script gates check live key prefix |
@@ -342,28 +350,30 @@ Flat per-device pricing forces a quantity commitment at signup — V1 launches w
 - **Optional:** 1 contractor for legal/ToS review
 - **Optional:** 1 contractor for video tutorial production
 
-### Budget
-- Stripe transaction fee — 2.95% + 10 บาท per transaction (built-in cost)
-- GCP Cloud Run + Cloud SQL + Memorystore — ~6-8K บาท/เดือน at V1 launch scale
-- Cloudflare R2 (storage + CDN) — ~500 บาท/เดือน initial (low usage)
-- Domain reruni.com — 699 บาท/year
-- SSL Certificate — $240/year (~8,400 บาท)
-- Legal review — 50-100K one-time
-- Mobile validation (if needed) — 30-50K
-- Beta customer onboarding labor — Pond time
+### Budget (cash-out only — founder time self-funded)
+- Claude (Pro subscription) — 6.5K/เดือน × 2 mo = ~13K
+- GCP Cloud Run + Cloud SQL + Memorystore — ~6-8K บาท/เดือน × 2 mo = ~12-16K
+- Cloudflare R2 (storage) — ~500 บาท/เดือน × 2 mo = ~1K
+- Cloudflare SSL (free with proxy) — 0
+- Domain reruni.com — 699 บาท/year (~700 บาท one-time)
+- GitHub (free tier; optional Pro ~150 บาท/mo) — 0-1K
+- Stripe transaction fee — 2.95% + 10 บาท per transaction (built-in cost, post-revenue)
+- Legal review — 50-100K one-time (separate phase, before paid GA)
+- Beta customer onboarding labor — Pond time (founder equity, not cash)
 
-**Total V1 phase pre-revenue cost: ~100-200K**
+**Total V1 phase cash-out (excl. legal): ~25-32K** (founder time self-funded as equity)
+**Total to revenue stage (incl. legal):** ~75-132K (vs original 280K plan = save 50-65%)
 
 → Full cost analysis at scale: ดู [v1-launch-presentation.md](v1-launch-presentation.md) Slide 10 (2,000 users = ~26,658 บาท/เดือน hybrid stack)
 
-### Timeline
-- **Weeks 1-2:** Mobile companion final decision + validation (ban rate test)
-- **Weeks 3:** Production deployment + DNS setup + auto-deploy pipeline
-- **Week 4:** Legal review + ToS finalization
-- **Week 5-6:** Beta with 2-3 design partners
-- **Week 7-8:** Iterate + launch
+### Timeline (revised — actual + remaining)
 
-→ V1 GA target: **Q3 2026 (within 8 weeks)**
+**Plan was 8 weeks. Reality:**
+- ✅ **Weeks 1-2 (done):** POC + Backend + Portal SPA + Backoffice SPA + Mobile companion + VCam module + Autopilot Phase A-D + Deployment infra + Pricing pivot + Onboarding wizard + Landing page
+- ⏳ **Week 3 (in progress):** Stripe live-mode + APK production pipeline + email Resend domain verify (Banner Tier 2 moved to V1.5 per 2026-06-01 scope decision)
+- ⏳ **Week 4:** Design partner cycle (2-3 friendly TH sellers) + bug fix + legal review kick-off
+
+→ **V1 GA target: ~4 weeks total → Q2 2026 end** (revised earlier from Q3)
 
 ---
 
@@ -371,13 +381,13 @@ Flat per-device pricing forces a quantity commitment at signup — V1 launches w
 
 | # | Decision | Recommendation |
 |---|---|---|
-| 1 | **Approve V1 launch budget** (~100-200K) | ✅ Approve |
-| 2 | **Mobile path — recommend Smart Overlay primary + patched APK pilot** | ✅ Hedge both initially |
+| 1 | **Approve V1 GA cycle cash-out** (~25-32K, founder time self-funded) | ✅ Approve — far under original 200K plan |
+| 2 | ~~Mobile path~~ | ✅ **DECIDED — VCam LSPatch own-built**, no further choice needed |
 | 3 | **Legal review budget** (~50-100K) | ✅ Approve |
 | 4 | **Design partner selection** | 2-3 friendly TH sellers |
-| 5 | **GA target Q3 2026** | ✅ Confirm |
-| 6 | **Subscription gating without trial** | ✅ Keep (already decided) |
-| 7 | **Two-cookie auth + admin separation** | ✅ Confirm |
+| 5 | **GA target Q2 2026 end** (revised earlier from Q3) | ✅ Confirm |
+| 6 | **Subscription gating without trial + flat 299/device** | ✅ Keep (decided) |
+| 7 | **Two-cookie auth + admin separation** | ✅ Confirm (deployed) |
 
 ---
 
@@ -385,7 +395,7 @@ Flat per-device pricing forces a quantity commitment at signup — V1 launches w
 
 → See `release-roadmap.md`:
 - **V1.5 (Q4 2026):** Stability + QoL — reduce ops burden
-- **V2 (Q1 2027):** Multi-profile rotation ✅ + scheduling ✅ + comments ❓
+- **V2 (Q1 2027):** Scheduling ✅ + stability hardening ✅ + comments ❓ (multi-profile dropped 2026-05-31)
 - **V3 (Q2 2027):** AI features 🔄 + hybrid live ❓ (exploratory)
 
 ---
