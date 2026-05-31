@@ -40,7 +40,17 @@ object Camera2Hook {
             String::class.java,
             "android.hardware.camera2.CameraDevice\$StateCallback",
             android.os.Handler::class.java,
-            logCall("CameraManager.openCamera(cameraId,callback,handler)"),
+            object : XC_MethodHook() {
+                override fun beforeHookedMethod(param: MethodHookParam) {
+                    val label = "CameraManager.openCamera(cameraId,callback,handler)"
+                    log("→ $label (thread=${Thread.currentThread().name})")
+                    val mgr = param.thisObject as? android.hardware.camera2.CameraManager
+                    val cameraId = param.args.getOrNull(0) as? String
+                    if (mgr != null && cameraId != null) {
+                        CameraIdentity.update(mgr, cameraId)
+                    }
+                }
+            },
         )
     }
 

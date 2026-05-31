@@ -60,6 +60,7 @@ class GlFrameRenderer(
     private var uTexMatrixLoc: Int = 0
     private var sTextureLoc: Int = 0
     private lateinit var vertexBuffer: FloatBuffer
+    private lateinit var vertexBufferFront: FloatBuffer
     // Actual EGL window dimensions (TikTok's preview surface size) — queried
     // post-bind because TikTok's Surface size may differ from the decoded
     // video size. We use these for glViewport so we cover the full preview.
@@ -173,6 +174,11 @@ class GlFrameRenderer(
             .order(ByteOrder.nativeOrder())
             .asFloatBuffer()
             .apply { put(VERTICES); position(0) }
+        vertexBufferFront = ByteBuffer
+            .allocateDirect(VERTICES_FRONT.size * 4)
+            .order(ByteOrder.nativeOrder())
+            .asFloatBuffer()
+            .apply { put(VERTICES_FRONT); position(0) }
 
         val lt = HandlerThread("GlFrameListener").apply { start() }
         listenerThread = lt
@@ -230,11 +236,12 @@ class GlFrameRenderer(
         GLES20.glUniform1i(sTextureLoc, 0)
         GLES20.glUniformMatrix4fv(uTexMatrixLoc, 1, false, texMatrix, 0)
 
-        vertexBuffer.position(0)
-        GLES20.glVertexAttribPointer(aPosLoc, 2, GLES20.GL_FLOAT, false, 16, vertexBuffer)
+        val vb = if (CameraIdentity.isFront) vertexBufferFront else vertexBuffer
+        vb.position(0)
+        GLES20.glVertexAttribPointer(aPosLoc, 2, GLES20.GL_FLOAT, false, 16, vb)
         GLES20.glEnableVertexAttribArray(aPosLoc)
-        vertexBuffer.position(2)
-        GLES20.glVertexAttribPointer(aTexCoordLoc, 2, GLES20.GL_FLOAT, false, 16, vertexBuffer)
+        vb.position(2)
+        GLES20.glVertexAttribPointer(aTexCoordLoc, 2, GLES20.GL_FLOAT, false, 16, vb)
         GLES20.glEnableVertexAttribArray(aTexCoordLoc)
 
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
@@ -341,6 +348,19 @@ class GlFrameRenderer(
             1f, -1f, 0f, 0f,
             -1f, 1f, 1f, 1f,
             1f, 1f, 1f, 0f,
+        )
+
+        // Front-camera (selfie) variant. The other camera direction shows
+        // our content vertically mirrored in display space (= 180° + L/R
+        // observed: tested 2026-05-31). We compensate with a vertical-mirror
+        // in display, which after the 90° CW preview rotation is a
+        // horizontal flip in the buffer — i.e. negate X on each vertex pos.
+        private val VERTICES_FRONT = floatArrayOf(
+            // x, y, u, v
+            1f, -1f, 0f, 1f,
+            -1f, -1f, 0f, 0f,
+            1f, 1f, 1f, 1f,
+            -1f, 1f, 1f, 0f,
         )
 
         private const val VERTEX_SHADER = """
