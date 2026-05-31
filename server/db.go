@@ -109,6 +109,15 @@ type User struct {
 	// user to portal/backoffice. `none` when the user has no row at all.
 	SubscriptionStatus string `json:"subscription_status,omitempty"`
 	SubscriptionTier   string `json:"subscription_tier,omitempty"`
+	// Onboarding wizard state. One of:
+	//   welcome | pick_quantity | payment | install_apk
+	//   pair_device | first_video | complete
+	// See docs/planning-artifacts/prd-v1-launch.md §3.12.
+	OnboardingStep string `json:"onboarding_step,omitempty"`
+	// Device quota (= subscriptions.device_quota) and current paired count.
+	// Both 0 when user has no active subscription.
+	DeviceQuota   int `json:"device_quota"`
+	DevicesPaired int `json:"devices_paired"`
 }
 
 // Subscription mirrors the subscriptions table. Surfaced via /api/billing/subscription.
@@ -120,6 +129,10 @@ type Subscription struct {
 	StripePriceID        string     `json:"-"`
 	Tier                 string     `json:"tier"`
 	Status               string     `json:"status"`
+	// DeviceQuota mirrors Stripe's subscription.items[0].quantity — the
+	// number of devices the customer has paid for under flat per-device
+	// pricing. Stripe is canonical; we mirror so quota checks stay local.
+	DeviceQuota          int        `json:"device_quota"`
 	CurrentPeriodStart   *time.Time `json:"current_period_start,omitempty"`
 	CurrentPeriodEnd     *time.Time `json:"current_period_end,omitempty"`
 	CancelAtPeriodEnd    bool       `json:"cancel_at_period_end"`

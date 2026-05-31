@@ -14,10 +14,11 @@ export function getTiers(): Promise<{ tiers: Tier[] }> {
 
 export function createCheckoutSession(
   tier: TierKey,
+  quantity?: number,
 ): Promise<{ checkout_url: string }> {
   return apiFetch<{ checkout_url: string }>('/billing/checkout-session', {
     method: 'POST',
-    body: { tier },
+    body: quantity ? { tier, quantity } : { tier },
   });
 }
 

@@ -11,7 +11,18 @@ export type SubscriptionStatus =
   | 'canceled'
   | 'incomplete';
 
-export type TierKey = 'starter' | 'growth' | 'pro';
+// Flat per-device pricing (2026-05-23): single tier key 'device'.
+// Legacy keys kept in the union so old admin pages don't break.
+export type TierKey = 'device' | 'starter' | 'growth' | 'pro';
+
+export type OnboardingStep =
+  | 'welcome'
+  | 'pick_quantity'
+  | 'payment'
+  | 'install_apk'
+  | 'pair_device'
+  | 'first_video'
+  | 'complete';
 
 export interface User {
   id: number;
@@ -22,11 +33,18 @@ export interface User {
   /** `none` when no subscription row exists. */
   subscription_status?: SubscriptionStatus;
   subscription_tier?: TierKey | '';
+  /** Wizard step (PRD §3.12). Absent on legacy users; treat as 'complete'. */
+  onboarding_step?: OnboardingStep;
+  /** Device quota under flat per-device pricing. */
+  device_quota?: number;
+  /** Currently paired device count (for the quota badge). */
+  devices_paired?: number;
 }
 
 export interface Subscription {
   tier: TierKey;
   status: SubscriptionStatus;
+  device_quota?: number;
   stripe_subscription_id?: string;
   current_period_start?: string;
   current_period_end?: string;

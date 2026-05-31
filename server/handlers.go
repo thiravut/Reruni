@@ -182,6 +182,10 @@ func uploadVideoHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// First-video onboarding hook (idempotent — only fires on first upload
+	// per user because advanceOnboardingIfAt checks current step).
+	onFirstVideoUploaded(user.ID)
+
 	writeJSON(w, http.StatusCreated, Video{
 		ID:        id,
 		Name:      displayName,
@@ -573,6 +577,24 @@ func getDeviceForUser(id string, userID int64) (*Device, error) {
 
 func createPairTokenHandler(w http.ResponseWriter, r *http.Request) {
 	user := userFromCtx(r)
+
+	// Quota enforcement (flat per-device pricing — see PRD §3.12).
+	// A pair token consumes a slot the moment the device claims it, so we
+	// block issuance once paired count has caught up with the quota. The
+	// portal surfaces the error code to switch the CTA to "increase quota".
+	paired, quota, ok := checkDeviceQuota(user.ID)
+	if !ok {
+		writeJSON(w, http.StatusPaymentRequired, map[string]any{
+			"error": map[string]any{
+				"code":    "QUOTA_EXCEEDED",
+				"message": "device quota เต็ม — เพิ่ม device count ในหน้า Billing ก่อน",
+			},
+			"devices_paired": paired,
+			"device_quota":   quota,
+		})
+		return
+	}
+
 	token := generatePairToken()
 	expires := time.Now().Add(pairTokenTTL)
 

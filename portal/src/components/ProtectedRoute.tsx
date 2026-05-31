@@ -4,9 +4,10 @@ import { useAuth } from '../contexts/AuthContext';
 import { LoadingPage } from './Spinner';
 
 // Pages reachable even without an active subscription. New users land on
-// /subscribe; existing subscribers can manage billing or settle a forced
+// /onboarding; existing subscribers can manage billing or settle a forced
 // password change without being kicked back.
 const BILLING_ALLOWED_PATHS = [
+  '/onboarding',
   '/subscribe',
   '/billing',
   '/billing/success',
@@ -34,6 +35,17 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
     location.pathname !== '/change-password'
   ) {
     return <Navigate to="/change-password" replace />;
+  }
+  // Onboarding wizard — new users with an incomplete wizard get redirected
+  // to /onboarding (skips for admins and for users already on the wizard or
+  // a billing page where Stripe Checkout returns).
+  if (
+    state.user.role !== 'admin' &&
+    state.user.onboarding_step &&
+    state.user.onboarding_step !== 'complete' &&
+    !isBillingAllowed(location.pathname)
+  ) {
+    return <Navigate to="/onboarding" replace />;
   }
   // Subscription gating — admins bypass; otherwise require status='active'
   // to reach any non-billing page.

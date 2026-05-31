@@ -185,6 +185,43 @@ See §5 Open Decisions.
 
 ---
 
+## 3.12 First-Time Onboarding (DECIDED 2026-05-23)
+
+Flat per-device pricing forces a quantity commitment at signup — V1 launches with a guided onboarding wizard that walks new users from signup to first live in one continuous flow. State persisted via `users.onboarding_step` so users can resume.
+
+### Steps
+
+| # | Step | Skippable | Auto-advance trigger |
+|---|---|---|---|
+| 1 | Signup | — | account creation |
+| 2 | Welcome (quick value prop, 2-3 bullets) | no | "Next" click |
+| 3 | Pick device count (slider/input × 299 = monthly total; **monthly default**, annual deferred) | no | "Continue to payment" |
+| 4 | Stripe Checkout | no | webhook `checkout.session.completed` |
+| 5 | Payment success confirmation | no | "Continue" click |
+| 6 | Install Companion APK (**token-gated download** — requires active subscription) | **yes** | first pair attempt OR skip |
+| 7 | Pair first device (QR + wait for online) | **yes** | first device `online=true` OR skip |
+| 8 | Upload first video (no sample library — customer brings own content) | **yes** | first video uploaded OR skip |
+| 9 | Complete (dashboard with quota badge) | — | terminal |
+
+### Email reminders (stuck at payment step 3-4)
+
+- Day 3 — gentle nudge
+- Day 7 — second reminder
+- Day 15 — final reminder
+
+### Quota enforcement
+
+- `paired_count < subscription.quantity` checked at `POST /api/devices/pair`
+- Dashboard header always shows `paired / quota` badge
+- Exceeded quota → CTA → Stripe Billing Portal to update quantity
+
+### Pricing change mechanics
+
+- **Upgrade mid-cycle** (10 → 12 devices day 16): Stripe prorate auto-charges 2 × 299 × (14/30) ≈ 279 บาท immediately; next cycle = 12 × 299 = 3,588 บาท
+- **Downgrade mid-cycle** (10 → 7 devices): quota and monthly amount stay the same — no refund, no credit. Quota updates effective next cycle anniversary.
+
+---
+
 ## 4. V1 Out-of-Scope (Deferred)
 
 ทุก feature ข้างล่างจะเข้า **V1.5 หรือใหม่กว่า** ไม่อยู่ใน V1 launch

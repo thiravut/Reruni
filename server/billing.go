@@ -131,11 +131,11 @@ func getSubscriptionByUser(userID int64) (*Subscription, error) {
 	var stripeSubID, stripePriceID sql.NullString
 	err := db.QueryRow(`
 		SELECT id, user_id, stripe_customer_id, stripe_subscription_id, stripe_price_id,
-		       tier, status, current_period_start, current_period_end,
+		       tier, status, device_quota, current_period_start, current_period_end,
 		       cancel_at_period_end, created_at, updated_at
 		FROM subscriptions WHERE user_id=?`, userID,
 	).Scan(&s.ID, &s.UserID, &s.StripeCustomerID, &stripeSubID, &stripePriceID,
-		&s.Tier, &s.Status, &cpStart, &cpEnd,
+		&s.Tier, &s.Status, &s.DeviceQuota, &cpStart, &cpEnd,
 		&s.CancelAtPeriodEnd, &s.CreatedAt, &s.UpdatedAt)
 	if err != nil {
 		return nil, err
@@ -167,21 +167,43 @@ func getSubscriptionByStripeSubID(stripeSubID string) (*Subscription, error) {
 	return getSubscriptionByUser(userID)
 }
 
-// enrichUserSubscription fills user.SubscriptionStatus + Tier in one DB hit
-// before serializing. Status defaults to "none" when no row exists.
+// enrichUserSubscription fills the billing + quota fields on User in one
+// DB pass before serializing to portal/backoffice. Status defaults to
+// "none" when no row exists.
+//
+// Also populates OnboardingStep (from users.onboarding_step) and the
+// paired-device count for the dashboard quota badge.
 func enrichUserSubscription(u *User) {
 	if u == nil {
 		return
 	}
 	u.SubscriptionStatus = "none"
 	u.SubscriptionTier = ""
+	u.DeviceQuota = 0
 	var status, tier string
+	var quota int
 	err := db.QueryRow(
-		"SELECT status, tier FROM subscriptions WHERE user_id=?", u.ID,
-	).Scan(&status, &tier)
+		"SELECT status, tier, device_quota FROM subscriptions WHERE user_id=?", u.ID,
+	).Scan(&status, &tier, &quota)
 	if err == nil {
 		u.SubscriptionStatus = status
 		u.SubscriptionTier = tier
+		u.DeviceQuota = quota
+	}
+
+	// Onboarding step — pulled separately so a missing subscription row
+	// doesn't suppress the step (e.g. user still on `welcome`).
+	var step string
+	if err := db.QueryRow("SELECT onboarding_step FROM users WHERE id=?", u.ID).Scan(&step); err == nil {
+		u.OnboardingStep = step
+	}
+
+	// Paired device count for the quota badge.
+	var paired int
+	if err := db.QueryRow(
+		"SELECT COUNT(*) FROM devices WHERE owner_user_id=?", u.ID,
+	).Scan(&paired); err == nil {
+		u.DevicesPaired = paired
 	}
 }
 
@@ -397,6 +419,11 @@ func createCheckoutSessionHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadGateway, "STRIPE_ERROR", err.Error())
 		return
 	}
+
+	// Onboarding hook — user has committed quantity and is heading to Stripe.
+	// Webhook will later advance payment → install_apk once Stripe confirms.
+	advanceOnboardingIfAt(u.ID, StepPickQuantity, StepPayment)
+
 	writeJSON(w, http.StatusOK, map[string]any{"checkout_url": cs.URL})
 }
 
@@ -679,6 +706,7 @@ func onInvoicePaid(inv *stripe.Invoice) error {
 func upsertSubscriptionFromStripe(userID int64, customerID string, sub *stripe.Subscription) error {
 	tier := tierKeyFromSub(sub)
 	priceID := priceIDFromSub(sub)
+	quantity := quantityFromSub(sub)
 	status := string(sub.Status)
 	if status == "" {
 		status = "active"
@@ -700,13 +728,13 @@ func upsertSubscriptionFromStripe(userID int64, customerID string, sub *stripe.S
 		UPDATE subscriptions
 		SET stripe_customer_id=?, stripe_subscription_id=?, stripe_price_id=?,
 		    tier=COALESCE(NULLIF(?, ''), tier),
-		    status=?,
+		    status=?, device_quota=?,
 		    current_period_start=?, current_period_end=?,
 		    cancel_at_period_end=?, updated_at=?
 		WHERE user_id=?`,
 		customerID, sub.ID, priceID,
 		tier,
-		status,
+		status, quantity,
 		cpStart, cpEnd,
 		sub.CancelAtPeriodEnd, now,
 		userID,
@@ -715,24 +743,46 @@ func upsertSubscriptionFromStripe(userID int64, customerID string, sub *stripe.S
 		return err
 	}
 	if n, _ := res.RowsAffected(); n > 0 {
+		// Auto-advance onboarding: payment completed → install_apk
+		if status == "active" {
+			advanceOnboardingIfAt(userID, "payment", "install_apk")
+		}
 		return nil
 	}
 	// Insert if absent.
 	tierToInsert := tier
 	if tierToInsert == "" {
-		tierToInsert = "starter"
+		tierToInsert = FlatTierKey
 	}
 	_, err = db.Exec(`
 		INSERT INTO subscriptions
 		  (user_id, stripe_customer_id, stripe_subscription_id, stripe_price_id,
-		   tier, status, current_period_start, current_period_end,
+		   tier, status, device_quota,
+		   current_period_start, current_period_end,
 		   cancel_at_period_end, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		userID, customerID, sub.ID, priceID,
-		tierToInsert, status, cpStart, cpEnd,
+		tierToInsert, status, quantity,
+		cpStart, cpEnd,
 		sub.CancelAtPeriodEnd, now, now,
 	)
+	if err == nil && status == "active" {
+		advanceOnboardingIfAt(userID, "payment", "install_apk")
+	}
 	return err
+}
+
+// quantityFromSub reads subscription.items[0].quantity — under flat
+// per-device pricing this is the device quota the customer paid for.
+func quantityFromSub(sub *stripe.Subscription) int {
+	if sub == nil || sub.Items == nil || len(sub.Items.Data) == 0 {
+		return 0
+	}
+	item := sub.Items.Data[0]
+	if item == nil {
+		return 0
+	}
+	return int(item.Quantity)
 }
 
 // -----------------------------------------------------------------------------
