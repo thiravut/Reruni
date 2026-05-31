@@ -218,32 +218,23 @@ object Autopilot {
     private suspend fun runEndLiveFlow(context: Context, launchIntent: Intent) {
         state.value = AutopilotState.Running
 
-        // 1. Bring TikTok back to foreground — when PlayerActivity or the
-        //    VCam pipeline was driving the broadcast, TikTok may be in the
-        //    background. Need its UI in front before we can tap the end button.
-        setStep("จบไลฟ์: เปิด TikTok…")
-        context.startActivity(launchIntent)
-        delay(2000)
-
-        // 2. Find + tap the end-live button. Position varies across TikTok
-        //    versions and broadcast modes (Mobile Gaming vs Device camera) so
-        //    we rely on label matching rather than fixed coordinates.
-        setStep("กด End live")
-        if (!tapByText(END_LIVE_LABELS, allowContentDesc = true, retries = 8, verifyDisappear = true)) {
-            return fail("ไม่พบปุ่ม End live — ดู dump")
+        val script = try {
+            ScriptStore(context).getScript(
+                ScriptStore.END_LIVE,
+                R.raw.script_end_live_v1,
+            )
+        } catch (t: Throwable) {
+            Log.e(TAG, "ScriptStore.getScript(end_live) failed", t)
+            return fail("โหลด script_end_live ไม่สำเร็จ")
         }
-        delay(1200)
-
-        // 3. Confirmation dialog ("Are you sure you want to end?"). Best-
-        //    effort — some TikTok variants end without confirmation. Don't
-        //    fail the run if the dialog isn't present.
-        setStep("ยืนยัน End")
-        tapByText(END_LIVE_CONFIRM_LABELS, allowContentDesc = true, retries = 4)
-        delay(1500)
-
-        setStep("✓ Live จบแล้ว")
-        state.value = AutopilotState.Done
-        activeMode.value = null
+        val runner = ScriptRunner(buildScriptContext(context, launchIntent))
+        when (val result = runner.execute(script)) {
+            is ScriptRunner.Result.Success -> {
+                state.value = AutopilotState.Done
+                activeMode.value = null
+            }
+            is ScriptRunner.Result.Failed -> return fail(result.message)
+        }
     }
 
     /**

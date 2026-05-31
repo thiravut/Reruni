@@ -122,6 +122,7 @@ class MainActivity : AppCompatActivity() {
             val store = ScriptStore(applicationContext)
             store.refresh(ScriptStore.PERSONAL_LIVE)
             store.refresh(ScriptStore.SHOPPABLE_VCAM)
+            store.refresh(ScriptStore.END_LIVE)
         }
     }
 
