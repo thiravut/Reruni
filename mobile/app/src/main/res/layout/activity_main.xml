@@ -28,22 +28,6 @@
         app:layout_constraintTop_toTopOf="parent"
         tools:ignore="HardcodedText" />
 
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/openSettingsButton"
-        style="@style/Widget.Material3.Button.IconButton"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:layout_marginEnd="16dp"
-        android:layout_marginTop="14dp"
-        android:contentDescription="@string/open_settings"
-        android:insetTop="0dp"
-        android:insetBottom="0dp"
-        app:icon="@android:drawable/ic_menu_preferences"
-        app:iconSize="22dp"
-        app:iconTint="@color/reruni_muted"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
-
     <!-- Scrollable body fills the gap between brand row and bottom button -->
     <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
@@ -352,30 +336,9 @@
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
 
-    <!-- ── Bottom action stack ────────────────────────────────────────────── -->
-    <!-- The red Disconnect is destructive (wipes creds, requires re-pair).
-         Most operators just want to pause WS traffic; the pause toggle above
-         keeps the device record + creds and survives restarts via
-         AppPrefs.connectionPaused. -->
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/connectionToggleButton"
-        style="@style/Widget.Material3.Button.OutlinedButton"
-        android:layout_width="0dp"
-        android:layout_height="52dp"
-        android:layout_marginHorizontal="20dp"
-        android:layout_marginBottom="10dp"
-        android:fontFamily="sans-serif-medium"
-        android:letterSpacing="0.02"
-        android:text="@string/conn_pause"
-        android:textColor="@color/reruni_fg"
-        android:textSize="14sp"
-        app:cornerRadius="14dp"
-        app:layout_constraintBottom_toTopOf="@id/disconnectButton"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:rippleColor="@color/reruni_border"
-        app:strokeColor="@color/reruni_border" />
-
+    <!-- Single destructive action at the bottom. Pause toggle was removed
+         after testing — the disconnect flow already handles "I want to
+         stop using this device": tester noted the two CTAs were redundant. -->
     <com.google.android.material.button.MaterialButton
         android:id="@+id/disconnectButton"
         android:layout_width="0dp"

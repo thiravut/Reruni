@@ -65,14 +65,10 @@ class MainActivity : AppCompatActivity() {
 
         applyLogoAccent()
 
-        binding.openSettingsButton.setOnClickListener {
-            startActivity(Intent(this, SettingsActivity::class.java))
-        }
         binding.permAccessibilityButton.setOnClickListener {
             startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
         }
         binding.permNotificationButton.setOnClickListener { requestNotificationPermission() }
-        binding.connectionToggleButton.setOnClickListener { togglePause() }
         binding.disconnectButton.setOnClickListener { confirmDisconnect() }
 
         observeConnection()
@@ -160,10 +156,6 @@ class MainActivity : AppCompatActivity() {
             Settings.Global.getString(contentResolver, Settings.Global.DEVICE_NAME)
                 ?: Build.MODEL ?: "—"
         }
-        // Pause / Resume toggle label reflects the persisted intent.
-        binding.connectionToggleButton.setText(
-            if (prefs.connectionPaused) R.string.conn_resume else R.string.conn_pause
-        )
         binding.identityDeviceIdText.text = if (prefs.deviceId.isNotEmpty()) {
             "${getString(R.string.identity_device_id_label)}: ${prefs.deviceId}"
         } else {
@@ -199,23 +191,6 @@ class MainActivity : AppCompatActivity() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
         if (notificationPermissionGranted()) return
         notifPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-    }
-
-    /**
-     * Flip the persisted "pause WS" flag. Stops/starts ConnectionService
-     * accordingly. Survives restarts via [AppPrefs.connectionPaused], so the
-     * device stays offline across reboots until the operator explicitly
-     * resumes — different from Disconnect, which wipes creds entirely.
-     */
-    private fun togglePause() {
-        if (prefs.connectionPaused) {
-            prefs.connectionPaused = false
-            ConnectionService.start(this)
-        } else {
-            prefs.connectionPaused = true
-            ConnectionService.stop(this)
-        }
-        refreshUiState()
     }
 
     /**
@@ -259,12 +234,13 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** Maps the user's selected SKU tier to the right Shoppable autopilot variant. */
-    private fun shoppableModeForTier(): AutopilotMode = when (prefs.skuTier) {
-        SkuTier.V3Pro,
-        SkuTier.V2Standard -> AutopilotMode.ShoppableVCam
-        SkuTier.V1Lite     -> AutopilotMode.Shoppable
-    }
+    /** Patched-TikTok is the only ship path now (the vcam LSPosed module
+     *  ships with the APK); the tier picker is gone, so every Shoppable run
+     *  goes through Device camera + vcam regardless of saved [SkuTier].
+     *  Kept as a function rather than inlined so a future re-introduction
+     *  of tiers (e.g. a screen-share fallback for non-rooted devices) only
+     *  needs to touch this one place. */
+    private fun shoppableModeForTier(): AutopilotMode = AutopilotMode.ShoppableVCam
 
     private fun observeOverlayLoopGoal() {
         lifecycleScope.launch {

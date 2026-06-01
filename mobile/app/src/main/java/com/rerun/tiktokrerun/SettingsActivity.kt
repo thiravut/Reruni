@@ -68,19 +68,11 @@ class SettingsActivity : AppCompatActivity() {
         binding.deviceNameInput.setText(prefs.deviceName)
         binding.productKeywordsInput.setText(prefs.productKeywords)
 
-        // SKU tier selection — persisted immediately; affects autopilot routing.
-        when (prefs.skuTier) {
-            SkuTier.V1Lite     -> binding.skuV1Radio.isChecked = true
-            SkuTier.V2Standard -> binding.skuV2Radio.isChecked = true
-            SkuTier.V3Pro      -> binding.skuV3Radio.isChecked = true
-        }
-        binding.skuTierGroup.setOnCheckedChangeListener { _, checkedId ->
-            prefs.skuTier = when (checkedId) {
-                R.id.skuV3Radio -> SkuTier.V3Pro
-                R.id.skuV2Radio -> SkuTier.V2Standard
-                else            -> SkuTier.V1Lite
-            }
-        }
+        // SKU tier picker was removed from this screen after testing —
+        // every Shoppable run now goes through the vcam patch path. The
+        // prefs.skuTier field is still kept (default V3Pro) in case a
+        // future build re-introduces a screen-share fallback.
+        prefs.skuTier = SkuTier.V3Pro
 
         binding.deviceIdText.text = if (prefs.deviceId.isNotEmpty()) "Device ID: ${prefs.deviceId}" else "Device ID: (จะถูก assign หลัง connect)"
 
