@@ -84,6 +84,21 @@ object Autopilot {
     /** Loop budget passed to OverlayService (V1 path) — 0 = play forever. */
     private var overlayLoopCount: Int = 0
 
+    // ── Server-driven status reporting ─────────────────────────────────────
+    // Set by [start] when a PlayCommand kicks the autopilot. Carried through
+    // every setStep / fail / markDone so each WS envelope the portal sees can
+    // be tied back to the right live_sessions row + device_commands row.
+    // Cleared on terminal state — a manual / test run (liveSessionId == 0L
+    // and commandId.isEmpty()) suppresses emission entirely.
+    private var currentLiveSessionId: Long = 0L
+    private var currentCommandId: String = ""
+    /** Stable script name being executed (e.g. "shoppable_vcam"). Cleared
+     *  on terminal state. */
+    private var currentScript: String = ""
+    /** Monotonic counter incremented on every [setStep] — what the portal
+     *  uses to render a progress bar / detect stalls. */
+    private var currentStepIndex: Int = 0
+
     // Multilingual labels — TikTok 2026 Thai app + global fallbacks.
     // Order matters: more specific text first.
     private val HOME_TAB_LABELS         = listOf("Home", "หน้าหลัก", "For You", "สำหรับคุณ", "Following", "Friends")
@@ -155,11 +170,22 @@ object Autopilot {
         liveTitle: String = "",
         overlayVideoUri: android.net.Uri? = null,
         overlayLoopCount: Int = 0,
+        /** Server-side live_sessions row id; 0 for a local / test run. */
+        liveSessionId: Long = 0L,
+        /** Server-side device_commands row id; "" for a local / test run. */
+        commandId: String = "",
     ) {
         if (state.value == AutopilotState.Running) {
             Log.w(TAG, "already running")
             return
         }
+        // Stash the session context BEFORE any fail() call below so the
+        // portal sees the "Accessibility permission missing" failure
+        // attached to the correct command_id.
+        currentLiveSessionId = liveSessionId
+        currentCommandId = commandId
+        currentScript = ""
+        currentStepIndex = 0
         if (!TikTokAutopilotService.isEnabled(context)) {
             fail("ยังไม่ได้เปิด Accessibility permission")
             return
@@ -217,6 +243,7 @@ object Autopilot {
 
     private suspend fun runEndLiveFlow(context: Context, launchIntent: Intent) {
         state.value = AutopilotState.Running
+        currentScript = ScriptStore.END_LIVE
 
         val script = try {
             ScriptStore(context).getScript(
@@ -229,10 +256,7 @@ object Autopilot {
         }
         val runner = ScriptRunner(buildScriptContext(context, launchIntent))
         when (val result = runner.execute(script)) {
-            is ScriptRunner.Result.Success -> {
-                state.value = AutopilotState.Done
-                activeMode.value = null
-            }
+            is ScriptRunner.Result.Success -> markDone()
             is ScriptRunner.Result.Failed -> return fail(result.message)
         }
     }
@@ -243,6 +267,7 @@ object Autopilot {
      */
     private suspend fun runFlow(context: Context, launchIntent: Intent) {
         state.value = AutopilotState.Running
+        currentScript = ScriptStore.PERSONAL_LIVE
 
         // V1 Personal is executed from a JSON script. ScriptStore returns the
         // freshest copy it has — disk cache (last server fetch) first, then
@@ -259,10 +284,7 @@ object Autopilot {
         }
         val runner = ScriptRunner(buildScriptContext(context, launchIntent))
         when (val result = runner.execute(script)) {
-            is ScriptRunner.Result.Success -> {
-                state.value = AutopilotState.Done
-                activeMode.value = null
-            }
+            is ScriptRunner.Result.Success -> markDone()
             is ScriptRunner.Result.Failed -> return fail(result.message)
         }
     }
@@ -616,6 +638,7 @@ object Autopilot {
         state.value = AutopilotState.Running
 
         if (vcam) {
+            currentScript = ScriptStore.SHOPPABLE_VCAM
             // V3/V2 path now lives in a JSON script (Phase C). The V1 path
             // (Mobile Gaming + Screen Share) keeps its Kotlin implementation
             // below until it gets its own script — both share early setup
@@ -632,10 +655,7 @@ object Autopilot {
             }
             val runner = ScriptRunner(buildScriptContext(context, launchIntent))
             when (val result = runner.execute(script)) {
-                is ScriptRunner.Result.Success -> {
-                    state.value = AutopilotState.Done
-                    activeMode.value = null
-                }
+                is ScriptRunner.Result.Success -> markDone()
                 is ScriptRunner.Result.Failed -> return fail(result.message)
             }
             return
@@ -883,8 +903,7 @@ object Autopilot {
         collapseTikTokOverlay()
 
         setStep("✓ Shoppable Live พร้อม")
-        state.value = AutopilotState.Done
-        activeMode.value = null
+        markDone()
     }
 
     /**
@@ -1546,13 +1565,80 @@ object Autopilot {
 
     private fun setStep(step: String) {
         lastStep.value = step
+        currentStepIndex++
         Log.i(TAG, "step: $step")
+        emitAutopilotStatus(stateLabel = "running")
     }
 
     private fun fail(reason: String) {
+        // Capture the in-flight step before lastStep gets overwritten with the
+        // failure marker — the portal's "user-friendly" message wants the
+        // attempted step, not the "✗ …" suffix.
+        val attemptedStep = lastStep.value.removePrefix("✗ ").trim()
         Log.w(TAG, "fail: $reason")
         state.value = AutopilotState.Failed
         lastStep.value = "✗ $reason"
         activeMode.value = null
+        emitAutopilotStatus(
+            stateLabel = "failed",
+            errorUser = friendlyUserError(attemptedStep, reason),
+            errorDebug = reason,
+        )
+        clearLiveSessionContext()
+    }
+
+    /** Centralized "flow completed cleanly" transition. Replaces in-place
+     *  `state.value = Done` so the WS envelope is always paired with the
+     *  state change. */
+    private fun markDone() {
+        state.value = AutopilotState.Done
+        activeMode.value = null
+        emitAutopilotStatus(stateLabel = "done")
+        clearLiveSessionContext()
+    }
+
+    private fun emitAutopilotStatus(
+        stateLabel: String,
+        errorUser: String? = null,
+        errorDebug: String? = null,
+    ) {
+        // Skip emissions for runs that didn't come from the server (manual
+        // test triggers, dev shortcuts) — there's no live_sessions row for
+        // the portal to thread them onto.
+        if (currentLiveSessionId == 0L && currentCommandId.isEmpty()) return
+        WsClient.sendAutopilotStatus(
+            liveSessionId = currentLiveSessionId,
+            commandId = currentCommandId,
+            script = currentScript,
+            state = stateLabel,
+            stepIndex = currentStepIndex,
+            stepLabel = lastStep.value,
+            errorUser = errorUser,
+            errorDebug = errorDebug,
+        )
+    }
+
+    /**
+     * Trim the script's `fail` message into something a Thai broker can
+     * understand at a glance. Strips the developer-only `— ดู dump`
+     * suffixes we use in JSON; if nothing useful remains, fall back to a
+     * "ติดที่ขั้นตอน …" envelope around the step that was being attempted.
+     */
+    private fun friendlyUserError(attemptedStep: String, raw: String): String {
+        val cleaned = raw
+            .replace(Regex("\\s*[—–-]\\s*(ดู\\s*dump.*|see\\s*dump.*)", RegexOption.IGNORE_CASE), "")
+            .trim()
+        return when {
+            cleaned.isNotEmpty() -> cleaned
+            attemptedStep.isNotEmpty() -> "ติดที่ขั้นตอน \"$attemptedStep\""
+            else -> "Autopilot ทำงานไม่สำเร็จ"
+        }
+    }
+
+    private fun clearLiveSessionContext() {
+        currentLiveSessionId = 0L
+        currentCommandId = ""
+        currentScript = ""
+        currentStepIndex = 0
     }
 }

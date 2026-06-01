@@ -240,6 +240,45 @@ object WsClient {
         Log.i(TAG, "sent live_ended: live_session_id=$liveSessionId reason='$reason'")
     }
 
+    /**
+     * Notify the server about autopilot progress / outcome so the portal
+     * can render a live timeline + a translated failure message.
+     *
+     * Schema:
+     *  - state: "running" | "done" | "failed"
+     *  - step_index / step_label: the most recent [Autopilot.setStep] value
+     *  - error_user: a friendly Thai string built from the failing step's
+     *    label ("ติดที่ขั้นตอน 'X'") — what the dashboard shows directly
+     *  - error_debug: the raw [ScriptRunner.Result.Failed] message; the
+     *    dashboard hides this behind a "ดูรายละเอียด" expand
+     *
+     * Quiet best-effort: if the WS isn't connected, nothing happens — the
+     * portal just won't see this run's progress for now.
+     */
+    fun sendAutopilotStatus(
+        liveSessionId: Long,
+        commandId: String,
+        script: String,
+        state: String,
+        stepIndex: Int,
+        stepLabel: String,
+        errorUser: String? = null,
+        errorDebug: String? = null,
+    ) {
+        val ws = socket ?: return
+        val payload = mutableMapOf<String, Any?>(
+            "live_session_id" to liveSessionId,
+            "command_id" to commandId,
+            "script" to script,
+            "state" to state,
+            "step_index" to stepIndex,
+            "step_label" to stepLabel,
+        )
+        if (errorUser != null) payload["error_user"] = errorUser
+        if (errorDebug != null) payload["error_debug"] = errorDebug
+        sendEnvelope(ws, "autopilot_status", payload)
+    }
+
     /** Ack a server command (api-contract §3.4 — `ack`). */
     fun sendAck(commandId: String, success: Boolean, errorCode: String? = null, errorMessage: String? = null) {
         if (commandId.isEmpty()) return

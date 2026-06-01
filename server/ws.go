@@ -23,6 +23,17 @@ type wsConn struct {
 	writeMu  sync.Mutex
 }
 
+// nullIfEmpty maps "" → SQL NULL so optional TEXT columns stay clean instead
+// of storing literal empty strings (matters for the autopilot_status path
+// where most success events have no error message and the dashboard checks
+// for IS NULL rather than length).
+func nullIfEmpty(s string) any {
+	if s == "" {
+		return nil
+	}
+	return s
+}
+
 type portalConn struct {
 	conn    *websocket.Conn
 	userID  int64
@@ -359,6 +370,65 @@ func handleDeviceMessage(deviceID string, ownerID int64, raw []byte) {
 		for vid := range closingVideoIDs {
 			cleanupEphemeralVideoIfUnreferenced(vid)
 		}
+
+	case "autopilot_status":
+		// Mobile reports autopilot progress (state=running on every step) and
+		// the terminal outcome (state=done|failed). The portal subscribes to
+		// the broadcast so the operator sees the current step in real time;
+		// for failures we also persist a summary on live_sessions so the
+		// dashboard can render the friendly Thai message after the WS
+		// session closes. error_user is shown directly to users; error_debug
+		// stays behind a "details" expand.
+		var p struct {
+			LiveSessionID int64  `json:"live_session_id"`
+			CommandID     string `json:"command_id"`
+			Script        string `json:"script"`
+			State         string `json:"state"`
+			StepIndex     int    `json:"step_index"`
+			StepLabel     string `json:"step_label"`
+			ErrorUser     string `json:"error_user"`
+			ErrorDebug    string `json:"error_debug"`
+		}
+		_ = json.Unmarshal(env.Payload, &p)
+
+		if p.LiveSessionID != 0 && (p.State == "failed" || p.State == "done") {
+			// Persist a per-session summary for retrospective dashboard view.
+			// Skipped for `running` events to keep the write rate cheap —
+			// the portal already gets every step via the realtime broadcast
+			// below, and the summary row only needs the final state.
+			_, err := db.Exec(`
+				UPDATE live_sessions SET
+					autopilot_state       = ?,
+					autopilot_script      = ?,
+					autopilot_step_index  = ?,
+					autopilot_step_label  = ?,
+					autopilot_error_user  = ?,
+					autopilot_error_debug = ?,
+					autopilot_updated_at  = ?
+				WHERE id=?`,
+				p.State, p.Script, p.StepIndex, p.StepLabel,
+				nullIfEmpty(p.ErrorUser), nullIfEmpty(p.ErrorDebug),
+				time.Now(), p.LiveSessionID,
+			)
+			if err != nil {
+				log.Printf("[%s] autopilot_status persist: %v", deviceID, err)
+			}
+		}
+
+		broadcastToPortal(ownerID, "autopilot_status", map[string]any{
+			"device_id":       deviceID,
+			"live_session_id": p.LiveSessionID,
+			"command_id":      p.CommandID,
+			"script":          p.Script,
+			"state":           p.State,
+			"step_index":      p.StepIndex,
+			"step_label":      p.StepLabel,
+			// error_user is what the portal renders directly; error_debug
+			// sits behind a "ดูรายละเอียด" expand so we never show raw
+			// "— ดู dump" text to operators.
+			"error_user":  p.ErrorUser,
+			"error_debug": p.ErrorDebug,
+		})
 
 	case "device_caps":
 		// Mobile companion reports its permission/install state.

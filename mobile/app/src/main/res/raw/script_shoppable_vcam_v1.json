@@ -1,6 +1,6 @@
 {
   "name": "shoppable_vcam",
-  "version": 1,
+  "version": 2,
   "min_tiktok_version": "45.0.0",
   "description": "V3/V2 Shoppable Live — + → LIVE → Device camera → business icon → product manager → product picker → search + auto-pin → Done × N → Go LIVE. VCam (Magisk GhostCam / Reruni vcam module) supplies the prerecorded video to camera2 so TikTok captures it as the live stream.",
   "steps": [
@@ -64,6 +64,15 @@
      "interval_ms": 300,
      "fail": "commerce sheet (Layer 2) ไม่เปิด — กด Business แล้วไม่เห็น 'Add products' — ดู dump"},
     {"op": "delay", "ms": 3500},
+
+    {"op": "step", "label": "ปิด TikTok onboarding ถ้ามี (Got it)"},
+    {"op": "tap_by_text",
+     "labels": ["Got it", "เข้าใจแล้ว", "รับทราบ", "Continue", "ดำเนินการต่อ", "I understand"],
+     "retries": 2,
+     "allow_content_desc": true,
+     "ignore_failure": true,
+     "warn_on_fail": "no 'Got it' modal — proceeding directly to Add products"},
+    {"op": "delay", "ms": 1200},
 
     {"op": "step", "label": "กด 'Add products' (Layer 2 → 3)"},
     {"op": "tap_by_text",

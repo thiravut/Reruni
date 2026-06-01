@@ -229,6 +229,9 @@ class MainActivity : AppCompatActivity() {
                     shoppableModeForTier(),
                     productKeywords = cmd.productKeywords,
                     liveTitle = cmd.liveTitle,
+                    // No session context here — StartLiveCommand is the
+                    // "kick autopilot without a video" path, not bound to a
+                    // particular live_sessions row (yet).
                 )
             }
         }
@@ -354,6 +357,8 @@ class MainActivity : AppCompatActivity() {
                             mode,
                             productKeywords = cmd.productKeywords,
                             liveTitle = cmd.liveTitle,
+                            liveSessionId = cmd.liveSessionId,
+                            commandId = cmd.commandId,
                         )
                     } else if (cmd.useOverlay) {
                         if (!Settings.canDrawOverlays(this@MainActivity)) {
@@ -371,6 +376,8 @@ class MainActivity : AppCompatActivity() {
                             overlayLoopCount = cmd.loopCount,
                             productKeywords = cmd.productKeywords,
                             liveTitle = cmd.liveTitle,
+                            liveSessionId = cmd.liveSessionId,
+                            commandId = cmd.commandId,
                         )
                     } else {
                         Autopilot.start(
@@ -379,6 +386,8 @@ class MainActivity : AppCompatActivity() {
                             followup = playIntent,
                             productKeywords = cmd.productKeywords,
                             liveTitle = cmd.liveTitle,
+                            liveSessionId = cmd.liveSessionId,
+                            commandId = cmd.commandId,
                         )
                     }
                 } else {
