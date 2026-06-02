@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Rerun-i</string>
-    <string name="hero_title">Rerun-i</string>
+    <string name="app_name">reruni</string>
+    <string name="hero_title">reruni</string>
     <string name="hero_subtitle">Live ขายของแบบ autopilot — กดปุ่มเดียวจบ</string>
 
     <!-- Production home screen -->
@@ -18,9 +18,9 @@
 
     <!-- First-launch onboarding (replaces setup checklist for unpaired devices) -->
     <string name="onboarding_title">เชื่อมต่อกับ Control Panel</string>
-    <string name="onboarding_step_1">1. เปิด Rerun-i dashboard บน laptop หรือคอมพิวเตอร์</string>
-    <string name="onboarding_step_2">2. กด "สร้าง Pair QR"</string>
-    <string name="onboarding_step_3">3. กดปุ่มข้างล่างเพื่อสแกน — แอปจะบันทึกและเชื่อมต่อให้อัตโนมัติ</string>
+    <string name="onboarding_step_1">1. เปิด reruni.com บนคอมพิวเตอร์แล้วเข้าสู่ระบบ</string>
+    <string name="onboarding_step_2">2. ไปเมนู "อุปกรณ์" แล้วกดปุ่ม "+ เชื่อมอุปกรณ์ใหม่"</string>
+    <string name="onboarding_step_3">3. กดปุ่มข้างล่างเพื่อสแกน QR ที่ปรากฏ — แอปจะเชื่อมต่อให้อัตโนมัติ</string>
     <string name="onboarding_scan_cta">📷 สแกน QR</string>
     <string name="onboarding_manual_entry">ใส่ Server URL + Token เอง</string>
     <string name="onboarding_qr_parse_error">QR ไม่ใช่ pair format ที่ถูกต้อง</string>
@@ -40,12 +40,23 @@
 
     <string name="status_section">สถานะปัจจุบัน</string>
 
-    <string name="identity_section">เชื่อมต่อกับบัญชี</string>
+    <string name="identity_section">ข้อมูลบัญชี</string>
+    <string name="identity_device_section">ข้อมูลอุปกรณ์</string>
     <string name="identity_unpaired">ยังไม่ pair กับ portal</string>
     <string name="identity_owner_label">User</string>
     <string name="identity_device_label">Device</string>
     <string name="identity_device_id_label">Device ID</string>
+    <string name="identity_device_id_pill">ไอดีอุปกรณ์ (Device ID):\n%1$s</string>
     <string name="identity_owner_unknown">— (รอ handshake จาก server)</string>
+    <string name="identity_account_type_label">ประเภท: %1$s</string>
+    <string name="identity_account_type_user">บัญชีผู้ใช้</string>
+    <string name="identity_device_name_label">ชื่อ: %1$s</string>
+    <string name="status_pill_connected">สถานะ: เชื่อมต่อสำเร็จ</string>
+    <string name="status_pill_connecting">สถานะ: กำลังเชื่อมต่อ…</string>
+    <string name="status_pill_disconnected">สถานะ: ขาดการเชื่อมต่อ</string>
+    <string name="status_pill_error">สถานะ: ผิดพลาด</string>
+    <string name="status_pill_subtitle">กับ %1$s</string>
+    <string name="ecosystem_label">Reruni Ecosystem (ทดสอบ)</string>
     <string name="state_not_paired">ยังไม่เชื่อมต่อ portal</string>
     <string name="state_no_accessibility">รอเปิด Accessibility</string>
     <string name="state_idle_ready">พร้อมไลฟ์</string>
@@ -97,8 +108,8 @@
     <string name="conn_error">ผิดพลาด · %1$s</string>
     <string name="conn_pause">⏸ ตัดการเชื่อมต่อ</string>
     <string name="conn_resume">▶ เชื่อมต่ออีกครั้ง</string>
-    <string name="conn_disconnect_unpair">ลบบัญชีออกจากเครื่อง</string>
-    <string name="conn_disconnect_confirm_title">ลบบัญชีออกจากเครื่อง?</string>
+    <string name="conn_disconnect_unpair">ลบอุปกรณ์ออกจากระบบ</string>
+    <string name="conn_disconnect_confirm_title">ลบอุปกรณ์ออกจากระบบ?</string>
     <string name="conn_disconnect_confirm_msg">Server URL + device token + บัญชีที่ pair ไว้จะถูกลบออกจากเครื่องนี้ ต้องสแกน QR ใหม่เพื่อใช้งานอีกครั้ง\n\nหมายเหตุ: อุปกรณ์จะยังคงแสดงใน dashboard — ลบจาก dashboard แยกถ้าต้องการ</string>
     <string name="conn_disconnect_confirm_yes">ลบและออกจากระบบ</string>
     <string name="conn_disconnect_confirm_cancel">ยกเลิก</string>

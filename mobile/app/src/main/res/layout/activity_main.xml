@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Home screen (post-pair). Logo + connection status, identity + permission
-     panel, with a full-width red Disconnect button pinned to the bottom.
-     Tapping Disconnect unpairs and returns to OnboardingActivity. -->
+<!-- Post-pair home screen, Gemini reference design.
+     Layout: brand row → status pill → identity card (account) → device card
+     → env chip → red destructive Disconnect (bottom-pinned). The two
+     identity cards use the neon-outline drawable to match the landing-cyan
+     direction; the env chip and ID pill share that stroke for cohesion. -->
 <androidx.constraintlayout.widget.ConstraintLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -11,340 +13,406 @@
     android:background="@color/reruni_bg"
     android:fitsSystemWindows="true">
 
-    <!-- Top brand row -->
-    <TextView
-        android:id="@+id/titleText"
+    <!-- ── Brand row ─────────────────────────────────────────────────────── -->
+    <LinearLayout
+        android:id="@+id/brandRow"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginStart="24dp"
-        android:layout_marginTop="20dp"
-        android:fontFamily="sans-serif"
-        android:letterSpacing="-0.02"
-        android:text="Rerun-i"
-        android:textColor="@color/reruni_fg"
-        android:textSize="26sp"
-        android:textStyle="bold"
+        android:layout_marginStart="20dp"
+        android:layout_marginTop="16dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        tools:ignore="HardcodedText" />
+        app:layout_constraintTop_toTopOf="parent">
 
-    <!-- Scrollable body fills the gap between brand row and bottom button -->
+        <ImageView
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:contentDescription="@null"
+            android:src="@drawable/ic_brand_play" />
+
+        <TextView
+            android:id="@+id/titleText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:fontFamily="sans-serif"
+            android:letterSpacing="-0.02"
+            android:text="@string/app_name"
+            android:textColor="@color/reruni_fg"
+            android:textSize="24sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <!-- ── Scroll body ───────────────────────────────────────────────────── -->
     <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:clipToPadding="false"
         android:paddingHorizontal="20dp"
-        android:paddingTop="20dp"
+        android:paddingTop="18dp"
         android:paddingBottom="16dp"
         app:layout_constraintBottom_toTopOf="@id/disconnectButton"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/titleText">
+        app:layout_constraintTop_toBottomOf="@id/brandRow">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
-            <!-- Connection status chip -->
-            <FrameLayout
-                android:id="@+id/connectionChipContainer"
-                android:layout_width="wrap_content"
+            <!-- ── Status pill (connection state + server URL) ───────────── -->
+            <LinearLayout
+                android:id="@+id/statusPillContainer"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:background="@drawable/bg_status_chip_offline"
-                android:paddingHorizontal="14dp"
-                android:paddingVertical="8dp">
+                android:background="@drawable/bg_status_pill"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingHorizontal="18dp"
+                android:paddingVertical="14dp">
+
+                <ImageView
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:contentDescription="@null"
+                    android:src="@drawable/ic_link" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/statusPillTitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="sans-serif-medium"
+                        android:text="@string/status_pill_disconnected"
+                        android:textColor="@color/reruni_fg"
+                        android:textSize="14sp"
+                        tools:text="สถานะ: เชื่อมต่อสำเร็จ" />
+
+                    <TextView
+                        android:id="@+id/statusPillSubtitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:textColor="@color/reruni_muted"
+                        android:textSize="12sp"
+                        android:visibility="gone"
+                        tools:text="กับ api.reruni.com"
+                        tools:visibility="visible" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- ── Identity card (account) ──────────────────────────────── -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="18dp"
+                android:background="@drawable/bg_card_glow"
+                android:orientation="vertical"
+                android:padding="20dp">
 
                 <TextView
-                    android:id="@+id/connectionStatus"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:fontFamily="sans-serif-medium"
-                    android:text="@string/conn_disconnected"
+                    android:text="@string/identity_section"
                     android:textColor="@color/reruni_fg"
-                    android:textSize="12sp" />
-            </FrameLayout>
-
-            <!-- ── Identity card ───────────────────────────────────────────── -->
-            <com.google.android.material.card.MaterialCardView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="24dp"
-                app:cardBackgroundColor="@color/reruni_surface_subtle"
-                app:cardCornerRadius="20dp"
-                app:cardElevation="0dp"
-                app:contentPadding="20dp"
-                app:strokeColor="@color/reruni_border"
-                app:strokeWidth="1dp">
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="vertical">
+                    android:layout_marginTop="14dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
 
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:fontFamily="sans-serif-medium"
-                        android:letterSpacing="0.08"
-                        android:text="@string/identity_section"
-                        android:textAllCaps="true"
-                        android:textColor="@color/reruni_muted"
-                        android:textSize="11sp" />
+                    <FrameLayout
+                        android:layout_width="46dp"
+                        android:layout_height="46dp"
+                        android:background="@drawable/bg_identity_icon"
+                        android:importantForAccessibility="no">
 
-                    <!-- User row -->
+                        <ImageView
+                            android:layout_width="22dp"
+                            android:layout_height="22dp"
+                            android:layout_gravity="center"
+                            android:contentDescription="@null"
+                            android:src="@drawable/ic_person_filled"
+                            app:tint="@color/reruni_accent" />
+                    </FrameLayout>
+
                     <LinearLayout
-                        android:layout_width="match_parent"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="14dp"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal">
+                        android:layout_marginStart="14dp"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
 
-                        <FrameLayout
-                            android:layout_width="36dp"
-                            android:layout_height="36dp"
-                            android:background="@drawable/bg_section_icon"
-                            android:importantForAccessibility="no">
-
-                            <TextView
-                                android:layout_width="match_parent"
-                                android:layout_height="match_parent"
-                                android:gravity="center"
-                                android:importantForAccessibility="no"
-                                android:text="👤"
-                                android:textSize="17sp"
-                                tools:ignore="HardcodedText" />
-                        </FrameLayout>
-
-                        <LinearLayout
-                            android:layout_width="0dp"
+                        <TextView
+                            android:id="@+id/identityOwnerText"
+                            android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_marginStart="14dp"
-                            android:layout_weight="1"
-                            android:orientation="vertical">
+                            android:fontFamily="sans-serif-medium"
+                            android:text="@string/identity_owner_unknown"
+                            android:textColor="@color/reruni_fg"
+                            android:textSize="16sp"
+                            tools:text="pond@example.com" />
 
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="@string/identity_owner_label"
-                                android:textColor="@color/reruni_muted"
-                                android:textSize="11sp" />
-
-                            <TextView
-                                android:id="@+id/identityOwnerText"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:fontFamily="sans-serif-medium"
-                                android:text="@string/identity_owner_unknown"
-                                android:textColor="@color/reruni_fg"
-                                android:textSize="15sp"
-                                tools:text="pond@example.com" />
-                        </LinearLayout>
-                    </LinearLayout>
-
-                    <!-- Device row -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="14dp"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal">
-
-                        <FrameLayout
-                            android:layout_width="36dp"
-                            android:layout_height="36dp"
-                            android:background="@drawable/bg_section_icon"
-                            android:importantForAccessibility="no">
-
-                            <TextView
-                                android:layout_width="match_parent"
-                                android:layout_height="match_parent"
-                                android:gravity="center"
-                                android:importantForAccessibility="no"
-                                android:text="📱"
-                                android:textSize="17sp"
-                                tools:ignore="HardcodedText" />
-                        </FrameLayout>
-
-                        <LinearLayout
-                            android:layout_width="0dp"
+                        <TextView
+                            android:id="@+id/identityAccountType"
+                            android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginStart="14dp"
-                            android:layout_weight="1"
-                            android:orientation="vertical">
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="@string/identity_device_label"
-                                android:textColor="@color/reruni_muted"
-                                android:textSize="11sp" />
-
-                            <TextView
-                                android:id="@+id/identityDeviceText"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:fontFamily="sans-serif-medium"
-                                android:textColor="@color/reruni_fg"
-                                android:textSize="15sp"
-                                tools:text="SM-A156E" />
-                        </LinearLayout>
+                            android:layout_marginTop="2dp"
+                            android:textColor="@color/reruni_muted"
+                            android:textSize="12sp"
+                            tools:text="ประเภท: บัญชีผู้ใช้" />
                     </LinearLayout>
-
-                    <TextView
-                        android:id="@+id/identityDeviceIdText"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
-                        android:fontFamily="monospace"
-                        android:textColor="@color/reruni_muted"
-                        android:textSize="11sp"
-                        tools:text="ID: 6d8dc3d9d4e2ba9c" />
                 </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
+            </LinearLayout>
 
-            <!-- ── Permissions card ─────────────────────────────────────────── -->
-            <com.google.android.material.card.MaterialCardView
+            <!-- ── Device card ──────────────────────────────────────────── -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:background="@drawable/bg_card_glow"
+                android:orientation="vertical"
+                android:padding="20dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="sans-serif-medium"
+                    android:text="@string/identity_device_section"
+                    android:textColor="@color/reruni_fg"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <FrameLayout
+                        android:layout_width="46dp"
+                        android:layout_height="46dp"
+                        android:background="@drawable/bg_identity_icon"
+                        android:importantForAccessibility="no">
+
+                        <ImageView
+                            android:layout_width="22dp"
+                            android:layout_height="22dp"
+                            android:layout_gravity="center"
+                            android:contentDescription="@null"
+                            android:src="@drawable/ic_phone_outline"
+                            app:tint="@color/reruni_accent" />
+                    </FrameLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="14dp"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:id="@+id/identityDeviceText"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="sans-serif-medium"
+                            android:textColor="@color/reruni_fg"
+                            android:textSize="16sp"
+                            tools:text="SM-A156E" />
+
+                        <TextView
+                            android:id="@+id/identityDeviceName"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:textColor="@color/reruni_muted"
+                            android:textSize="12sp"
+                            tools:text="ชื่อ: Galaxy A15 5G" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <!-- Device ID pill -->
+                <TextView
+                    android:id="@+id/identityDeviceIdText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:background="@drawable/bg_id_pill"
+                    android:fontFamily="monospace"
+                    android:lineSpacingExtra="2dp"
+                    android:paddingHorizontal="14dp"
+                    android:paddingVertical="10dp"
+                    android:textColor="@color/reruni_muted"
+                    android:textSize="12sp"
+                    tools:text="ไอดีอุปกรณ์ (Device ID):\ndev-2f7821e6e6fa" />
+            </LinearLayout>
+
+            <!-- ── Permissions card (only when something missing) ────────── -->
+            <LinearLayout
                 android:id="@+id/permissionsCard"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
+                android:layout_marginTop="14dp"
+                android:background="@drawable/bg_card_glow"
+                android:orientation="vertical"
+                android:padding="20dp"
                 android:visibility="gone"
-                app:cardBackgroundColor="@color/reruni_surface_subtle"
-                app:cardCornerRadius="20dp"
-                app:cardElevation="0dp"
-                app:contentPadding="20dp"
-                app:strokeColor="@color/reruni_border"
-                app:strokeWidth="1dp"
                 tools:visibility="visible">
 
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="sans-serif-medium"
+                    android:text="@string/permissions_section"
+                    android:textColor="@color/reruni_fg"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
                 <LinearLayout
+                    android:id="@+id/permAccessibilityRow"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="vertical">
+                    android:layout_marginTop="14dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
 
-                    <TextView
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="sans-serif-medium"
+                            android:text="@string/permission_accessibility_title"
+                            android:textColor="@color/reruni_fg"
+                            android:textSize="14sp" />
+
+                        <TextView
+                            android:id="@+id/permAccessibilityStatus"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:lineSpacingExtra="3dp"
+                            android:text="@string/permission_accessibility_desc"
+                            android:textColor="@color/reruni_muted"
+                            android:textSize="12sp" />
+                    </LinearLayout>
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/permAccessibilityButton"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:fontFamily="sans-serif-medium"
-                        android:letterSpacing="0.08"
-                        android:text="@string/permissions_section"
-                        android:textAllCaps="true"
-                        android:textColor="@color/reruni_muted"
-                        android:textSize="11sp" />
-
-                    <!-- Accessibility row -->
-                    <LinearLayout
-                        android:id="@+id/permAccessibilityRow"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="14dp"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal">
-
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:orientation="vertical">
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:fontFamily="sans-serif-medium"
-                                android:text="@string/permission_accessibility_title"
-                                android:textColor="@color/reruni_fg"
-                                android:textSize="14sp" />
-
-                            <TextView
-                                android:id="@+id/permAccessibilityStatus"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:lineSpacingExtra="3dp"
-                                android:text="@string/permission_accessibility_desc"
-                                android:textColor="@color/reruni_muted"
-                                android:textSize="12sp" />
-                        </LinearLayout>
-
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/permAccessibilityButton"
-                            style="@style/Widget.Material3.Button.OutlinedButton"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:minWidth="0dp"
-                            android:minHeight="44dp"
-                            android:paddingHorizontal="16dp"
-                            android:paddingVertical="10dp"
-                            android:text="@string/permission_action_enable"
-                            android:textColor="@color/reruni_accent"
-                            android:textSize="13sp"
-                            app:rippleColor="@color/reruni_border"
-                            app:strokeColor="@color/reruni_border" />
-                    </LinearLayout>
-
-                    <!-- Notification row (Android 13+) -->
-                    <LinearLayout
-                        android:id="@+id/permNotificationRow"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="16dp"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal">
-
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:orientation="vertical">
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:fontFamily="sans-serif-medium"
-                                android:text="@string/permission_notification_title"
-                                android:textColor="@color/reruni_fg"
-                                android:textSize="14sp" />
-
-                            <TextView
-                                android:id="@+id/permNotificationStatus"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:lineSpacingExtra="3dp"
-                                android:text="@string/permission_notification_desc"
-                                android:textColor="@color/reruni_muted"
-                                android:textSize="12sp" />
-                        </LinearLayout>
-
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/permNotificationButton"
-                            style="@style/Widget.Material3.Button.OutlinedButton"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:minWidth="0dp"
-                            android:minHeight="44dp"
-                            android:paddingHorizontal="16dp"
-                            android:paddingVertical="10dp"
-                            android:text="@string/permission_action_enable"
-                            android:textColor="@color/reruni_accent"
-                            android:textSize="13sp"
-                            app:rippleColor="@color/reruni_border"
-                            app:strokeColor="@color/reruni_border" />
-                    </LinearLayout>
+                        android:minWidth="0dp"
+                        android:minHeight="44dp"
+                        android:paddingHorizontal="16dp"
+                        android:paddingVertical="10dp"
+                        android:text="@string/permission_action_enable"
+                        android:textColor="@color/reruni_accent"
+                        android:textSize="13sp"
+                        app:rippleColor="@color/reruni_accent_glow"
+                        app:strokeColor="@color/reruni_accent_glow" />
                 </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
+
+                <LinearLayout
+                    android:id="@+id/permNotificationRow"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="sans-serif-medium"
+                            android:text="@string/permission_notification_title"
+                            android:textColor="@color/reruni_fg"
+                            android:textSize="14sp" />
+
+                        <TextView
+                            android:id="@+id/permNotificationStatus"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:lineSpacingExtra="3dp"
+                            android:text="@string/permission_notification_desc"
+                            android:textColor="@color/reruni_muted"
+                            android:textSize="12sp" />
+                    </LinearLayout>
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/permNotificationButton"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:minWidth="0dp"
+                        android:minHeight="44dp"
+                        android:paddingHorizontal="16dp"
+                        android:paddingVertical="10dp"
+                        android:text="@string/permission_action_enable"
+                        android:textColor="@color/reruni_accent"
+                        android:textSize="13sp"
+                        app:rippleColor="@color/reruni_accent_glow"
+                        app:strokeColor="@color/reruni_accent_glow" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- ── Ecosystem env chip ──────────────────────────────────── -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="22dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <View
+                    android:layout_width="8dp"
+                    android:layout_height="8dp"
+                    android:background="@drawable/bg_env_dot"
+                    android:importantForAccessibility="no" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:text="@string/ecosystem_label"
+                    android:textColor="@color/reruni_muted"
+                    android:textSize="12sp" />
+            </LinearLayout>
 
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
 
-    <!-- Single destructive action at the bottom. Pause toggle was removed
-         after testing — the disconnect flow already handles "I want to
-         stop using this device": tester noted the two CTAs were redundant. -->
+    <!-- ── Bottom destructive: trash icon + red full-width ───────────────── -->
     <com.google.android.material.button.MaterialButton
         android:id="@+id/disconnectButton"
         android:layout_width="0dp"
         android:layout_height="56dp"
         android:layout_marginHorizontal="20dp"
-        android:layout_marginBottom="20dp"
+        android:layout_marginBottom="22dp"
         android:backgroundTint="@color/reruni_danger"
         android:fontFamily="sans-serif-medium"
         android:letterSpacing="0.02"
@@ -352,6 +420,10 @@
         android:textColor="@color/reruni_fg"
         android:textSize="15sp"
         app:cornerRadius="16dp"
+        app:icon="@drawable/ic_trash"
+        app:iconGravity="textStart"
+        app:iconPadding="10dp"
+        app:iconTint="@color/reruni_fg"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent" />

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Reruni brand mark — play triangle in a rounded square with a thin
+     accent stroke + glow halo. Used as the launcher's monogram and at
+     the top of every screen. Square viewport, intrinsically renderable
+     at any size; the stroke + glow are baked into the path width. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="36dp"
+    android:height="36dp"
+    android:viewportWidth="36"
+    android:viewportHeight="36">
+    <!-- Outer rounded square with accent stroke. -->
+    <path
+        android:pathData="M 6,3 H 30 a 3,3 0 0 1 3,3 V 30 a 3,3 0 0 1 -3,3 H 6 a 3,3 0 0 1 -3,-3 V 6 a 3,3 0 0 1 3,-3 z"
+        android:strokeColor="@color/reruni_accent"
+        android:strokeWidth="1.5" />
+    <!-- Play triangle, slightly right-biased so it reads as "play". -->
+    <path
+        android:pathData="M 15,11 V 25 L 26,18 Z"
+        android:fillColor="@color/reruni_accent" />
+</vector>

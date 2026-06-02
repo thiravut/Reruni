@@ -2,12 +2,8 @@ package com.rerun.tiktokrerun
 
 import android.content.Intent
 import android.os.Bundle
-import android.text.Spannable
-import android.text.SpannableString
-import android.text.style.ForegroundColorSpan
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
@@ -54,8 +50,6 @@ class OnboardingActivity : AppCompatActivity() {
         binding = ActivityOnboardingBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        applyLogoAccent()
-
         binding.onboardingScanButton.setOnClickListener { launchScanner() }
         binding.onboardingManualEntry.setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
@@ -90,25 +84,6 @@ class OnboardingActivity : AppCompatActivity() {
             startActivity(Intent(this, MainActivity::class.java))
             finish()
         }
-    }
-
-    /**
-     * Tint the trailing "-i" of the logo with the accent color so the
-     * mobile hero echoes the landing's `Rerun<span>i</span>` brand mark.
-     */
-    private fun applyLogoAccent() {
-        val text = binding.onboardingLogo.text.toString()
-        val accentStart = text.indexOf('-').takeIf { it >= 0 } ?: return
-        val accent = ContextCompat.getColor(this, R.color.reruni_accent)
-        val span = SpannableString(text).apply {
-            setSpan(
-                ForegroundColorSpan(accent),
-                accentStart,
-                text.length,
-                Spannable.SPAN_EXCLUSIVE_EXCLUSIVE,
-            )
-        }
-        binding.onboardingLogo.text = span
     }
 
     private fun launchScanner() {

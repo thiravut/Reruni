@@ -7,9 +7,6 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
-import android.text.Spannable
-import android.text.SpannableString
-import android.text.style.ForegroundColorSpan
 import android.util.Log
 import android.view.View
 import android.widget.Toast
@@ -62,8 +59,6 @@ class MainActivity : AppCompatActivity() {
 
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
-
-        applyLogoAccent()
 
         binding.permAccessibilityButton.setOnClickListener {
             startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
@@ -148,21 +143,40 @@ class MainActivity : AppCompatActivity() {
         } else {
             getString(R.string.identity_owner_unknown)
         }
-        // Identity row: prefer the operator-set deviceName, then the system's
-        // user-set device name (Bluetooth-display label), then fall back to
-        // the raw model code. "SM-A156E" is meaningless to a reseller, so it
-        // sits last on the chain — only shown when nothing else is set.
-        binding.identityDeviceText.text = prefs.deviceName.ifEmpty {
-            Settings.Global.getString(contentResolver, Settings.Global.DEVICE_NAME)
-                ?: Build.MODEL ?: "—"
-        }
-        binding.identityDeviceIdText.text = if (prefs.deviceId.isNotEmpty()) {
-            "${getString(R.string.identity_device_id_label)}: ${prefs.deviceId}"
+        binding.identityAccountType.text = getString(
+            R.string.identity_account_type_label,
+            getString(R.string.identity_account_type_user),
+        )
+
+        // Device card: MODEL code is primary ("SM-A156E"), friendly name sits
+        // as a subtitle ("ชื่อ: Galaxy A15 5G"). Resolution chain:
+        //   1. prefs.deviceName       — operator-set in the portal, wins.
+        //   2. marketing system prop  — Samsung exposes "Galaxy A15 5G" via
+        //                               `ro.product.marketing_name`.
+        //   3. Settings.Global.DEVICE_NAME — user-set Bluetooth display name.
+        //   Subtitle hides entirely when nothing useful is available so we
+        //   don't show "ชื่อ: SM-A156E" duplicating the primary line.
+        binding.identityDeviceText.text = Build.MODEL ?: "—"
+        val friendly = sequenceOf(
+            prefs.deviceName,
+            samsungMarketingName().orEmpty(),
+            Settings.Global.getString(contentResolver, Settings.Global.DEVICE_NAME).orEmpty(),
+        ).firstOrNull { it.isNotBlank() && it != Build.MODEL }
+        if (friendly != null) {
+            binding.identityDeviceName.text =
+                getString(R.string.identity_device_name_label, friendly)
+            binding.identityDeviceName.visibility = View.VISIBLE
         } else {
-            ""
+            binding.identityDeviceName.visibility = View.GONE
         }
-        binding.identityDeviceIdText.visibility =
-            if (prefs.deviceId.isEmpty()) View.GONE else View.VISIBLE
+
+        if (prefs.deviceId.isNotEmpty()) {
+            binding.identityDeviceIdText.text =
+                getString(R.string.identity_device_id_pill, prefs.deviceId)
+            binding.identityDeviceIdText.visibility = View.VISIBLE
+        } else {
+            binding.identityDeviceIdText.visibility = View.GONE
+        }
     }
 
     private fun renderPermissionRow(
@@ -291,19 +305,45 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun renderConnection(st: ConnState, line: String) {
-        binding.connectionStatus.text = when (st) {
-            ConnState.Disconnected -> getString(R.string.conn_disconnected)
-            ConnState.Connecting   -> getString(R.string.conn_connecting)
-            ConnState.Connected    -> getString(R.string.conn_connected, line.ifEmpty { "online" })
-            ConnState.Error        -> getString(R.string.conn_error, line)
+        binding.statusPillTitle.setText(
+            when (st) {
+                ConnState.Connected    -> R.string.status_pill_connected
+                ConnState.Connecting   -> R.string.status_pill_connecting
+                ConnState.Error        -> R.string.status_pill_error
+                ConnState.Disconnected -> R.string.status_pill_disconnected
+            }
+        )
+        // Subtitle shows the server we're talking to ("กับ api.reruni.com").
+        // We display the host part only — full URLs leak port + scheme that
+        // are noise to the operator. Hide entirely when no URL is staged.
+        val origin = prefs.serverUrl.takeIf { it.isNotEmpty() }?.let(::displayHostOf)
+        if (origin != null) {
+            binding.statusPillSubtitle.text = getString(R.string.status_pill_subtitle, origin)
+            binding.statusPillSubtitle.visibility = View.VISIBLE
+        } else {
+            binding.statusPillSubtitle.visibility = View.GONE
         }
-        val chipBg = when (st) {
-            ConnState.Disconnected -> R.drawable.bg_status_chip_offline
-            ConnState.Connecting   -> R.drawable.bg_status_chip_connecting
-            ConnState.Connected    -> R.drawable.bg_status_chip_online
-            ConnState.Error        -> R.drawable.bg_status_chip_error
-        }
-        binding.connectionChipContainer.setBackgroundResource(chipBg)
+    }
+
+    /** Samsung-only: read `ro.product.marketing_name` via SystemProperties
+     *  reflection. Returns null on non-Samsung devices or if the property
+     *  isn't readable. Lets the identity card show "Galaxy A15 5G" instead
+     *  of falling back to the bare SM-A156E model code. */
+    private fun samsungMarketingName(): String? = runCatching {
+        @Suppress("PrivateApi")
+        val sp = Class.forName("android.os.SystemProperties")
+        val get = sp.getMethod("get", String::class.java, String::class.java)
+        (get.invoke(null, "ro.product.marketing_name", "") as String)
+            .takeIf { it.isNotBlank() }
+    }.getOrNull()
+
+    /** Trim "https://api.reruni.com:8080/ws" → "api.reruni.com". The status
+     *  pill subtitle wants just the host so it reads cleanly on a small chip. */
+    private fun displayHostOf(url: String): String {
+        val trimmed = url.trim().removeSuffix("/")
+        val noScheme = trimmed.substringAfter("://", trimmed)
+        val noPath = noScheme.substringBefore('/')
+        return noPath.substringBefore(':')
     }
 
     private fun observeRemotePlayCommands() {
@@ -397,22 +437,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun applyLogoAccent() {
-        val text = binding.titleText.text.toString()
-        val accentStart = text.indexOf('-').takeIf { it >= 0 } ?: return
-        val accent = ContextCompat.getColor(this, R.color.reruni_accent)
-        val span = SpannableString(text).apply {
-            setSpan(
-                ForegroundColorSpan(accent),
-                accentStart,
-                text.length,
-                Spannable.SPAN_EXCLUSIVE_EXCLUSIVE,
-            )
-        }
-        binding.titleText.text = span
-    }
-
-    /** Matches the definition in [OnboardingActivity.isPaired] — only the
+/** Matches the definition in [OnboardingActivity.isPaired] — only the
      *  server-issued deviceToken / deviceId counts. A bare pairToken means
      *  the handshake is still in flight; that case lives on Onboarding. */
     private fun isPaired(): Boolean =

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Section card background — solid dark surface with a thin cyan stroke.
+     The MaterialCardView wrapping it adds the corner clipping; we just
+     supply the fill + accent stroke that gives the "neon outline" feel. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/reruni_surface_subtle" />
+    <stroke
+        android:width="1.5dp"
+        android:color="@color/reruni_accent_stroke" />
+    <corners android:radius="20dp" />
+</shape>

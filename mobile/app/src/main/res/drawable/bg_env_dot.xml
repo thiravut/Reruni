@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 8dp circle used as the leading dot in the "Reruni Ecosystem (ทดสอบ)"
+     env chip. Purple so it doesn't blend with the cyan brand accent. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <solid android:color="@color/reruni_env_dot" />
+    <size android:width="8dp" android:height="8dp" />
+</shape>

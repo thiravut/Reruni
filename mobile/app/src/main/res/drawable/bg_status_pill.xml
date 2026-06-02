@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Top-of-screen connection status pill. Pill-rounded, thin cyan stroke,
+     subtle accent wash so it reads as "connected, glowing softly". -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/reruni_accent_wash" />
+    <stroke
+        android:width="1.5dp"
+        android:color="@color/reruni_accent_stroke" />
+    <corners android:radius="22dp" />
+</shape>
