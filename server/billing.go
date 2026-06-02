@@ -30,6 +30,7 @@ import (
 	billingportalsession "github.com/stripe/stripe-go/v76/billingportal/session"
 	checkoutsession "github.com/stripe/stripe-go/v76/checkout/session"
 	stripecustomer "github.com/stripe/stripe-go/v76/customer"
+	stripeinvoice "github.com/stripe/stripe-go/v76/invoice"
 	stripesub "github.com/stripe/stripe-go/v76/subscription"
 	stripewebhook "github.com/stripe/stripe-go/v76/webhook"
 )
@@ -456,6 +457,85 @@ func createPortalSessionHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"portal_url": ps.URL})
+}
+
+// listInvoicesHandler — GET /api/billing/invoices
+//
+// Returns the customer's last ~20 invoices from Stripe. We could mirror these
+// into a local table via webhook (invoice.paid / invoice.finalized) for
+// offline-tolerance, but for a settings-page history list a direct API call
+// is simpler and stays canonical.
+func listInvoicesHandler(w http.ResponseWriter, r *http.Request) {
+	if !stripeEnabled() {
+		writeError(w, http.StatusServiceUnavailable, "UNAVAILABLE", "Stripe not configured")
+		return
+	}
+	u := userFromCtx(r)
+	sub, err := getSubscriptionByUser(u.ID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			writeJSON(w, http.StatusOK, map[string]any{"invoices": []any{}})
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
+		return
+	}
+	if sub.StripeCustomerID == "" {
+		writeJSON(w, http.StatusOK, map[string]any{"invoices": []any{}})
+		return
+	}
+
+	type invoicePeriod struct {
+		Start int64 `json:"start"`
+		End   int64 `json:"end"`
+	}
+	type invoiceItem struct {
+		ID         string        `json:"id"`
+		Number     string        `json:"number,omitempty"`
+		Status     string        `json:"status"`
+		AmountPaid int64         `json:"amount_paid"`
+		AmountDue  int64         `json:"amount_due"`
+		Currency   string        `json:"currency"`
+		Created    int64         `json:"created"`
+		PaidAt     *int64        `json:"paid_at,omitempty"`
+		HostedURL  string        `json:"hosted_url,omitempty"`
+		PDF        string        `json:"pdf,omitempty"`
+		Period     invoicePeriod `json:"period"`
+	}
+
+	params := &stripe.InvoiceListParams{
+		Customer: stripe.String(sub.StripeCustomerID),
+	}
+	params.Limit = stripe.Int64(20)
+
+	out := []invoiceItem{}
+	iter := stripeinvoice.List(params)
+	for iter.Next() {
+		inv := iter.Invoice()
+		item := invoiceItem{
+			ID:         inv.ID,
+			Number:     inv.Number,
+			Status:     string(inv.Status),
+			AmountPaid: inv.AmountPaid,
+			AmountDue:  inv.AmountDue,
+			Currency:   string(inv.Currency),
+			Created:    inv.Created,
+			HostedURL:  inv.HostedInvoiceURL,
+			PDF:        inv.InvoicePDF,
+			Period:     invoicePeriod{Start: inv.PeriodStart, End: inv.PeriodEnd},
+		}
+		if inv.StatusTransitions != nil && inv.StatusTransitions.PaidAt > 0 {
+			paid := inv.StatusTransitions.PaidAt
+			item.PaidAt = &paid
+		}
+		out = append(out, item)
+	}
+	if err := iter.Err(); err != nil {
+		writeError(w, http.StatusBadGateway, "STRIPE_ERROR", err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"invoices": out})
 }
 
 // cancelSubscriptionHandler — POST /api/billing/cancel

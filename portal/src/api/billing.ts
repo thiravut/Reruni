@@ -2,7 +2,7 @@
 // defined in docs/planning-artifacts/api-contract.md §2.7b.
 
 import { apiFetch } from './client';
-import type { Subscription, Tier, TierKey } from '../types/api';
+import type { Invoice, Subscription, Tier, TierKey } from '../types/api';
 
 export function getSubscription(): Promise<{ subscription: Subscription | null }> {
   return apiFetch<{ subscription: Subscription | null }>('/billing/subscription');
@@ -32,4 +32,8 @@ export function cancelSubscription(): Promise<{ subscription: Subscription }> {
   return apiFetch<{ subscription: Subscription }>('/billing/cancel', {
     method: 'POST',
   });
+}
+
+export function listInvoices(): Promise<{ invoices: Invoice[] }> {
+  return apiFetch<{ invoices: Invoice[] }>('/billing/invoices');
 }

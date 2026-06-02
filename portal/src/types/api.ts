@@ -59,6 +59,29 @@ export interface Tier {
   stripe_price_id: string;
 }
 
+export type InvoiceStatus =
+  | 'draft'
+  | 'open'
+  | 'paid'
+  | 'uncollectible'
+  | 'void';
+
+export interface Invoice {
+  id: string;
+  number?: string;
+  status: InvoiceStatus | string;
+  /** Smallest currency unit (THB → satang). Divide by 100 for THB display. */
+  amount_paid: number;
+  amount_due: number;
+  currency: string;
+  /** Unix seconds. */
+  created: number;
+  paid_at?: number;
+  hosted_url?: string;
+  pdf?: string;
+  period: { start: number; end: number };
+}
+
 export interface AuthResponse {
   user: User;
   expires_at: string;

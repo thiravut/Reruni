@@ -130,6 +130,7 @@ func buildRouter() *http.ServeMux {
 	mux.HandleFunc("POST /api/billing/checkout-session", requireAuth(createCheckoutSessionHandler))
 	mux.HandleFunc("POST /api/billing/portal-session", requireAuth(createPortalSessionHandler))
 	mux.HandleFunc("POST /api/billing/cancel", requireAuth(cancelSubscriptionHandler))
+	mux.HandleFunc("GET /api/billing/invoices", requireAuth(listInvoicesHandler))
 	mux.HandleFunc("POST /api/billing/sync", requireAuth(syncSubscriptionHandler))
 
 	// -------------------------------------------------------------------------
