@@ -28,8 +28,10 @@ type downloadItem struct {
 	Required    bool   `json:"required"`
 }
 
-// downloadsManifestHandler returns the curated list of setup files. Public
-// endpoint — operators don't need to sign in to read the setup guide.
+// downloadsManifestHandler returns the curated list of setup files. Gated
+// behind requireActiveSubscription at the route level — only paying
+// customers see the list (and only they can fetch the underlying files
+// from /downloads/*).
 //
 // File metadata (size/version) is filled in on demand by os.Stat so we don't
 // drift when a new APK is uploaded. Missing local files surface as Hosted=false

@@ -93,11 +93,15 @@ func buildRouter() *http.ServeMux {
 		w.Write([]byte(`{"status":"ok"}`))
 	})
 
-	// Setup-guide downloads — public, no auth. Manifest tells the portal
-	// what's available; /downloads/* serves the actual files (Reruni APK,
-	// mirrored GhostCam .zip, etc).
-	mux.HandleFunc("GET /api/downloads/manifest", downloadsManifestHandler)
-	mux.Handle("/downloads/", http.StripPrefix("/downloads/", http.FileServer(http.Dir(downloadsDir))))
+	// Setup-guide downloads — gated behind an active subscription so APK +
+	// Magisk-module distribution stays paying-customer-only (decision
+	// 2026-06-02). Manifest is also gated to avoid leaking the file list
+	// to anonymous visitors.
+	mux.HandleFunc("GET /api/downloads/manifest", requireActiveSubscription(downloadsManifestHandler))
+	downloadsFS := http.StripPrefix("/downloads/", http.FileServer(http.Dir(downloadsDir)))
+	mux.Handle("/downloads/", requireActiveSubscription(func(w http.ResponseWriter, r *http.Request) {
+		downloadsFS.ServeHTTP(w, r)
+	}))
 
 	// Automation scripts — Reruni app fetches these so the backend can update
 	// the tap sequence when TikTok's UI shifts, without an APK rebuild.

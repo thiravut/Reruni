@@ -1,7 +1,8 @@
-// /setup-guide — public page. Walks the operator through rooting a
-// broadcast phone, installing Magisk + GhostCam + Reruni companion, and
-// pairing with the portal. Downloads come from /api/downloads/manifest;
-// upstream-only items (Magisk, LSPosed) link to GitHub releases.
+// /setup-guide — paying-customer-only page (rendered inside AppLayout shell).
+// Walks the operator through rooting a broadcast phone, installing Magisk +
+// GhostCam + Reruni companion, and pairing with the portal. Downloads come
+// from /api/downloads/manifest (subscription-gated); upstream-only items
+// (Magisk, LSPosed) link to GitHub releases.
 
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -48,21 +49,17 @@ export function SetupGuidePage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <div className="max-w-3xl mx-auto px-5 py-10">
-        <header className="mb-8">
-          <Link to="/" className="text-sm text-slate-500 hover:text-slate-900">
-            ← กลับหน้าหลัก
-          </Link>
-          <h1 className="mt-3 text-3xl font-bold tracking-tight">
-            คู่มือเตรียมอุปกรณ์ (V3 — Device Camera + VCam)
-          </h1>
-          <p className="mt-2 text-slate-600">
-            ใช้กับมือถือ Android ที่จะ broadcast TikTok Live ด้วยวิดีโออัดล่วงหน้า
-            ผ่าน Magisk + GhostCam VCam — broadcast แบบ Device camera 9:16 เต็มจอ
-            ทุกหมวดสินค้า
-          </p>
-        </header>
+    <div className="max-w-3xl mx-auto">
+      <header className="mb-8">
+        <h1 className="text-3xl font-bold tracking-tight">
+          คู่มือเตรียมอุปกรณ์ (V3 — Device Camera + VCam)
+        </h1>
+        <p className="mt-2 text-slate-600">
+          ใช้กับมือถือ Android ที่จะ broadcast TikTok Live ด้วยวิดีโออัดล่วงหน้า
+          ผ่าน Magisk + GhostCam VCam — broadcast แบบ Device camera 9:16 เต็มจอ
+          ทุกหมวดสินค้า
+        </p>
+      </header>
 
         {error && (
           <div className="mb-6 p-3 rounded border border-rose-200 bg-rose-50 text-sm text-rose-700">
@@ -196,7 +193,6 @@ fastboot reboot`}</pre>
           </a>{' '}
           ทีมเราจะตอบภายใน 1 วันทำการ
         </div>
-      </div>
     </div>
   );
 }

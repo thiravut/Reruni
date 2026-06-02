@@ -30,8 +30,6 @@ export default function App() {
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/signup" element={<SignupPage />} />
-            {/* Public — operators need this before they have an account. */}
-            <Route path="/setup-guide" element={<SetupGuidePage />} />
 
             {/* Auth-required but without AppLayout — usable while
                 must_change_password forces redirect away from main app. */}
@@ -94,6 +92,7 @@ export default function App() {
               <Route path="/live" element={<LiveConfigPage />} />
               <Route path="/live/active" element={<ActiveLivesPage />} />
               <Route path="/history" element={<HistoryPage />} />
+              <Route path="/setup-guide" element={<SetupGuidePage />} />
               <Route path="/billing" element={<BillingPage />} />
             </Route>
 
