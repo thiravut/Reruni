@@ -44,5 +44,23 @@ class HookEntry : IXposedHookLoadPackage {
             XposedBridge.log("[$TAG] Camera2Hook.install failed: ${t.message}")
             Log.e(TAG, "Camera2Hook.install failed", t)
         }
+
+        try {
+            AudioRecordHook.install(lpparam)
+        } catch (t: Throwable) {
+            XposedBridge.log("[$TAG] AudioRecordHook.install failed: ${t.message}")
+            Log.e(TAG, "AudioRecordHook.install failed", t)
+        }
+
+        // Phase 1 native audio hook — PLT-redirects OpenSL ES symbols in
+        // TikTok's VolcEngine RTC libs so we can reach the broadcast audio
+        // path that Java AudioRecord hooks can't see. Log-only this revision;
+        // buffer substitution comes in Phase 2.
+        try {
+            NativeAudioHook.install()
+        } catch (t: Throwable) {
+            XposedBridge.log("[$TAG] NativeAudioHook.install failed: ${t.message}")
+            Log.e(TAG, "NativeAudioHook.install failed", t)
+        }
     }
 }
