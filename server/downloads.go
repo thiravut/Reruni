@@ -14,6 +14,19 @@ import (
 // systemd can point at /home/reruni/rerun-data/downloads.
 var downloadsDir string
 
+// CurrentReleaseVersion is the version published in /downloads/. Bumping
+// this string is the entire "ship a new release" code change — drop the
+// matching versioned APK/zip files into downloadsDir on the server and
+// the manifest will surface them automatically.
+const (
+	CurrentReleaseVersion = "0.1.0"
+
+	RerunAPKFilename    = "reruni-v" + CurrentReleaseVersion + ".apk"
+	TikTokRerunFilename = "tiktok-reruni-v" + CurrentReleaseVersion + ".apk"
+	GhostCamFilename    = "ghostcam-magisk.zip"
+	AutoCaptchaFilename = "autocaptcha-xposed.apk"
+)
+
 // downloadItem describes one curated artifact in the setup guide. URL is
 // either a same-origin path served by downloadsFileHandler or an upstream
 // GitHub release link.
@@ -40,15 +53,24 @@ func downloadsManifestHandler(w http.ResponseWriter, _ *http.Request) {
 	items := []downloadItem{
 		{
 			Key:      "reruni_apk",
-			Label:    "Reruni Companion APK",
-			URL:      "/downloads/reruni-companion.apk",
+			Label:    "Reruni Controller",
+			Version:  CurrentReleaseVersion,
+			URL:      "/downloads/" + RerunAPKFilename,
+			Hosted:   true,
+			Required: true,
+		},
+		{
+			Key:      "tiktok_reruni",
+			Label:    "TikTok (Reruni bundle)",
+			Version:  CurrentReleaseVersion,
+			URL:      "/downloads/" + TikTokRerunFilename,
 			Hosted:   true,
 			Required: true,
 		},
 		{
 			Key:      "ghostcam",
 			Label:    "GhostCam Magisk Module",
-			URL:      "/downloads/ghostcam-magisk.zip",
+			URL:      "/downloads/" + GhostCamFilename,
 			Hosted:   true,
 			Required: true,
 		},
@@ -71,7 +93,7 @@ func downloadsManifestHandler(w http.ResponseWriter, _ *http.Request) {
 		{
 			Key:      "autocaptcha",
 			Label:    "autoCaptcha Xposed Module",
-			URL:      "/downloads/autocaptcha-xposed.apk",
+			URL:      "/downloads/" + AutoCaptchaFilename,
 			Hosted:   true,
 			Required: false,
 		},
@@ -101,8 +123,8 @@ func downloadsManifestHandler(w http.ResponseWriter, _ *http.Request) {
 // Token-gated APK distribution for V1 launch onboarding (PRD §3.12 step 6):
 // only customers with an active subscription can download the Companion APK.
 //
-// Resolves the APK at the same path the public manifest advertises
-// (reruni-companion.apk under downloadsDir) so there's a single source of
+// Resolves the APK at the same versioned path the manifest advertises
+// (RerunAPKFilename under downloadsDir) so there's a single source of
 // truth on disk. Logs each successful download for ops visibility.
 func gatedCompanionAPKHandler(w http.ResponseWriter, r *http.Request) {
 	u := userFromCtx(r)
@@ -126,7 +148,7 @@ func gatedCompanionAPKHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	apkPath := filepath.Join(downloadsDir, "reruni-companion.apk")
+	apkPath := filepath.Join(downloadsDir, RerunAPKFilename)
 	st, err := os.Stat(apkPath)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "APK_NOT_AVAILABLE",
@@ -138,9 +160,9 @@ func gatedCompanionAPKHandler(w http.ResponseWriter, r *http.Request) {
 	// user has reached the install step.
 	advanceOnboardingIfAt(u.ID, StepPayment, StepInstallAPK)
 
-	log.Printf("downloads: companion-apk → user=%d size=%d", u.ID, st.Size())
+	log.Printf("downloads: %s → user=%d size=%d", RerunAPKFilename, u.ID, st.Size())
 
 	w.Header().Set("Content-Type", "application/vnd.android.package-archive")
-	w.Header().Set("Content-Disposition", `attachment; filename="reruni-companion.apk"`)
+	w.Header().Set("Content-Disposition", `attachment; filename="`+RerunAPKFilename+`"`)
 	http.ServeFile(w, r, apkPath)
 }
