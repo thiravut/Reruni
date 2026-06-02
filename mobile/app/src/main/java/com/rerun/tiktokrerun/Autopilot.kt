@@ -227,14 +227,34 @@ object Autopilot {
      * [state]/[lastStep] like any other flow so the UI Toast layer surfaces
      * progress.
      */
-    fun endLive(context: Context) {
+    fun endLive(
+        context: Context,
+        /** live_sessions row id to close on the server when the End Live
+         *  script completes. 0 means no session was open (mobile still runs
+         *  the script — TikTok may still be broadcasting). */
+        liveSessionId: Long = 0L,
+        /** device_commands row id from the server's stop_live envelope.
+         *  Ack'd via WsClient when the script terminates. */
+        commandId: String = "",
+    ) {
+        // Stash session context before any fail() call so the portal sees
+        // pre-execution failures (e.g. accessibility off) attached to the
+        // right command_id, just like start() does.
+        currentLiveSessionId = liveSessionId
+        currentCommandId = commandId
+        currentScript = ""
+        currentStepIndex = 0
         if (!TikTokAutopilotService.isEnabled(context)) {
             fail("ยังไม่ได้เปิด Accessibility permission")
+            ackStopFailure(commandId, "ACCESSIBILITY_OFF",
+                "Accessibility permission ปิดอยู่")
             return
         }
         val launchIntent = pickTikTokLaunchIntent(context)
         if (launchIntent == null) {
             fail("ไม่พบ TikTok app บนเครื่อง")
+            ackStopFailure(commandId, "TIKTOK_NOT_INSTALLED",
+                "ไม่พบ TikTok ในเครื่อง")
             return
         }
         job?.cancel()
@@ -244,6 +264,10 @@ object Autopilot {
     private suspend fun runEndLiveFlow(context: Context, launchIntent: Intent) {
         state.value = AutopilotState.Running
         currentScript = ScriptStore.END_LIVE
+        // Snapshot session context — markDone() / fail() clear it before
+        // we can read it back to build the live_ended + ack envelopes.
+        val savedLiveSessionId = currentLiveSessionId
+        val savedCommandId = currentCommandId
 
         val script = try {
             ScriptStore(context).getScript(
@@ -252,13 +276,41 @@ object Autopilot {
             )
         } catch (t: Throwable) {
             Log.e(TAG, "ScriptStore.getScript(end_live) failed", t)
-            return fail("โหลด script_end_live ไม่สำเร็จ")
+            fail("โหลด script_end_live ไม่สำเร็จ")
+            ackStopFailure(savedCommandId, "SCRIPT_LOAD_FAILED",
+                "โหลด script ปิดไลฟ์ไม่สำเร็จ")
+            return
         }
         val runner = ScriptRunner(buildScriptContext(context, launchIntent))
         when (val result = runner.execute(script)) {
-            is ScriptRunner.Result.Success -> markDone()
-            is ScriptRunner.Result.Failed -> return fail(result.message)
+            is ScriptRunner.Result.Success -> {
+                markDone()
+                if (savedLiveSessionId != 0L) {
+                    WsClient.sendLiveEnded(savedLiveSessionId, "device_stopped")
+                }
+                if (savedCommandId.isNotEmpty()) {
+                    WsClient.sendAck(savedCommandId, success = true)
+                }
+            }
+            is ScriptRunner.Result.Failed -> {
+                val msg = result.message
+                fail(msg)
+                ackStopFailure(savedCommandId, "END_LIVE_SCRIPT_FAILED", msg)
+            }
         }
+    }
+
+    /** Common ack path for the pre-flight + script-failure branches of
+     *  the End Live flow. No-op when the command_id is empty (we weren't
+     *  invoked from a server command). */
+    private fun ackStopFailure(commandId: String, code: String, message: String) {
+        if (commandId.isEmpty()) return
+        WsClient.sendAck(
+            commandId = commandId,
+            success = false,
+            errorCode = code,
+            errorMessage = message,
+        )
     }
 
     /**

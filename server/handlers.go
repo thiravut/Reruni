@@ -875,7 +875,18 @@ func stopLiveHandler(w http.ResponseWriter, r *http.Request) {
 	if err := assertDeviceOwned(did, user.ID, w); err != nil {
 		return
 	}
-	cid, err := issueCommand(user.ID, did, "stop_live", map[string]any{})
+	// Tell mobile which session to close so it can echo the id back in the
+	// outbound `live_ended` envelope. Empty (0) when no session is open;
+	// mobile still runs the End Live script in that case, just without a
+	// row to close on the server side.
+	var openLSID int64
+	_ = db.QueryRow(
+		"SELECT id FROM live_sessions WHERE device_id=? AND ended_at IS NULL ORDER BY started_at DESC LIMIT 1",
+		did,
+	).Scan(&openLSID)
+	cid, err := issueCommand(user.ID, did, "stop_live", map[string]any{
+		"live_session_id": openLSID,
+	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
 		return

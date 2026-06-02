@@ -334,9 +334,7 @@ object WsClient {
             "paired" -> handlePaired(payload, prefs)
             "welcome" -> handleWelcome(payload, prefs)
             "start_live" -> handleStartLive(obj, payload, prefs)
-            "stop_live" -> {
-                Log.i(TAG, "stop_live (not yet wired) payload=$payload")
-            }
+            "stop_live" -> handleStopLive(obj, payload)
             "switch_video" -> {
                 Log.i(TAG, "switch_video (not yet wired) payload=$payload")
             }
@@ -455,6 +453,27 @@ object WsClient {
                 )
             )
         }
+    }
+
+    /**
+     * Server-driven "end this live" — hands off to [Autopilot.endLive] which
+     * runs the End Live JSON script against TikTok. The script in turn
+     * tells the server about its progress / outcome (Autopilot wraps
+     * sendAutopilotStatus + sendLiveEnded + sendAck internally) so this
+     * handler is just the dispatcher.
+     */
+    private fun handleStopLive(envelope: JSONObject, payload: JSONObject) {
+        val ctx = appContext ?: run {
+            Log.w(TAG, "stop_live: no app context — service must be running"); return
+        }
+        val commandId = envelope.optString("id")
+        // Accept both incoming keys for resilience with start_live's schema.
+        val liveSessionId = payload.optLong(
+            "live_session",
+            payload.optLong("live_session_id", 0L),
+        )
+        Log.i(TAG, "stop_live: ls=$liveSessionId cmd=$commandId")
+        Autopilot.endLive(ctx, liveSessionId, commandId)
     }
 
     private fun readKeywords(obj: JSONObject): List<String> {
