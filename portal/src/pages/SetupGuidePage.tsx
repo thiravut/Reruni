@@ -1,8 +1,7 @@
 // /setup-guide — paying-customer-only page (rendered inside AppLayout shell).
-// Walks the operator through rooting a broadcast phone, installing Magisk +
-// GhostCam + Reruni companion, and pairing with the portal. Downloads come
-// from /api/downloads/manifest (subscription-gated); upstream-only items
-// (Magisk, LSPosed) link to GitHub releases.
+// v0.1.0 BYOD path: install bundled TikTok APK + Reruni Controller — no root,
+// no Magisk, no bootloader unlock. Customers on Standard/Pro concierge tiers
+// receive a pre-prepared device and never see this page.
 
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -36,7 +35,7 @@ export function SetupGuidePage() {
 
   useEffect(() => {
     const base = import.meta.env.VITE_API_BASE_URL ?? '';
-    fetch(`${base}/api/downloads/manifest`)
+    fetch(`${base}/api/downloads/manifest`, { credentials: 'include' })
       .then((r) => r.json())
       .then((d) => setItems(d.items ?? []))
       .catch((e) => setError(String(e)));
@@ -48,151 +47,130 @@ export function SetupGuidePage() {
     return `${import.meta.env.VITE_API_BASE_URL ?? ''}${item.url}`;
   };
 
+  const tiktokBundle = byKey('tiktok_reruni');
+  const rerunController = byKey('reruni_apk');
+
   return (
     <div className="max-w-3xl mx-auto">
       <header className="mb-8">
         <h1 className="text-3xl font-bold tracking-tight">
-          คู่มือเตรียมอุปกรณ์ (V3 — Device Camera + VCam)
+          คู่มือเตรียมเครื่องสำหรับ Reruni
         </h1>
         <p className="mt-2 text-slate-600">
-          ใช้กับมือถือ Android ที่จะ broadcast TikTok Live ด้วยวิดีโออัดล่วงหน้า
-          ผ่าน Magisk + GhostCam VCam — broadcast แบบ Device camera 9:16 เต็มจอ
-          ทุกหมวดสินค้า
+          ใช้กับมือถือ Android ของคุณเอง ไม่ต้อง root ไม่ต้องปลด bootloader —
+          แค่ติดตั้ง 2 APK แล้วเชื่อมกับ portal
         </p>
+        {(tiktokBundle?.version || rerunController?.version) && (
+          <p className="mt-1 text-xs text-slate-500">
+            เวอร์ชั่นปัจจุบัน: v{tiktokBundle?.version ?? rerunController?.version}
+          </p>
+        )}
       </header>
 
-        {error && (
-          <div className="mb-6 p-3 rounded border border-rose-200 bg-rose-50 text-sm text-rose-700">
-            โหลด manifest ไม่สำเร็จ: {error}
-          </div>
-        )}
-
-        <Warning />
-
-        <Step
-          n={1}
-          title="ก่อนเริ่ม — สิ่งที่ต้องเตรียม"
-        >
-          <ul className="list-disc pl-6 space-y-1 text-sm">
-            <li>มือถือ Android 9+ ที่ <b>unlock bootloader ได้</b> — Pixel, Xiaomi (Mi/POCO/Redmi), OnePlus ส่วนใหญ่ทำได้, Samsung รุ่นใหม่ <b>ไม่ได้</b></li>
-            <li>คอมพิวเตอร์ + USB cable</li>
-            <li>ติด adb + fastboot บนคอม:
-              <span className="block text-xs font-mono text-slate-500 mt-1">
-                macOS: <code>brew install android-platform-tools</code><br />
-                Windows: ดาวน์โหลด <a className="text-brand-600 underline" href="https://developer.android.com/tools/releases/platform-tools" target="_blank" rel="noreferrer">Android Platform Tools</a>
-              </span>
-            </li>
-            <li><b>สำคัญ:</b> root จะลบข้อมูลทั้งเครื่อง + ปลด warranty — backup ก่อน</li>
-          </ul>
-        </Step>
-
-        <Step
-          n={2}
-          title="Unlock bootloader"
-        >
-          <ol className="list-decimal pl-6 space-y-2 text-sm">
-            <li>เปิด <b>Developer options</b> — Settings → About phone → แตะ "Build number" 7 ครั้ง</li>
-            <li>เปิด <b>OEM unlocking</b> + <b>USB debugging</b> ใน Developer options</li>
-            <li>เชื่อม USB → คอม → run:
-              <pre className="bg-slate-900 text-slate-100 text-xs rounded p-3 mt-2 overflow-x-auto">{`adb reboot bootloader
-fastboot flashing unlock     # Pixel / Xiaomi
-# Samsung: ใช้วิธีแยกผ่าน Odin (ดูคู่มือต่อรุ่น)`}</pre>
-            </li>
-            <li>กดปุ่ม volume ตามที่หน้าจอเครื่องบอก → confirm unlock → รอ wipe</li>
-          </ol>
-        </Step>
-
-        <Step
-          n={3}
-          title="ติดตั้ง Magisk (root)"
-          download={byKey('magisk')}
-          fullUrl={fullUrl}
-        >
-          <ol className="list-decimal pl-6 space-y-2 text-sm">
-            <li>หา <b>stock boot.img</b> ของเครื่องคุณ (ดาวน์โหลดจาก firmware factory image ของยี่ห้อ — Pixel มีหน้า google.com/android/images, Xiaomi ใช้ Mi Flash)</li>
-            <li>copy boot.img เข้าเครื่อง → ติดตั้ง Magisk APK</li>
-            <li>เปิด Magisk → <b>Install</b> → <b>Select and Patch a File</b> → เลือก boot.img → ได้ <code>magisk_patched-xxxx.img</code></li>
-            <li>copy patched file กลับเข้าคอม:
-              <pre className="bg-slate-900 text-slate-100 text-xs rounded p-3 mt-2 overflow-x-auto">{`adb pull /storage/emulated/0/Download/magisk_patched-xxxx.img
-adb reboot bootloader
-fastboot flash boot magisk_patched-xxxx.img
-fastboot reboot`}</pre>
-            </li>
-            <li>เปิด Magisk app → ควรเห็น <b>Installed</b> + เลขเวอร์ชัน</li>
-          </ol>
-        </Step>
-
-        <Step
-          n={4}
-          title="ติดตั้ง GhostCam Module (VCam pipeline)"
-          download={byKey('ghostcam')}
-          fullUrl={fullUrl}
-        >
-          <ol className="list-decimal pl-6 space-y-2 text-sm">
-            <li>copy ไฟล์ <code>ghostcam-magisk.zip</code> เข้าเครื่อง</li>
-            <li>เปิด Magisk → <b>Modules</b> → <b>Install from storage</b> → เลือก zip</li>
-            <li>รอ install เสร็จ → <b>Reboot</b></li>
-            <li>หลัง reboot → เปิด GhostCam app → ตั้งวิดีโอ default ที่จะแทนกล้อง (test pattern ก็พอ — Reruni จะ override ตอน live จริง)</li>
-          </ol>
-        </Step>
-
-        <Step
-          n={5}
-          title="ติดตั้ง LSPosed + autoCaptcha (ไม่บังคับ)"
-          download={byKey('lsposed')}
-          fullUrl={fullUrl}
-        >
-          <p className="text-sm text-slate-600 mb-2">
-            ขั้นนี้ <b>ไม่บังคับ</b> ถ้าทีมไม่ใช้ autoCaptcha autopilot — ข้ามไปขั้น 6 ได้
-          </p>
-          <ol className="list-decimal pl-6 space-y-2 text-sm">
-            <li>เปิด Magisk → Settings → เปิด <b>Zygisk</b> → Reboot</li>
-            <li>ติดตั้ง LSPosed zip ผ่าน Magisk → Modules → Install from storage</li>
-            <li>Reboot → เปิดแอพ LSPosed → install autoCaptcha module:
-              <DownloadInline item={byKey('autocaptcha')} fullUrl={fullUrl} />
-            </li>
-            <li>LSPosed → Modules → autoCaptcha → enable → reboot</li>
-          </ol>
-        </Step>
-
-        <Step
-          n={6}
-          title="ติดตั้ง Reruni Companion APK"
-          download={byKey('reruni_apk')}
-          fullUrl={fullUrl}
-        >
-          <ol className="list-decimal pl-6 space-y-2 text-sm">
-            <li>copy APK เข้าเครื่อง → install (อาจต้องเปิด "Install from unknown sources" ก่อน)</li>
-            <li>เปิด Reruni app → อนุญาต permissions:
-              <ul className="list-disc pl-6 mt-1">
-                <li>Notification</li>
-                <li>Battery (ตั้งเป็น "Unrestricted")</li>
-                <li>Accessibility — Settings → Accessibility → Reruni Autopilot → เปิด</li>
-              </ul>
-            </li>
-            <li>ตรวจว่า TikTok app ติดตั้งแล้ว (Play Store)</li>
-          </ol>
-        </Step>
-
-        <Step
-          n={7}
-          title="Pair เครื่องกับ Portal"
-        >
-          <ol className="list-decimal pl-6 space-y-2 text-sm">
-            <li>ใน <Link to="/devices" className="text-brand-600 underline">portal Devices</Link> → กด "เชื่อมอุปกรณ์ใหม่"</li>
-            <li>ในแอพ Reruni → Settings → "Scan QR" → ส่องที่หน้าจอ portal</li>
-            <li>กด Save → modal บน portal จะปิดเอง + device โผล่ในตาราง</li>
-            <li>ตรวจ <b>"ความพร้อม"</b> ที่ตาราง devices ว่าเป็นเขียวครบทุก permission</li>
-          </ol>
-        </Step>
-
-        <div className="mt-10 p-4 rounded-lg border border-slate-200 bg-white text-sm text-slate-600">
-          ติดที่ไหน? ส่งภาพหน้าจอ + ขั้นที่ติด มาที่{' '}
-          <a className="text-brand-600 underline" href="mailto:hello@reruni.com">
-            hello@reruni.com
-          </a>{' '}
-          ทีมเราจะตอบภายใน 1 วันทำการ
+      {error && (
+        <div className="mb-6 p-3 rounded border border-rose-200 bg-rose-50 text-sm text-rose-700">
+          โหลด manifest ไม่สำเร็จ: {error}
         </div>
+      )}
+
+      <Warning />
+
+      <Step n={1} title="เตรียมเครื่อง — ตั้งค่า Android">
+        <ul className="list-disc pl-6 space-y-1 text-sm">
+          <li>มือถือ Android 9 ขึ้นไป — RAM 4GB+ แนะนำ</li>
+          <li>เปิด <b>"Install from unknown sources"</b> สำหรับเบราว์เซอร์ / File manager
+            <span className="block text-xs text-slate-500 mt-0.5">
+              Settings → Apps → (เบราว์เซอร์) → Install unknown apps → Allow
+            </span>
+          </li>
+          <li>ปิด <b>Play Protect</b> ชั่วคราว (อาจ block bundled TikTok ตอนติดตั้ง)
+            <span className="block text-xs text-slate-500 mt-0.5">
+              Play Store → โปรไฟล์ → Play Protect → Settings → ปิด Scan apps
+            </span>
+          </li>
+          <li>ปิด <b>Auto-update</b> ของ Play Store (กัน Play Store update TikTok ทับเวอร์ชั่นเรา)</li>
+        </ul>
+      </Step>
+
+      <Step n={2} title="ลบ TikTok เดิม (ถ้ามี)">
+        <ol className="list-decimal pl-6 space-y-2 text-sm">
+          <li><b>สำคัญ:</b> ก่อนลบ — เปิดแอพ TikTok → ตรวจว่าจำ login ของบัญชี seller ไว้หรือยัง ไม่งั้นต้อง login ใหม่หลังติดตั้ง bundled APK</li>
+          <li>Settings → Apps → TikTok → <b>Uninstall</b></li>
+          <li>ถ้าเป็นเครื่องที่ไม่เคยใช้ TikTok มาก่อน — ข้ามขั้นนี้</li>
+        </ol>
+      </Step>
+
+      <Step
+        n={3}
+        title="ติดตั้ง TikTok (Reruni bundle)"
+        download={tiktokBundle}
+        fullUrl={fullUrl}
+      >
+        <ol className="list-decimal pl-6 space-y-2 text-sm">
+          <li>ดาวน์โหลด APK ข้างล่าง (~565 MB ใช้ Wi-Fi)</li>
+          <li>เปิดไฟล์ที่ดาวน์โหลด → กด <b>Install</b></li>
+          <li>เปิดแอพ TikTok ที่ติดตั้งใหม่ → login บัญชี seller ของคุณ</li>
+          <li>ตรวจว่าสามารถเข้าหน้า Live Studio ได้ตามปกติ — ถ้า login ไม่ได้/CAPTCHA ขึ้นบ่อย ให้พักไว้สักวันก่อนลอง</li>
+        </ol>
+      </Step>
+
+      <Step
+        n={4}
+        title="ติดตั้ง Reruni Controller"
+        download={rerunController}
+        fullUrl={fullUrl}
+      >
+        <ol className="list-decimal pl-6 space-y-2 text-sm">
+          <li>ดาวน์โหลด Reruni Controller (~10 MB)</li>
+          <li>เปิดไฟล์ที่ดาวน์โหลด → กด Install</li>
+          <li>เปิดแอพ Reruni — จะเห็นหน้า "Scan QR" รอ pair กับ portal</li>
+        </ol>
+      </Step>
+
+      <Step n={5} title="ตั้งค่า permissions ของ Reruni Controller">
+        <p className="text-sm text-slate-600 mb-2">
+          ต้องเปิดทั้งหมดก่อน pair — ไม่งั้น autopilot จะคุม TikTok ไม่ได้
+        </p>
+        <ul className="list-disc pl-6 space-y-2 text-sm">
+          <li><b>Notification</b> — ให้แสดงสถานะ live ใน status bar
+            <span className="block text-xs text-slate-500 mt-0.5">
+              Settings → Apps → Reruni → Notifications → เปิดทั้งหมด
+            </span>
+          </li>
+          <li><b>Battery — Unrestricted</b> — กันระบบ kill app กลาง live
+            <span className="block text-xs text-slate-500 mt-0.5">
+              Settings → Apps → Reruni → Battery → Unrestricted
+            </span>
+          </li>
+          <li><b>Display over other apps</b> — ให้ Reruni เห็น TikTok ผ่าน overlay
+            <span className="block text-xs text-slate-500 mt-0.5">
+              Settings → Apps → Special access → Display over other apps → Reruni → เปิด
+            </span>
+          </li>
+          <li><b>Accessibility</b> — autopilot tap/swipe สั่ง TikTok ผ่านบริการนี้
+            <span className="block text-xs text-slate-500 mt-0.5">
+              Settings → Accessibility → Reruni Autopilot → เปิด → ยอมรับ warning
+            </span>
+          </li>
+        </ul>
+      </Step>
+
+      <Step n={6} title="Pair เครื่องกับ Portal">
+        <ol className="list-decimal pl-6 space-y-2 text-sm">
+          <li>ใน <Link to="/devices" className="text-brand-600 underline">portal Devices</Link> → กด "เชื่อมอุปกรณ์ใหม่" → QR code ขึ้น</li>
+          <li>ในแอพ Reruni → กด "Scan QR" → ส่องที่หน้าจอ portal</li>
+          <li>รอสักครู่ → modal บน portal จะปิดเอง + device โผล่ในตาราง</li>
+          <li>ตรวจคอลัมน์ <b>"ความพร้อม"</b> — ควรเขียวครบทุก permission ถ้าแดงให้กลับไปขั้น 5</li>
+        </ol>
+      </Step>
+
+      <div className="mt-10 p-4 rounded-lg border border-slate-200 bg-white text-sm text-slate-600">
+        ติดที่ไหน? ส่งภาพหน้าจอ + ขั้นที่ติด มาที่{' '}
+        <a className="text-brand-600 underline" href="mailto:hello@reruni.com">
+          hello@reruni.com
+        </a>{' '}
+        ทีมเราจะตอบภายใน 1 วันทำการ
+      </div>
     </div>
   );
 }
@@ -200,11 +178,11 @@ fastboot reboot`}</pre>
 function Warning() {
   return (
     <div className="mb-6 p-4 rounded-lg border border-amber-200 bg-amber-50 text-sm text-amber-900">
-      <p className="font-medium">⚠ ทำให้สุดทาง = เป็นมือถือ broadcast-only</p>
+      <p className="font-medium">⚠ เครื่องนี้ควรเป็น broadcast-only</p>
       <p className="mt-1">
-        เครื่องที่ผ่านขั้นตอนนี้แล้ว <b>ไม่ควร</b> ใช้สำหรับการใช้งานส่วนตัว
-        (mobile banking, e-wallet, แอพที่ตรวจ root) เพราะ Magisk + custom firmware
-        เปลี่ยน device state — ใช้เครื่องสำรองหรือเครื่องที่ตั้งใจ broadcast เท่านั้น
+        bundled TikTok เป็นเวอร์ชั่น modified — <b>ไม่ควรใช้คู่กับบัญชี TikTok ส่วนตัว</b>
+        ของคุณ ใช้บัญชี seller โดยเฉพาะ และไม่ควรใช้เครื่องนี้กับ mobile banking /
+        e-wallet (เพราะแอพเหล่านั้น detect ว่ามี modified TikTok แล้วอาจ block)
       </p>
     </div>
   );
@@ -264,6 +242,9 @@ function DownloadInline({
       className="inline-flex items-center gap-2 px-3 py-2 rounded border border-brand-200 bg-brand-50 text-sm text-brand-700 hover:bg-brand-100"
     >
       📥 ดาวน์โหลด {item.label}
+      {item.version && (
+        <span className="text-xs text-slate-500">v{item.version}</span>
+      )}
       {item.size_bytes && (
         <span className="text-xs text-slate-500">
           ({formatBytes(item.size_bytes)})
