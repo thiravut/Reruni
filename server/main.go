@@ -228,6 +228,8 @@ func buildRouter() *http.ServeMux {
 	mux.HandleFunc("POST /api/admin/lives/{id}/force-stop", requireAdmin(adminForceStopLiveHandler))
 	mux.HandleFunc("GET /api/admin/subscriptions", requireAdmin(adminListSubscriptionsHandler))
 	mux.HandleFunc("POST /api/admin/subscriptions/{user_id}/recheck", requireAdmin(adminRecheckSubscriptionHandler))
+	mux.HandleFunc("GET /api/admin/downloads/releases", requireAdmin(adminListReleasesHandler))
+	mux.HandleFunc("POST /api/admin/downloads/releases/{key}", requireAdmin(adminSetActiveReleaseHandler))
 
 	// -------------------------------------------------------------------------
 	// WebSocket

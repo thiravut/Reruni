@@ -11,6 +11,7 @@ const NAV = [
   { to: '/admin/lives', label: 'Lives' },
   { to: '/admin/videos', label: 'Videos' },
   { to: '/admin/subscriptions', label: 'Subscriptions' },
+  { to: '/admin/releases', label: 'Releases' },
 ]
 
 export function Layout() {

@@ -106,6 +106,27 @@ export interface AdminVideosResponse extends Paginated<AdminVideoRow> {
   total_disk_bytes: number
 }
 
+export interface ReleaseFile {
+  filename: string
+  version: string
+  size_bytes: number
+  mod_time: string
+}
+
+export interface ReleaseInfo {
+  key: string
+  label: string
+  prefix: string
+  setting_key: string
+  active: string
+  pinned?: string
+  files: ReleaseFile[]
+}
+
+export interface ReleasesResponse {
+  items: ReleaseInfo[]
+}
+
 export interface ResetPasswordResponse {
   temp_password: string
 }

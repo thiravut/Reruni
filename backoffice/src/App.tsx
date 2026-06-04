@@ -12,6 +12,7 @@ import { AdminMetrics } from './pages/AdminMetrics'
 import { AdminLives } from './pages/AdminLives'
 import { AdminSubscriptions } from './pages/AdminSubscriptions'
 import { AdminVideos } from './pages/AdminVideos'
+import { AdminReleases } from './pages/AdminReleases'
 
 export default function App() {
   return (
@@ -42,6 +43,7 @@ export default function App() {
         <Route path="/admin/lives" element={<AdminLives />} />
         <Route path="/admin/videos" element={<AdminVideos />} />
         <Route path="/admin/subscriptions" element={<AdminSubscriptions />} />
+        <Route path="/admin/releases" element={<AdminReleases />} />
       </Route>
 
       {/* Default + fallback → Metrics dashboard. */}

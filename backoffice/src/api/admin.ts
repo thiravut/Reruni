@@ -11,6 +11,7 @@ import type {
   AdminUserRow,
   AdminVideosResponse,
   Paginated,
+  ReleasesResponse,
   ResetPasswordResponse,
   Role,
   SubscriptionStatus,
@@ -78,5 +79,16 @@ export const adminApi = {
       `/admin/subscriptions/${userID}/recheck`,
       { method: 'POST' },
     )
+  },
+
+  // Releases (setup-guide downloads)
+  listReleases() {
+    return apiFetch<ReleasesResponse>('/admin/downloads/releases')
+  },
+  setActiveRelease(key: string, filename: string) {
+    return apiFetch<{ ok: boolean }>(`/admin/downloads/releases/${key}`, {
+      method: 'POST',
+      body: { filename },
+    })
   },
 }
