@@ -63,6 +63,16 @@ object Autopilot {
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var job: Job? = null
 
+    /**
+     * Periodic interactivity tap loop — fires the `say_hi` script every
+     * [SAY_HI_INTERVAL_MS] while a live is active so TikTok sees host
+     * activity (defeats the "Non-Interactive Content" violation flag we
+     * observed 2026-06-04). Started after a live-start flow completes,
+     * cancelled on [endLive] / [cancel] / [fail].
+     */
+    private var liveKeepaliveJob: Job? = null
+    private const val SAY_HI_INTERVAL_MS = 20_000L
+
     /** Intent that Autopilot launches after the broadcast is set up. Cleared after consumption. */
     private var followupIntent: Intent? = null
 
@@ -203,6 +213,7 @@ object Autopilot {
         liveTitleOverride = liveTitle
         activeMode.value = mode
         job?.cancel()
+        stopLiveKeepalive()
         job = scope.launch {
             when (mode) {
                 AutopilotMode.Personal      -> runFlow(context, launchIntent)
@@ -214,6 +225,7 @@ object Autopilot {
 
     fun cancel() {
         job?.cancel()
+        stopLiveKeepalive()
         followupIntent = null
         state.value = AutopilotState.Idle
         lastStep.value = ""
@@ -258,6 +270,7 @@ object Autopilot {
             return
         }
         job?.cancel()
+        stopLiveKeepalive()
         job = scope.launch { runEndLiveFlow(context, launchIntent) }
     }
 
@@ -336,7 +349,10 @@ object Autopilot {
         }
         val runner = ScriptRunner(buildScriptContext(context, launchIntent))
         when (val result = runner.execute(script)) {
-            is ScriptRunner.Result.Success -> markDone()
+            is ScriptRunner.Result.Success -> {
+                startLiveKeepalive(context)
+                markDone()
+            }
             is ScriptRunner.Result.Failed -> return fail(result.message)
         }
     }
@@ -707,7 +723,10 @@ object Autopilot {
             }
             val runner = ScriptRunner(buildScriptContext(context, launchIntent))
             when (val result = runner.execute(script)) {
-                is ScriptRunner.Result.Success -> markDone()
+                is ScriptRunner.Result.Success -> {
+                    startLiveKeepalive(context)
+                    markDone()
+                }
                 is ScriptRunner.Result.Failed -> return fail(result.message)
             }
             return
@@ -955,6 +974,7 @@ object Autopilot {
         collapseTikTokOverlay()
 
         setStep("✓ Shoppable Live พร้อม")
+        startLiveKeepalive(context)
         markDone()
     }
 
@@ -1678,6 +1698,7 @@ object Autopilot {
         state.value = AutopilotState.Failed
         lastStep.value = "✗ $reason"
         activeMode.value = null
+        stopLiveKeepalive()
         emitAutopilotStatus(
             stateLabel = "failed",
             errorUser = friendlyUserError(attemptedStep, reason),
@@ -1739,5 +1760,52 @@ object Autopilot {
         currentCommandId = ""
         currentScript = ""
         currentStepIndex = 0
+    }
+
+    /**
+     * Kick off the periodic "Say hi" tap loop. Best-effort by design — the
+     * `say_hi` script is a single `tap_by_text` with `ignore_failure`, so
+     * when the button isn't visible (no new viewer this tick), we just
+     * idle to the next interval.
+     *
+     * Lifecycle:
+     *  - Started from each live-start flow's success path (`runFlow`,
+     *    `runShoppableFlow`) right before `markDone()`.
+     *  - Cancelled by [stopLiveKeepalive] in `cancel()`, `fail()`,
+     *    `endLive()`, and at the top of [start] (defensive).
+     */
+    private fun startLiveKeepalive(context: Context) {
+        stopLiveKeepalive()
+        val launchIntent = pickTikTokLaunchIntent(context) ?: return
+        liveKeepaliveJob = scope.launch {
+            while (true) {
+                delay(SAY_HI_INTERVAL_MS)
+                if (!TikTokAutopilotService.isEnabled(context)) continue
+                val script = try {
+                    ScriptStore(context).getScript(
+                        ScriptStore.SAY_HI,
+                        R.raw.script_say_hi_v1,
+                    )
+                } catch (t: Throwable) {
+                    Log.w(TAG, "keepalive: getScript(say_hi) failed — skipping tick", t)
+                    continue
+                }
+                val ctx = buildScriptContext(context, launchIntent)
+                when (val r = ScriptRunner(ctx).execute(script)) {
+                    is ScriptRunner.Result.Failed ->
+                        Log.w(TAG, "keepalive say_hi failed: ${r.message}")
+                    else -> {}
+                }
+            }
+        }
+        Log.i(TAG, "keepalive: started (interval=${SAY_HI_INTERVAL_MS}ms)")
+    }
+
+    private fun stopLiveKeepalive() {
+        liveKeepaliveJob?.let {
+            it.cancel()
+            Log.i(TAG, "keepalive: stopped")
+        }
+        liveKeepaliveJob = null
     }
 }

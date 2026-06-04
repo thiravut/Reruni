@@ -131,5 +131,6 @@ class ScriptStore(private val context: Context) {
         const val PERSONAL_LIVE = "personal_live"
         const val SHOPPABLE_VCAM = "shoppable_vcam"
         const val END_LIVE = "end_live"
+        const val SAY_HI = "say_hi"
     }
 }

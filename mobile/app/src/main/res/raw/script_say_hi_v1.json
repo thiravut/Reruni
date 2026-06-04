@@ -1,0 +1,15 @@
+{
+  "name": "say_hi",
+  "version": 1,
+  "min_tiktok_version": "45.0.0",
+  "description": "Periodic host-interactivity tap. Driven by Autopilot's during-live keepalive loop — fires every ~20s while a Live is active. Single best-effort tap on TikTok's 'Say hi' greet button (only visible when a viewer just joined); on miss, no-op so the loop keeps idling.",
+  "steps": [
+    {"op": "step", "label": "ทักทายผู้ชม (Say hi)"},
+    {"op": "tap_by_text",
+     "labels": ["Say hi", "Say Hi", "SAY HI", "ทักทาย", "พูดสวัสดี", "สวัสดี"],
+     "retries": 2,
+     "allow_content_desc": true,
+     "ignore_failure": true,
+     "warn_on_fail": "say-hi button not visible this tick — skipping"}
+  ]
+}

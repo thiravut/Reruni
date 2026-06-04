@@ -105,6 +105,7 @@ class MainActivity : AppCompatActivity() {
             store.refresh(ScriptStore.PERSONAL_LIVE)
             store.refresh(ScriptStore.SHOPPABLE_VCAM)
             store.refresh(ScriptStore.END_LIVE)
+            store.refresh(ScriptStore.SAY_HI)
         }
     }
 
