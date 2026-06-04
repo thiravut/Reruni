@@ -69,15 +69,122 @@ object Mp4AudioProducer {
 
     /** Called from AudioRecord's constructor hook. Reconfigures the decode
      *  loop if the requested format changed. No-op when called with the
-     *  current values. */
+     *  current values.
+     *
+     *  Override: when the native hook is in play, the broadcast path uses
+     *  its own native AudioRecord (different instance from the one the Java
+     *  ctor created) at 48 kHz stereo PCM16. The Java ctor we see reports
+     *  44.1 kHz, but that AudioRecord isn't the one feeding TikTok LIVE.
+     *  Resampling to 44.1 kHz and pushing into the native ring produces
+     *  pitch/speed-shifted audio on the viewer side. Force 48 kHz / 2 ch
+     *  whenever native is available so producer output matches what the
+     *  obtainBuffer hook hands back to TikTok. */
     fun configureTarget(sampleRate: Int, channelCount: Int) {
         if (sampleRate <= 0 || channelCount <= 0) return
-        val changed = sampleRate != targetSampleRate || channelCount != targetChannelCount
-        targetSampleRate = sampleRate
-        targetChannelCount = channelCount
+        // Native broadcast AudioRecord = 48 kHz stereo PCM16 (confirmed via
+        // AR_DUMP scan of the AudioRecord object's mSampleRate field at
+        // offset +0x140). Both 48 kHz and 44.1 kHz produced "blown-speaker"
+        // artifacts on the viewer side at full-scale amplitude — likely
+        // TikTok's WebRTC AGC overshooting on music transients. Output
+        // amplitude is scaled below in pushDecodedChunk to keep peaks
+        // within the AGC's expected voice range.
+        val effectiveRate = if (NativeAudioHook.available) 48000 else sampleRate
+        val effectiveCh   = if (NativeAudioHook.available) 2     else channelCount
+        val changed = effectiveRate != targetSampleRate || effectiveCh != targetChannelCount
+        targetSampleRate = effectiveRate
+        targetChannelCount = effectiveCh
         hasTarget = true
-        log("AudioRecord target: ${sampleRate} Hz x $channelCount ch (changed=$changed)")
+        log("AudioRecord target: requested=${sampleRate}Hz/$channelCount → using $effectiveRate Hz x $effectiveCh ch (changed=$changed, nativePath=${NativeAudioHook.available})")
         if (changed) restart()
+    }
+
+    /**
+     * Output amplitude scale applied to MP4 PCM before it lands in the
+     * broadcast ring. Initially used to dodge an assumed AGC overshoot;
+     * later diagnostics showed even near-silence sine bursts distorted,
+     * pointing at the HAL DSP chain (AGC/ANS/AEC enabled by TikTok's
+     * VOICE_COMMUNICATION audio source) rather than level. Restored to
+     * 1.0 now that the AudioRecord ctor PLT hook forces the source to
+     * UNPROCESSED, bypassing that chain entirely.
+     */
+    private const val OUTPUT_AMP_SCALE = 1.0f
+
+    // ----------------------------------------------------------------------
+    // Voice-like pre-processing — Phase 3j workaround.
+    //
+    // TikTok's broadcast pipeline runs a WebRTC voice-processing chain
+    // (AGC + NS + voice band-pass + mono downmix) *after* AudioRecord at
+    // the app level, so HAL-side knobs (audio_source) can't disable it.
+    // The chain destroys music: AGC pumps wildly on dynamic transients,
+    // NS detects "non-voice harmonics" and aggressively attenuates,
+    // band-pass strips high-frequency content. Result: "blown speaker"
+    // on the viewer side regardless of what we substitute.
+    //
+    // Workaround: make MP4 audio *look like voice* before it enters the
+    // pipeline. Two simple DSP stages, applied per sample in the resample
+    // loop so we don't add a separate pass:
+    //   1. Single-pole HPF at ~80 Hz to strip rumble that confuses NS.
+    //   2. Soft peak limiter + AGC: maintain near-constant amplitude
+    //      around -10 dBFS so TikTok's AGC sits idle instead of chasing
+    //      transients.
+    //
+    // Mono downmix is unavoidable (handled by their voice encoder); the
+    // viewer hears the mono content duplicated to L=R. We feed identical
+    // L/R from a pre-summed mono mix so we don't lose intelligibility to
+    // mid-side cancellation in the downmix.
+    // ----------------------------------------------------------------------
+
+    // HPF state per channel — 1-pole. y[n] = α * (y[n-1] + x[n] - x[n-1]).
+    // α = exp(-2π·fc/fs) → 0.989 at fc=80Hz / fs=48000.
+    private const val HPF_ALPHA = 0.989
+    @Volatile private var hpfPrevInL = 0.0
+    @Volatile private var hpfPrevOutL = 0.0
+    @Volatile private var hpfPrevInR = 0.0
+    @Volatile private var hpfPrevOutR = 0.0
+
+    // Peak limiter / soft AGC: keep envelope near LIMITER_TARGET.
+    // Attack fast (~5 ms), release slow (~300 ms) so envelope doesn't
+    // chase short peaks — exactly the behaviour TikTok's AGC is missing.
+    private const val LIMITER_TARGET = 8000.0       // ~ -12 dBFS
+    private const val LIMITER_ATTACK = 0.05         // 1 - exp(-1/(0.005*48000))
+    private const val LIMITER_RELEASE = 0.0001
+    private const val LIMITER_MAX_GAIN = 3.0        // +9 dB makeup ceiling
+    @Volatile private var limiterEnvelope = LIMITER_TARGET
+
+    private fun voiceShape(sampleL: Int, sampleR: Int): IntArray {
+        // 1. Downmix to mono first — TikTok will do this anyway; doing it
+        //    here keeps the limiter envelope unified across channels and
+        //    avoids stereo width that gets cancelled in their mid-side.
+        val mono = (sampleL + sampleR) / 2
+
+        // 2. HPF (operating on the mono signal to halve the work).
+        val xn = mono.toDouble()
+        val yn = HPF_ALPHA * (hpfPrevOutL + xn - hpfPrevInL)
+        hpfPrevInL = xn
+        hpfPrevOutL = yn
+
+        // 3. Limiter / soft AGC. Envelope tracks peak; gain = target/env
+        //    clamped to MAX_GAIN. Fast attack ensures peaks never poke
+        //    above target; slow release keeps gain stable through quiet
+        //    sections so the AGC downstream doesn't have to do anything.
+        val absY = kotlin.math.abs(yn)
+        limiterEnvelope =
+            if (absY > limiterEnvelope) {
+                limiterEnvelope + (absY - limiterEnvelope) * LIMITER_ATTACK
+            } else {
+                limiterEnvelope + (absY - limiterEnvelope) * LIMITER_RELEASE
+            }
+        val gain = if (limiterEnvelope > 1.0) {
+            (LIMITER_TARGET / limiterEnvelope).coerceAtMost(LIMITER_MAX_GAIN)
+        } else {
+            LIMITER_MAX_GAIN
+        }
+
+        val out = (yn * gain).toInt()
+            .coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
+
+        // 4. Duplicate to both channels — voice downstream is mono anyway.
+        return intArrayOf(out, out)
     }
 
     fun start() {
@@ -309,11 +416,15 @@ object Mp4AudioProducer {
             // Read interpolated source frame as up-to-2 channels.
             val srcCh0L = srcShorts[s0 * srcChannelCount].toInt()
             val srcCh0R = srcShorts[s1 * srcChannelCount].toInt()
-            val left = (srcCh0L + (srcCh0R - srcCh0L) * frac).toInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
+            val leftRaw = (srcCh0L + (srcCh0R - srcCh0L) * frac)
+            val left = (leftRaw * OUTPUT_AMP_SCALE).toInt()
+                .coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
             val right = if (srcChannelCount >= 2) {
                 val srcCh1L = srcShorts[s0 * srcChannelCount + 1].toInt()
                 val srcCh1R = srcShorts[s1 * srcChannelCount + 1].toInt()
-                (srcCh1L + (srcCh1R - srcCh1L) * frac).toInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
+                val rightRaw = (srcCh1L + (srcCh1R - srcCh1L) * frac)
+                (rightRaw * OUTPUT_AMP_SCALE).toInt()
+                    .coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
             } else {
                 left
             }
@@ -350,6 +461,28 @@ object Mp4AudioProducer {
 
     private fun appendToRing(buf: ByteArray, length: Int) {
         if (length <= 0) return
+        // Native ring feeds the C++ AudioRecord::obtainBuffer hook (the
+        // path TikTok LIVE actually pulls PCM from). Java ring below still
+        // serves Java-side AudioRecord.read hooks for non-broadcast surfaces.
+        //
+        // Backpressure: MediaCodec decodes much faster than realtime, so
+        // without pacing here the producer floods the 256 KB native ring
+        // ~10× faster than TikTok drains it. The ring's drop-oldest
+        // overflow handler then chops the audio into a stuttering mess.
+        // Sleep until the ring has room for another chunk so decode rate
+        // tracks the broadcast's pull rate.
+        //
+        // Target headroom: keep <= 32 KB queued ≈ 170 ms of 48 kHz stereo.
+        // Anything larger adds A/V latency the operator can hear lagging
+        // behind the video; anything smaller risks underflow → silence
+        // padding bleeding into the audio.
+        if (NativeAudioHook.available) {
+            val headroom = 32 * 1024
+            while (running.get() && NativeAudioHook.ringAvailable() > headroom) {
+                try { Thread.sleep(10) } catch (_: InterruptedException) { return }
+            }
+            NativeAudioHook.writePcm(buf, length)
+        }
         synchronized(lock) {
             var written = 0
             while (written < length) {

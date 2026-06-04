@@ -45,6 +45,21 @@ class HookEntry : IXposedHookLoadPackage {
             Log.e(TAG, "Camera2Hook.install failed", t)
         }
 
+        // Audio injection is shipped in V1 with known distortion ("blown
+        // speaker" artefact from TikTok's voice-tuned downstream pipeline
+        // mangling our PCM). Pond's call: an audible MP4 soundtrack that's
+        // a bit broken still beats no soundtrack at all.
+        //
+        // We deliberately do NOT install TtRtcEncoderHook here: the encoder
+        // config rewrite (AACHEv1 → AAC-LC + bitrate bump) made the
+        // distortion slightly better but shifted the encoder's frame
+        // pacing, which produced audible A/V drift that grew with LIVE
+        // duration. Drift was Pond's hard blocker for V1; distortion is
+        // not. So we let TikTok keep its default encoder config and accept
+        // the worse-sounding-but-sync'd audio.
+        //
+        // See docs/vcam-findings/phase3-audio-injection-deferred.md for the
+        // full V2 roadmap (Pixel hardware test + inline hooking).
         try {
             AudioRecordHook.install(lpparam)
         } catch (t: Throwable) {
@@ -52,15 +67,13 @@ class HookEntry : IXposedHookLoadPackage {
             Log.e(TAG, "AudioRecordHook.install failed", t)
         }
 
-        // Phase 1 native audio hook — PLT-redirects OpenSL ES symbols in
-        // TikTok's VolcEngine RTC libs so we can reach the broadcast audio
-        // path that Java AudioRecord hooks can't see. Log-only this revision;
-        // buffer substitution comes in Phase 2.
         try {
             NativeAudioHook.install()
         } catch (t: Throwable) {
             XposedBridge.log("[$TAG] NativeAudioHook.install failed: ${t.message}")
             Log.e(TAG, "NativeAudioHook.install failed", t)
         }
+
+        // TtRtcEncoderHook intentionally NOT installed — see comment above.
     }
 }

@@ -38,6 +38,19 @@ class VcamStageReceiver : BroadcastReceiver() {
             VcamContentProvider.stage(context, source)
         } catch (t: Throwable) {
             Log.e(TAG, "stage failed", t)
+            return
+        }
+        // Acoustic loopback: speaker plays the staged MP4's audio so TikTok's
+        // mic picks it up naturally — bypasses the broken native injection
+        // path entirely. Operator must wear earphones to avoid feedback.
+        // Disable by passing --ez loopback false from the staging broadcast.
+        val enableLoopback = intent.getBooleanExtra("loopback", true)
+        if (enableLoopback) {
+            try {
+                AudioLoopbackPlayer.start(context, VcamContentProvider.activeFile(context))
+            } catch (t: Throwable) {
+                Log.e(TAG, "loopback start failed", t)
+            }
         }
     }
 

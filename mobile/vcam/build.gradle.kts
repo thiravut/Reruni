@@ -26,7 +26,13 @@ android {
         // so we can intercept LIVE-broadcast audio capture — which goes
         // through native code that Java AudioRecord hooks can't reach.
         ndk {
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+            // arm64 only — the AudioRecord ctor PLT hook uses a naked arm64
+            // trampoline (forces audio_source_t to UNPROCESSED via x1
+            // rewrite + tail-call), and the arm32 equivalent would need a
+            // PIC-safe literal pool that's not worth the build complexity
+            // for devices we don't target. All real test devices (Samsung
+            // A1x, Pixel 6a) are arm64.
+            abiFilters += "arm64-v8a"
         }
         externalNativeBuild {
             cmake {

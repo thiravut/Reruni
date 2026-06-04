@@ -57,11 +57,36 @@ object NativeAudioHook {
         }
     }
 
+    /** Push a chunk of PCM (16-bit LE, target rate/channels) into the native
+     *  ring buffer that AudioRecord::obtainBuffer drains from on the audio
+     *  thread. Called by [Mp4AudioProducer] per decoded chunk. No-op until
+     *  the native lib is loaded — Java-side Mp4AudioProducer continues to
+     *  function for the legacy Java AudioRecord.read path. */
+    fun writePcm(data: ByteArray, length: Int) {
+        if (!available) return
+        try {
+            writePcm0(data, length)
+        } catch (t: Throwable) {
+            // Don't kill the producer on a transient native failure.
+        }
+    }
+
+    /** Bytes currently sitting in the native ring. Lets the decode loop
+     *  pace itself so it doesn't run too far ahead of the broadcast. */
+    fun ringAvailable(): Int =
+        if (available) try { ringAvailable0() } catch (_: Throwable) { 0 } else 0
+
     @JvmStatic
     private external fun install0(): Boolean
 
     @JvmStatic
     private external fun refresh0()
+
+    @JvmStatic
+    private external fun writePcm0(data: ByteArray, length: Int)
+
+    @JvmStatic
+    private external fun ringAvailable0(): Int
 
     private fun log(msg: String) {
         XposedBridge.log("[$TAG] NativeAudioHook: $msg")

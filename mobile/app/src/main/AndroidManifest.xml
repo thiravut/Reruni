@@ -86,6 +86,14 @@
             </intent-filter>
         </receiver>
 
+        <receiver
+            android:name=".AudioLoopbackReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.rerun.tiktokrerun.AUDIO_LOOPBACK" />
+            </intent-filter>
+        </receiver>
+
         <service
             android:name=".ConnectionService"
             android:exported="false"
