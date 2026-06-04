@@ -1265,21 +1265,68 @@ object Autopilot {
         if (!isCaptchaShowing()) return true
         captchaShowing.value = true
         val savedStep = lastStep.value
-        setStep("⚠ TikTok ขึ้น captcha — กำลังรอ solve")
+        setStep("⚠ TikTok ขึ้น captcha — กำลังลอง auto-solve")
         Log.w(TAG, "captcha detected — pausing autopilot (was on step: '$savedStep')")
         // One-shot dump to logcat so we can refine markers later.
         TikTokAutopilotService.instance?.activeRoot()?.let { root ->
             dumpVisibleNodesToLog(root, CAPTCHA_MARKERS)
         }
+        CaptchaSolver.resetSession()
+        // Loop: try solver every few polls. Each successful swipe takes ~1.2s
+        // (gesture + animation settle), and TikTok needs ~1s after swipe to
+        // either dismiss or show "try again". So we poll fast (300ms) but
+        // throttle solver attempts (every ~2.5s) to avoid stacking gestures.
         val deadline = System.currentTimeMillis() + timeoutMs
+        var lastSolveAt = 0L
+        val solveCooldownMs = 2500L
+        var sampleSavedThisSession = false
         while (System.currentTimeMillis() < deadline) {
-            delay(800)
+            delay(300)
             if (!isCaptchaShowing()) {
                 captchaShowing.value = false
                 Log.i(TAG, "captcha cleared — resuming '$savedStep'")
                 setStep(savedStep)
                 // Brief settle before the next tap so the post-captcha UI
                 // has time to render whatever TikTok was about to show.
+                delay(1000)
+                return true
+            }
+            val now = System.currentTimeMillis()
+            if (now - lastSolveAt < solveCooldownMs) continue
+            lastSolveAt = now
+            val svc = TikTokAutopilotService.instance ?: continue
+            val saver: ((android.graphics.Bitmap) -> Unit)? = if (!sampleSavedThisSession) {
+                sampleSavedThisSession = true
+                ({ bm -> CaptchaSampleCollector.save(svc, bm, tag = "captcha") })
+            } else null
+            val result = CaptchaSolver.trySolve(svc, onCollectedSample = saver)
+            Log.i(TAG, "captcha solver: $result")
+            when (result) {
+                is CaptchaSolver.SolveResult.SwipeDispatched -> {
+                    setStep("⚠ Captcha — swiped, รอผล")
+                }
+                is CaptchaSolver.SolveResult.Stuck -> {
+                    setStep("⚠ Captcha — solver stuck, รอ operator")
+                }
+                is CaptchaSolver.SolveResult.Unsupported,
+                is CaptchaSolver.SolveResult.LoadFailed -> {
+                    setStep("⚠ TikTok ขึ้น captcha — solve ที่หน้าจอ")
+                    // No retries help — bail out of solver attempts but keep
+                    // polling for manual resolution.
+                    break
+                }
+                else -> { /* keep trying */ }
+            }
+        }
+        // Solver gave up or got stuck — switch to passive wait for the
+        // remainder of the budget so the operator can solve manually.
+        setStep("⚠ TikTok ขึ้น captcha — รอ solve")
+        while (System.currentTimeMillis() < deadline) {
+            delay(800)
+            if (!isCaptchaShowing()) {
+                captchaShowing.value = false
+                Log.i(TAG, "captcha cleared (manual) — resuming '$savedStep'")
+                setStep(savedStep)
                 delay(1000)
                 return true
             }

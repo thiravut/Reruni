@@ -32,6 +32,11 @@ android {
         viewBinding = true
         buildConfig = true
     }
+
+    // Don't compress the TFLite model — Interpreter mmaps it from the APK.
+    androidResources {
+        noCompress += "tflite"
+    }
 }
 
 kotlin {
@@ -61,4 +66,7 @@ dependencies {
 
     // QR code scanning (pair token via camera)
     implementation("com.journeyapps:zxing-android-embedded:4.3.0")
+
+    // TFLite — CAPTCHA solver (YOLOv5 jigsaw/arrow detector)
+    implementation("org.tensorflow:tensorflow-lite:2.16.1")
 }
