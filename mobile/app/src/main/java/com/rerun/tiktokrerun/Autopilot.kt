@@ -6,9 +6,11 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Path
 import android.graphics.Rect
+import android.media.MediaMetadataRetriever
 import android.os.Build
 import android.util.Log
 import android.view.accessibility.AccessibilityNodeInfo
+import java.io.File
 import com.rerun.tiktokrerun.script.ScriptContext
 import com.rerun.tiktokrerun.script.ScriptRunner
 import com.rerun.tiktokrerun.script.ScriptStore
@@ -73,6 +75,23 @@ object Autopilot {
     private var liveKeepaliveJob: Job? = null
     private const val SAY_HI_INTERVAL_MS = 20_000L
 
+    /**
+     * Time-based auto-end-live timer — fires [endLive] after the
+     * staged playback file's duration × [playbackLoopCount] elapses,
+     * plus [AUTO_END_GRACE_MS] safety margin. Mode-agnostic: works for
+     * Overlay (V1), PlayerActivity, and VCam (V3) paths because none
+     * of them surface a "loops completed" callback today.
+     *
+     * Cancelled by [cancelAutoEndLive] in cancel/fail/endLive plus a
+     * defensive stop at the top of [start].
+     */
+    private var autoEndLiveJob: Job? = null
+    private var playbackFile: File? = null
+    private var playbackLoopCount: Int = 0
+    /** Grace period added on top of (duration × loops) to absorb decode
+     *  jitter / Live setup time before we fire the End Live tap. */
+    private const val AUTO_END_GRACE_MS = 5_000L
+
     /** Intent that Autopilot launches after the broadcast is set up. Cleared after consumption. */
     private var followupIntent: Intent? = null
 
@@ -90,9 +109,6 @@ object Autopilot {
      * (verification gate G3).
      */
     private var overlayVideoUri: android.net.Uri? = null
-
-    /** Loop budget passed to OverlayService (V1 path) — 0 = play forever. */
-    private var overlayLoopCount: Int = 0
 
     // ── Server-driven status reporting ─────────────────────────────────────
     // Set by [start] when a PlayCommand kicks the autopilot. Carried through
@@ -179,7 +195,13 @@ object Autopilot {
         productKeywords: List<String> = emptyList(),
         liveTitle: String = "",
         overlayVideoUri: android.net.Uri? = null,
-        overlayLoopCount: Int = 0,
+        /** Local file backing this playback (any mode) — used by the
+         *  auto-end-live timer to read duration via MediaMetadataRetriever
+         *  and schedule [endLive] after duration × [playbackLoopCount]. */
+        playbackFile: File? = null,
+        /** Number of times to play the file before auto-ending the live.
+         *  0 / -1 = loop forever (legacy behaviour). */
+        playbackLoopCount: Int = 0,
         /** Server-side live_sessions row id; 0 for a local / test run. */
         liveSessionId: Long = 0L,
         /** Server-side device_commands row id; "" for a local / test run. */
@@ -208,12 +230,14 @@ object Autopilot {
         // Overlay mode supersedes foreground-switch followup intent.
         this.followupIntent = if (overlayVideoUri != null) null else followup
         this.overlayVideoUri = overlayVideoUri
-        this.overlayLoopCount = overlayLoopCount
+        this.playbackFile = playbackFile
+        this.playbackLoopCount = playbackLoopCount
         keywordsOverride = productKeywords.takeIf { it.isNotEmpty() }
         liveTitleOverride = liveTitle
         activeMode.value = mode
         job?.cancel()
         stopLiveKeepalive()
+        cancelAutoEndLive()
         job = scope.launch {
             when (mode) {
                 AutopilotMode.Personal      -> runFlow(context, launchIntent)
@@ -226,6 +250,7 @@ object Autopilot {
     fun cancel() {
         job?.cancel()
         stopLiveKeepalive()
+        cancelAutoEndLive()
         followupIntent = null
         state.value = AutopilotState.Idle
         lastStep.value = ""
@@ -248,12 +273,17 @@ object Autopilot {
         /** device_commands row id from the server's stop_live envelope.
          *  Ack'd via WsClient when the script terminates. */
         commandId: String = "",
+        /** Reason echoed back in the `live_ended` WS envelope (api-contract
+         *  §3.4). Canonical values: `loop_completed`, `playback_error`,
+         *  `device_stopped`. */
+        reason: String = "device_stopped",
     ) {
         // Stash session context before any fail() call so the portal sees
         // pre-execution failures (e.g. accessibility off) attached to the
         // right command_id, just like start() does.
         currentLiveSessionId = liveSessionId
         currentCommandId = commandId
+        currentEndReason = reason
         currentScript = ""
         currentStepIndex = 0
         if (!TikTokAutopilotService.isEnabled(context)) {
@@ -271,8 +301,13 @@ object Autopilot {
         }
         job?.cancel()
         stopLiveKeepalive()
+        cancelAutoEndLive()
         job = scope.launch { runEndLiveFlow(context, launchIntent) }
     }
+
+    /** Reason carried into [runEndLiveFlow] via [endLive] and echoed back
+     *  in the `live_ended` envelope. Reset to default after each run. */
+    private var currentEndReason: String = "device_stopped"
 
     private suspend fun runEndLiveFlow(context: Context, launchIntent: Intent) {
         state.value = AutopilotState.Running
@@ -281,6 +316,7 @@ object Autopilot {
         // we can read it back to build the live_ended + ack envelopes.
         val savedLiveSessionId = currentLiveSessionId
         val savedCommandId = currentCommandId
+        val savedReason = currentEndReason
 
         val script = try {
             ScriptStore(context).getScript(
@@ -299,7 +335,7 @@ object Autopilot {
             is ScriptRunner.Result.Success -> {
                 markDone()
                 if (savedLiveSessionId != 0L) {
-                    WsClient.sendLiveEnded(savedLiveSessionId, "device_stopped")
+                    WsClient.sendLiveEnded(savedLiveSessionId, savedReason)
                 }
                 if (savedCommandId.isNotEmpty()) {
                     WsClient.sendAck(savedCommandId, success = true)
@@ -351,6 +387,7 @@ object Autopilot {
         when (val result = runner.execute(script)) {
             is ScriptRunner.Result.Success -> {
                 startLiveKeepalive(context)
+                scheduleAutoEndLive(context)
                 markDone()
             }
             is ScriptRunner.Result.Failed -> return fail(result.message)
@@ -506,7 +543,6 @@ object Autopilot {
     private fun deliverBroadcastContent(context: Context) {
         val uri = overlayVideoUri
         overlayVideoUri = null
-        overlayLoopCount = 0
         if (uri != null) {
             setStep("เปิด Smart Overlay…")
             OverlayService.startVideo(context, uri)
@@ -975,6 +1011,7 @@ object Autopilot {
 
         setStep("✓ Shoppable Live พร้อม")
         startLiveKeepalive(context)
+        scheduleAutoEndLive(context)
         markDone()
     }
 
@@ -1699,6 +1736,7 @@ object Autopilot {
         lastStep.value = "✗ $reason"
         activeMode.value = null
         stopLiveKeepalive()
+        cancelAutoEndLive()
         emitAutopilotStatus(
             stateLabel = "failed",
             errorUser = friendlyUserError(attemptedStep, reason),
@@ -1807,5 +1845,67 @@ object Autopilot {
             Log.i(TAG, "keepalive: stopped")
         }
         liveKeepaliveJob = null
+    }
+
+    /**
+     * Arm the time-based auto-end-live timer for the current run.
+     *
+     * Reads the staged [playbackFile]'s duration via [MediaMetadataRetriever],
+     * computes `duration × playbackLoopCount + AUTO_END_GRACE_MS`, and
+     * schedules a one-shot [endLive] call with reason `"loop_completed"`.
+     *
+     * Mode-agnostic — works for Overlay (V1), PlayerActivity, and VCam (V3)
+     * because none of those decoders surface a "loops completed" callback
+     * today; the timer is the single enforcement point.
+     *
+     * No-op when [playbackLoopCount] <= 0 (legacy "loop forever" behaviour)
+     * or when the duration can't be read. Session id is captured at schedule
+     * time so the `live_ended` envelope still echoes the correct id even
+     * after `markDone()` cleared the live state.
+     */
+    private fun scheduleAutoEndLive(context: Context) {
+        cancelAutoEndLive()
+        val file = playbackFile ?: return
+        val loops = playbackLoopCount
+        if (loops <= 0) return
+        val durationMs = try {
+            val r = MediaMetadataRetriever()
+            try {
+                r.setDataSource(file.absolutePath)
+                r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
+            } finally {
+                r.release()
+            }
+        } catch (t: Throwable) {
+            Log.w(TAG, "auto-end-live: read duration failed for ${file.name}", t)
+            null
+        }
+        if (durationMs == null || durationMs <= 0L) {
+            Log.w(TAG, "auto-end-live: unknown duration — skipping schedule")
+            return
+        }
+        val totalMs = durationMs * loops + AUTO_END_GRACE_MS
+        val capturedSessionId = currentLiveSessionId
+        autoEndLiveJob = scope.launch {
+            delay(totalMs)
+            Log.i(TAG, "auto-end-live: firing endLive (loops=$loops, total=${totalMs}ms)")
+            endLive(
+                context = context,
+                liveSessionId = capturedSessionId,
+                commandId = "",
+                reason = "loop_completed",
+            )
+        }
+        Log.i(TAG, "auto-end-live: scheduled in ${totalMs}ms " +
+            "(duration=${durationMs}ms × loops=$loops + grace=${AUTO_END_GRACE_MS}ms, " +
+            "session=$capturedSessionId)")
+    }
+
+    private fun cancelAutoEndLive() {
+        autoEndLiveJob?.let {
+            it.cancel()
+            Log.i(TAG, "auto-end-live: cancelled")
+        }
+        autoEndLiveJob = null
     }
 }
