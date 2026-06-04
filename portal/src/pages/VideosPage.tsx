@@ -12,6 +12,7 @@ import { useToast } from '../contexts/ToastContext';
 import { deleteVideo, listVideos, renameVideo, uploadVideo } from '../api/videos';
 import { Modal } from '../components/Modal';
 import { TextField } from '../components/Field';
+import { VideoThumbnail } from '../components/VideoThumbnail';
 import type { Video } from '../types/api';
 import { formatBytes, formatDateTime, formatDuration } from '../utils/format';
 import { validateVideoFile } from '../utils/validation';
@@ -30,6 +31,7 @@ export function VideosPage() {
   const [renameValue, setRenameValue] = useState('');
   const [renameErr, setRenameErr] = useState<string | null>(null);
   const [renameLoading, setRenameLoading] = useState(false);
+  const [playTarget, setPlayTarget] = useState<Video | null>(null);
 
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -182,6 +184,7 @@ export function VideosPage() {
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-slate-600 text-left">
                 <tr>
+                  <Th className="w-24">ตัวอย่าง</Th>
                   <Th>ชื่อวิดีโอ</Th>
                   <Th>ความยาว</Th>
                   <Th>ขนาด</Th>
@@ -192,6 +195,26 @@ export function VideosPage() {
               <tbody>
                 {videos.map((v) => (
                   <tr key={v.id} className="border-t border-slate-100">
+                    <Td>
+                      {v.url ? (
+                        <button
+                          type="button"
+                          onClick={() => setPlayTarget(v)}
+                          className="group relative block w-20 h-12 rounded overflow-hidden focus:outline-none focus:ring-2 focus:ring-brand-500"
+                          aria-label={`เล่นวิดีโอ ${v.name || v.filename}`}
+                        >
+                          <VideoThumbnail
+                            src={`${import.meta.env.VITE_API_BASE_URL ?? ''}${v.url}`}
+                            className="w-full h-full"
+                          />
+                          <span className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/50 transition-colors">
+                            <span className="text-white text-base leading-none">▶</span>
+                          </span>
+                        </button>
+                      ) : (
+                        <div className="w-20 h-12 rounded bg-slate-100" />
+                      )}
+                    </Td>
                     <Td>
                       <div className="font-medium text-slate-800 truncate max-w-xs">
                         {v.name || v.filename}
@@ -240,6 +263,23 @@ export function VideosPage() {
           </div>
         </Card>
       )}
+
+      <Modal
+        open={!!playTarget}
+        title={playTarget?.name || playTarget?.filename}
+        size="lg"
+        onClose={() => setPlayTarget(null)}
+      >
+        {playTarget?.url && (
+          <video
+            src={`${import.meta.env.VITE_API_BASE_URL ?? ''}${playTarget.url}`}
+            controls
+            autoPlay
+            playsInline
+            className="w-full max-h-[70vh] bg-black rounded"
+          />
+        )}
+      </Modal>
 
       <Confirm
         open={!!deleteTarget}
