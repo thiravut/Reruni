@@ -59,12 +59,12 @@ export function SignupPage() {
       <div className="w-full max-w-sm">
         <div className="mb-6 text-center">
           <div className="inline-flex w-12 h-12 rounded-lg bg-brand-600 text-white items-center justify-center font-bold text-xl">
-            T
+            R
           </div>
           <h1 className="mt-3 text-2xl font-semibold text-slate-800">
             สมัครใช้งาน
           </h1>
-          <p className="mt-1 text-sm text-slate-500">เริ่มใช้ TiktokRerun ฟรี</p>
+          <p className="mt-1 text-sm text-slate-500">เริ่มใช้ Reruni ฟรี</p>
         </div>
 
         <form

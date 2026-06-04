@@ -41,9 +41,9 @@ export function AppLayout() {
         </button>
         <div className="flex items-center gap-2">
           <span className="w-7 h-7 rounded bg-brand-600 text-white flex items-center justify-center font-bold text-sm">
-            T
+            R
           </span>
-          <span className="font-semibold text-slate-800">TiktokRerun</span>
+          <span className="font-semibold text-slate-800">Reruni</span>
         </div>
         <div className="ml-auto flex items-center gap-3 text-sm">
           <span

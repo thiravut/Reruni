@@ -26,7 +26,7 @@ export function Layout() {
     <div className="flex h-full min-h-screen bg-slate-50">
       <aside className="flex w-56 shrink-0 flex-col border-r border-slate-200 bg-white">
         <div className="border-b border-slate-200 px-4 py-4">
-          <div className="text-sm font-semibold text-slate-900">TiktokRerun</div>
+          <div className="text-sm font-semibold text-slate-900">Reruni</div>
           <div className="text-xs text-slate-500">Backoffice</div>
         </div>
         <nav className="flex-1 px-2 py-2">

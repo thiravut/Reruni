@@ -69,7 +69,7 @@ export function AdminLogin() {
       >
         <div className="mb-4">
           <h1 className="text-lg font-semibold text-slate-900">
-            TiktokRerun Backoffice
+            Reruni Backoffice
           </h1>
           <p className="text-sm text-slate-500">
             เข้าใช้งานสำหรับทีมแอดมินเท่านั้น
