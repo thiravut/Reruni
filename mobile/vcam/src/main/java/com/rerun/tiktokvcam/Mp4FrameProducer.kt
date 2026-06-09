@@ -39,6 +39,25 @@ object Mp4FrameProducer {
     private var currentTargetSurfaces: List<Surface> = emptyList()
 
     /**
+     * Set externally (by [NativeAudioHook.onFirstEncoderFire]) when audio
+     * substitution is about to begin. The decode loop checks this every
+     * extractor.advance() call — when true, aborts the current MP4 pass
+     * and re-runs from MP4 video time 0 so video and audio both start
+     * their LIVE-visible playback at MP4 t=0 simultaneously.
+     */
+    @Volatile private var restartRequested: Boolean = false
+
+    /** Called from [NativeAudioHook.onFirstEncoderFire]. Wakes the decode
+     *  loop so it aborts its current pass and starts a fresh one at
+     *  MP4 video frame 0 — pairs with the WS "reset" message sent to the
+     *  AAC streamer so audio and video both align to MP4 t=0 at the
+     *  moment the broadcast actually begins. */
+    fun requestRestart() {
+        restartRequested = true
+        log("restart requested — will rewind to MP4 frame 0")
+    }
+
+    /**
      * Deferred-stop handle for the audio producer. Camera close fires
      * even on flip (rear↔selfie) and brief session reconfigures, so we
      * don't stop audio immediately on close — instead we schedule a
@@ -127,6 +146,15 @@ object Mp4FrameProducer {
 
         while (running.get() && !Thread.interrupted()) {
             val ok = runOnePass(targetSurface)
+            if (restartRequested) {
+                // First-encoder-fire restart — audio just told us the
+                // broadcast is starting, so loop straight back into a
+                // fresh MP4 pass without the 2 s retry sleep that would
+                // otherwise apply on a pass that "failed" mid-frames.
+                restartRequested = false
+                log("restart consumed — re-entering runOnePass from MP4 frame 0")
+                continue
+            }
             if (ok) {
                 // Video reached EOS — tell audio to rewind so its next pass
                 // starts from t=0 at the same wall-clock boundary as video's
@@ -199,7 +227,7 @@ object Mp4FrameProducer {
             var sawOutputEOS = false
             val startNanos = System.nanoTime()
 
-            while (!sawOutputEOS && running.get() && !Thread.interrupted()) {
+            while (!sawOutputEOS && running.get() && !Thread.interrupted() && !restartRequested) {
                 if (!sawInputEOS) {
                     val inIdx = decoder.dequeueInputBuffer(TIMEOUT_US)
                     if (inIdx >= 0) {

@@ -148,5 +148,17 @@ class HookEntry : IXposedHookLoadPackage {
             XposedBridge.log("[$TAG] VcamKillSwitch.install failed: ${t.message}")
             Log.e(TAG, "VcamKillSwitch.install failed", t)
         }
+
+        // Cross-process endpoint setter — Reruni broadcasts the per-session
+        // AAC WS URL via this receiver because Android 11+ scoped storage
+        // blocks Reruni from writing TikTok's app-specific external file
+        // directly. The receiver runs inside TikTok's UID so the same write
+        // succeeds. See [VcamEndpointReceiver] for the rationale.
+        try {
+            VcamEndpointReceiver.install(lpparam)
+        } catch (t: Throwable) {
+            XposedBridge.log("[$TAG] VcamEndpointReceiver.install failed: ${t.message}")
+            Log.e(TAG, "VcamEndpointReceiver.install failed", t)
+        }
     }
 }

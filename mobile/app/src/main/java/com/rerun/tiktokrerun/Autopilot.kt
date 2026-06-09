@@ -274,12 +274,20 @@ object Autopilot {
         stopLiveKeepalive()
         cancelAutoEndLive()
         job = scope.launch {
-            // Write the AAC streamer endpoint BEFORE killing TikTok so the
-            // patched module's first read of vcam_ws_endpoint.txt on
-            // re-launch picks up the new URL. Each LIVE session may target
-            // a different encoder backend.
+            // Push the AAC streamer endpoint into TikTok's process BEFORE
+            // killing it, so the kill switch fires AFTER the receiver has
+            // already written the new URL to vcam's override file. The
+            // next launchIntent spawns a fresh process that reads the
+            // updated file on Mp4GWsClient.start.
+            //
+            // Cross-app file write is blocked by scoped storage (we tried
+            // and got ENOENT), so we go via broadcast → receiver inside
+            // TikTok's UID writes the file itself. See VcamEndpointReceiver.
             if (aacWsUrl.isNotEmpty()) {
-                writeVcamAacEndpoint(aacWsUrl)
+                broadcastVcamEndpoint(context, aacWsUrl)
+                // 200 ms gives the synchronous file write in the receiver
+                // plenty of time to flush before the kill broadcast fires.
+                delay(200)
             }
             // Force-stop any prior TikTok process before launching. Without
             // this, a previous LIVE session's libvolcenginertc.so encoder
@@ -290,6 +298,28 @@ object Autopilot {
             // the only reliable way; killBackgroundProcesses doesn't catch
             // foreground processes.
             killTikTokForFreshStart(context)
+            // Cold-start fallback: if TikTok wasn't running when the
+            // pre-kill SET broadcast fired, it went into the void and the
+            // new process will read the stale file. Re-broadcast after the
+            // new process has had time to spawn + register its receiver
+            // (the Application.onCreate hook installs ~3.5s after spawn,
+            // we wait 6 s to be safe + repeat at 10 s + 15 s so a slow
+            // device doesn't miss the window). All cheap — each re-broadcast
+            // is just a synchronous in-receiver file write.
+            if (aacWsUrl.isNotEmpty()) {
+                scope.launch {
+                    // Spaced at 6/11/16/21 s after kill. The earliest catches
+                    // typical receiver-ready (~3.5 s after process spawn);
+                    // later ones cover slow devices. Mp4GWsClient.start
+                    // fires when the script taps Go LIVE — usually ≥25 s in,
+                    // so all four land before the endpoint matters.
+                    val schedule = longArrayOf(6_000L, 5_000L, 5_000L, 5_000L)
+                    for (step in schedule) {
+                        delay(step)
+                        broadcastVcamEndpoint(context, aacWsUrl)
+                    }
+                }
+            }
             when (mode) {
                 AutopilotMode.Personal      -> runFlow(context, launchIntent)
                 AutopilotMode.Shoppable     -> runShoppableFlow(context, launchIntent, vcam = false)
@@ -299,22 +329,28 @@ object Autopilot {
     }
 
     /**
-     * Writes the per-session AAC streamer URL to the vcam module's
-     * override file. The patched TikTok's Mp4GWsClient reads this on
-     * Go LIVE — see `vcam/src/main/java/com/rerun/tiktokvcam/
-     * Mp4GWsClient.kt::readEndpoint`. World-writable path because both
-     * Reruni and the patched TikTok (different UIDs) need to read/write.
+     * Broadcasts the per-session AAC streamer URL to the vcam module's
+     * [VcamEndpointReceiver]. The receiver runs inside TikTok's process
+     * (UID = TikTok), so it can write `/sdcard/Android/data/
+     * com.zhiliaoapp.musically/files/vcam_ws_endpoint.txt` — which we
+     * cannot from Reruni's UID due to Android 11+ scoped storage.
+     *
+     * Best-effort: if TikTok isn't running, the broadcast is a no-op.
+     * The kill-switch + relaunch sequence that follows means the next
+     * LIVE session starts with the URL we broadcast here.
      */
-    private fun writeVcamAacEndpoint(url: String) {
-        val targetPath =
-            "/sdcard/Android/data/com.zhiliaoapp.musically/files/vcam_ws_endpoint.txt"
-        try {
-            val f = File(targetPath)
-            f.parentFile?.mkdirs()
-            f.writeText(url)
-            Log.i(TAG, "wrote vcam endpoint: $url → $targetPath")
-        } catch (t: Throwable) {
-            Log.w(TAG, "writeVcamAacEndpoint failed: ${t.javaClass.simpleName}: ${t.message}", t)
+    private fun broadcastVcamEndpoint(context: Context, url: String) {
+        for (pkg in TikTokAutopilotService.TIKTOK_PACKAGES) {
+            try {
+                val intent = Intent("com.rerun.vcam.SET_WS_ENDPOINT").apply {
+                    setPackage(pkg)
+                    putExtra("url", url)
+                }
+                context.sendBroadcast(intent)
+                Log.i(TAG, "broadcastVcamEndpoint: SET_WS_ENDPOINT($url) → $pkg")
+            } catch (t: Throwable) {
+                Log.w(TAG, "broadcastVcamEndpoint failed for $pkg", t)
+            }
         }
     }
 

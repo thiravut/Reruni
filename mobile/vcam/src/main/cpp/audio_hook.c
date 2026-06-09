@@ -29,6 +29,53 @@
 #include <android/log.h>
 
 #include "xhook/xhook.h"
+
+// JavaVM captured in JNI_OnLoad so the encoder hook (running on a non-Java
+// native thread inside libvolcenginertc) can call back into Kotlin to
+// trigger the WS "reset" + Mp4FrameProducer rewind sequence at first
+// encoder fire.
+static JavaVM *g_jvm = NULL;
+
+JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
+    (void) reserved;
+    g_jvm = vm;
+    return JNI_VERSION_1_6;
+}
+
+// Flag separating "any resync" (video loop boundary etc.) from "first-fire
+// resync" (broadcast actually starting). Only the latter triggers a server
+// reset + video rewind — a video-loop resync just trims the ring.
+static _Atomic int g_should_notify_first_fire = 0;
+
+static void notify_first_encoder_fire(void) {
+    if (g_jvm == NULL) return;
+    JNIEnv *env = NULL;
+    int attached = 0;
+    jint stat = (*g_jvm)->GetEnv(g_jvm, (void **) &env, JNI_VERSION_1_6);
+    if (stat == JNI_EDETACHED) {
+        if ((*g_jvm)->AttachCurrentThread(g_jvm, &env, NULL) != JNI_OK) return;
+        attached = 1;
+    } else if (stat != JNI_OK) {
+        return;
+    }
+    jclass cls = (*env)->FindClass(env, "com/rerun/tiktokvcam/NativeAudioHook");
+    if (cls) {
+        jmethodID mid = (*env)->GetStaticMethodID(env, cls, "onFirstEncoderFire", "()V");
+        if (mid) {
+            (*env)->CallStaticVoidMethod(env, cls, mid);
+        } else {
+            // Method not found — usually safe to clear the pending exception
+            // so we don't pollute the host process's JNI state.
+            (*env)->ExceptionClear(env);
+        }
+        (*env)->DeleteLocalRef(env, cls);
+    } else {
+        (*env)->ExceptionClear(env);
+    }
+    if (attached) {
+        (*g_jvm)->DetachCurrentThread(g_jvm);
+    }
+}
 // shadowhook include removed — caused TikTok SIGSEGV on Samsung A15
 // Android 16 (signal handler / .init_array conflict). Phase 1.7 will
 // try a different inline-hook strategy (manual prologue patching or
@@ -1244,6 +1291,28 @@ static int aac_ring_push(const uint8_t *data, uint32_t size) {
     return 1;
 }
 
+// Advance the read cursor so only the newest [keep] frames remain.
+// Used to discard stale audio that accumulated while the encoder wasn't
+// yet firing (e.g. between WS connect and first aacEncEncode call), so
+// the next pop returns audio that matches the current real-time position
+// of PC's stream — keeping audio in sync with the video producer which
+// is paced by TikTok's video encoder cadence (also "right now").
+//
+// keep = 0 → empty ring; keep = 1 → leave only the newest frame, etc.
+static void aac_ring_drain_to_latest(uint32_t keep) {
+    uint32_t w = atomic_load_explicit(&g_aac_write, memory_order_acquire);
+    uint32_t r = atomic_load_explicit(&g_aac_read,  memory_order_relaxed);
+    uint32_t count = w - r;  // unsigned wrap OK
+    if (count > keep) {
+        atomic_store_explicit(&g_aac_read, w - keep, memory_order_release);
+    }
+}
+
+// Resync flag — set by setRtmpInjectEnabled(true) so the next encoder
+// fire after enable drops any stale ring contents before substituting.
+// Cleared after the first post-enable substitute pop fires.
+static _Atomic int g_aac_resync_pending = 0;
+
 // Consumer-side pop into caller's stable buffer (the rtmp_client expects
 // the data pointer to remain valid until the call returns — we copy into
 // the caller's thread-local scratch). Returns size, or 0 if empty.
@@ -1343,6 +1412,13 @@ Java_com_rerun_tiktokvcam_NativeAudioHook_setRtmpInjectEnabled0(
     atomic_store_explicit(&g_rtmp_inject_enabled,
                           enabled ? 1 : 0,
                           memory_order_release);
+    if (enabled) {
+        // Tell the encoder hook to drop accumulated PC frames on its next
+        // fire AND notify Kotlin so it can send "reset" to the server +
+        // rewind Mp4FrameProducer. Both flags get cleared on first fire.
+        atomic_store_explicit(&g_aac_resync_pending, 1, memory_order_release);
+        atomic_store_explicit(&g_should_notify_first_fire, 1, memory_order_release);
+    }
     LOGI("RTMP AAC injection = %s (ring=%u frames queued)",
          enabled ? "ENABLED" : "disabled", aac_ring_count());
 }
@@ -1366,6 +1442,17 @@ Java_com_rerun_tiktokvcam_NativeAudioHook_clearAacRing0(JNIEnv *env, jclass claz
     // values mid-update it just sees an empty or full ring momentarily.
     atomic_store_explicit(&g_aac_read,  0, memory_order_release);
     atomic_store_explicit(&g_aac_write, 0, memory_order_release);
+}
+
+// Mark the AAC ring for a drain-to-latest on the next encoder fire.
+// Used by Kotlin's Mp4AudioProducer.signalLoopBoundary so the audio
+// timeline re-aligns with the video producer's MP4 timeline each loop.
+JNIEXPORT void JNICALL
+Java_com_rerun_tiktokvcam_NativeAudioHook_aacRingResync0(JNIEnv *env, jclass clazz) {
+    (void) env;
+    (void) clazz;
+    atomic_store_explicit(&g_aac_resync_pending, 1, memory_order_release);
+    LOGI("AAC ring resync requested (loop boundary / external trigger)");
 }
 
 JNIEXPORT jint JNICALL
@@ -1457,6 +1544,50 @@ static int hooked_aacEncEncode(void *h, const void *in, const void *out,
     // output buffer, overwrite the bytes in place.
     if (atomic_load_explicit(&g_rtmp_inject_enabled, memory_order_acquire) &&
         outBuf && outBufSize > 0 && numOutBytes > 0) {
+        // A/V sync: on resync request (first fire after enable, or video
+        // loop boundary), drop everything but the newest 1 frame so audio
+        // resumes at PC's real-time position instead of replaying buffered
+        // audio that accumulated while encoder wasn't yet consuming.
+        if (atomic_exchange_explicit(&g_aac_resync_pending, 0,
+                                     memory_order_acq_rel) != 0) {
+            uint32_t before = aac_ring_count();
+            aac_ring_drain_to_latest(1);
+            uint32_t after = aac_ring_count();
+            LOGI("AAC ring resync: drained %u→%u frames", before, after);
+            // First-fire variant: trigger server reset + Mp4FrameProducer
+            // rewind so both audio and video start playing from MP4 t=0 at
+            // this same encoder-fire instant. Subsequent resyncs (e.g. on
+            // video loop boundary) only drain the ring — they should NOT
+            // re-trigger this notification because that would desync
+            // audio (jumps to PC frame 0) from video (which is at its
+            // own loop position).
+            if (atomic_exchange_explicit(&g_should_notify_first_fire, 0,
+                                         memory_order_acq_rel) != 0) {
+                LOGI("AAC first-fire — notifying Kotlin to reset PC + rewind video");
+                notify_first_encoder_fire();
+            }
+        }
+        // Continuous drift correction. The PC streamer paces frames at
+        // exactly 1024/48000 s, but the encoder's effective drain rate
+        // depends on AudioRecord clock + scheduling jitter, so the ring
+        // slowly grows over a session. Once it exceeds the target latency
+        // window (~170 ms), drop one extra frame every ~20 substitutes
+        // (~430 ms). Each skip is a single AAC frame (21 ms) — audible as
+        // a faint tick at most, but spread out enough that the listener
+        // perceives slight tempo correction rather than a glitch.
+        static int drift_skip_counter = 0;
+        const uint32_t target_ring_size = 8;
+        const int drift_skip_interval = 20;
+        if (aac_ring_count() > target_ring_size) {
+            drift_skip_counter++;
+            if (drift_skip_counter >= drift_skip_interval) {
+                drift_skip_counter = 0;
+                uint8_t drop_scratch[AAC_FRAME_MAX];
+                (void) aac_ring_pop(drop_scratch, sizeof(drop_scratch));
+            }
+        } else {
+            drift_skip_counter = 0;
+        }
         uint8_t scratch[AAC_FRAME_MAX];
         uint32_t aac_size = aac_ring_pop(scratch, sizeof(scratch));
         if (aac_size > 0) {

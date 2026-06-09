@@ -144,6 +144,13 @@ func handleAACWebSocket(w http.ResponseWriter, r *http.Request) {
 // streamAACToClient runs the file through ffmpeg → ADTS, splits ADTS frames
 // out, then loops the resulting AU list to the WS at real-time pace. The
 // loop is what lets a 10-second source MP4 drive a multi-hour LIVE.
+//
+// Mobile can send a text WS message "reset" to restart streaming from
+// frame 0 — used at first encoder fire so audio (which is "PC's current
+// frame at that real time") begins at MP4 t=0, matching the freshly-
+// reset video producer. Without this, the offset between when PC starts
+// streaming (WS connect) and when TikTok's broadcast encoder first fires
+// is baked into A/V sync forever.
 func streamAACToClient(conn *websocket.Conn, filePath string) {
 	frames, err := extractAACFrames(filePath)
 	if err != nil {
@@ -163,16 +170,27 @@ func streamAACToClient(conn *websocket.Conn, filePath string) {
 	log.Printf("aac_ws: %d frames cached; streaming at %.2fms/frame",
 		len(frames), float64(aacFrameIntervalNs)/1e6)
 
-	// Drain ping/control frames + detect disconnect from the OkHttp client
-	// side. Without a reader the gorilla WS may not surface peer-close events
-	// promptly.
+	// Reset channel — mobile's audio_hook fires this when the broadcast
+	// encoder first runs. Server reacts by resetting `start` and `sent`
+	// so the very next frame is MP4 audio frame 0.
+	resetCh := make(chan struct{}, 4)
+
+	// Drain ping/control frames + detect disconnect. Also watch for the
+	// "reset" text message from the client.
 	conn.SetReadDeadline(time.Now().Add(48 * time.Hour))
 	doneRead := make(chan struct{})
 	go func() {
 		defer close(doneRead)
 		for {
-			if _, _, err := conn.NextReader(); err != nil {
+			msgType, payload, err := conn.ReadMessage()
+			if err != nil {
 				return
+			}
+			if msgType == websocket.TextMessage && string(payload) == "reset" {
+				select {
+				case resetCh <- struct{}{}:
+				default:
+				}
 			}
 		}
 	}()
@@ -180,40 +198,54 @@ func streamAACToClient(conn *websocket.Conn, filePath string) {
 	sent := int64(0)
 	start := time.Now()
 	headerBuf := make([]byte, 4+8+1)
+	frameIdx := 0
 	for {
 		select {
 		case <-doneRead:
 			log.Printf("aac_ws: client disconnected after %d frames", sent)
 			return
+		case <-resetCh:
+			log.Printf("aac_ws: reset received — restarting stream from frame 0 (was sent=%d)", sent)
+			sent = 0
+			start = time.Now()
+			frameIdx = 0
 		default:
 		}
-		for _, au := range frames {
-			ptsUs := uint64(sent) * 1024 * 1_000_000 / 48000
-			binary.BigEndian.PutUint32(headerBuf[0:4], uint32(len(au)))
-			binary.BigEndian.PutUint64(headerBuf[4:12], ptsUs)
-			headerBuf[12] = aacWsKindAudio
-			if err := conn.WriteMessage(websocket.BinaryMessage,
-				append(append([]byte{}, headerBuf...), au...)); err != nil {
-				log.Printf("aac_ws: write failed at sent=%d: %v", sent, err)
-				return
-			}
-			sent++
-			// Real-time pacing — if we're ahead, sleep; if behind (network
-			// latency burst, etc.), skip the sleep and catch up.
-			expected := start.Add(time.Duration(sent) * time.Duration(aacFrameIntervalNs))
-			if delay := time.Until(expected); delay > 0 {
-				time.Sleep(delay)
-			}
-			if sent%500 == 0 {
-				drift := time.Since(expected)
-				log.Printf("aac_ws: sent=%d drift=%+.3fs", sent, drift.Seconds())
-			}
+		if frameIdx >= len(frames) {
+			frameIdx = 0
+		}
+		au := frames[frameIdx]
+		frameIdx++
+
+		ptsUs := uint64(sent) * 1024 * 1_000_000 / 48000
+		binary.BigEndian.PutUint32(headerBuf[0:4], uint32(len(au)))
+		binary.BigEndian.PutUint64(headerBuf[4:12], ptsUs)
+		headerBuf[12] = aacWsKindAudio
+		if err := conn.WriteMessage(websocket.BinaryMessage,
+			append(append([]byte{}, headerBuf...), au...)); err != nil {
+			log.Printf("aac_ws: write failed at sent=%d: %v", sent, err)
+			return
+		}
+		sent++
+		// Real-time pacing — if we're ahead, sleep; if behind (network
+		// latency burst, etc.), skip the sleep and catch up.
+		expected := start.Add(time.Duration(sent) * time.Duration(aacFrameIntervalNs))
+		if delay := time.Until(expected); delay > 0 {
+			// Wake on reset too so we don't sleep past it.
 			select {
+			case <-time.After(delay):
+			case <-resetCh:
+				log.Printf("aac_ws: reset received mid-sleep — restarting (was sent=%d)", sent)
+				sent = 0
+				start = time.Now()
+				frameIdx = 0
 			case <-doneRead:
-				log.Printf("aac_ws: client disconnected mid-stream after %d frames", sent)
 				return
-			default:
 			}
+		}
+		if sent%500 == 0 {
+			drift := time.Since(expected)
+			log.Printf("aac_ws: sent=%d drift=%+.3fs", sent, drift.Seconds())
 		}
 	}
 }

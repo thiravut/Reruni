@@ -749,6 +749,13 @@ object Mp4AudioProducer {
     fun signalLoopBoundary() {
         if (readModeOverride() == "tone") return
         abortCurrentPass = true
+        // For Option G ws_inject mode: also request the AAC ring resync so
+        // any accumulated drift across the previous video loop is dropped
+        // and audio re-aligns with PC's real-time stream position when the
+        // new loop begins.
+        if (readModeOverride() == "ws_inject") {
+            NativeAudioHook.aacRingResync()
+        }
         // Wake the producer if it's parked in the backpressure sleep so
         // the abort takes effect immediately instead of after the next
         // 10 ms tick.

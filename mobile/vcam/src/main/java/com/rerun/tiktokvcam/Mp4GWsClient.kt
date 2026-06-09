@@ -95,6 +95,24 @@ object Mp4GWsClient {
         log("WS client started; injection enabled (session=$myConnectSession)")
     }
 
+    /**
+     * Send "reset" text message to the PC/backend AAC streamer — tells it
+     * to restart the MP4 audio stream from frame 0. Called by audio_hook
+     * on first encoder fire so audio aligns with the moment broadcast
+     * begins, instead of replaying whatever PC frame happens to be "now"
+     * (which depends on the gap between WS connect and broadcast start).
+     */
+    fun sendReset() {
+        val s = socket ?: return
+        try {
+            val ok = s.send("reset")
+            if (ok) log("→ sent reset frame to server")
+            else log("→ sendReset: socket refused (queue full?)")
+        } catch (t: Throwable) {
+            log("sendReset threw: ${t.javaClass.simpleName}: ${t.message}")
+        }
+    }
+
     fun stop() {
         if (!running.compareAndSet(true, false)) return
         // Invalidate any in-flight listener BEFORE we close the socket —
