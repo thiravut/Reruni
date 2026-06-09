@@ -26,9 +26,47 @@ object Camera2Hook {
 
         hookCameraManager(cl)
         hookCameraDevice(cl)
+        hookCameraClose(cl)
         hookTtveCamera(cl)
         hookBytedanceRealxRtc(cl)
         hookWebRtc(cl)
+    }
+
+    /**
+     * When the camera device or its capture session closes, ask the
+     * frame producer to schedule an audio stop. The producer waits a
+     * short grace period before actually stopping so a brief
+     * close-reopen (camera flip, session reconfigure) doesn't cut the
+     * audio. A user navigating *away* from the LIVE preview entirely
+     * leaves no replacement surface, so the deferred stop fires.
+     */
+    private fun hookCameraClose(cl: ClassLoader) {
+        safe("CameraDeviceImpl.close") {
+            val klass = XposedHelpers.findClassIfExists(
+                "android.hardware.camera2.impl.CameraDeviceImpl", cl,
+            ) ?: return@safe
+            klass.declaredMethods.filter { it.name == "close" }.forEach { method ->
+                XposedBridge.hookMethod(method, object : XC_MethodHook() {
+                    override fun afterHookedMethod(param: MethodHookParam) {
+                        log("→ CameraDevice.close (thread=${Thread.currentThread().name})")
+                        Mp4FrameProducer.onCameraCloseDetected()
+                    }
+                })
+            }
+        }
+        safe("CameraCaptureSessionImpl.close") {
+            val klass = XposedHelpers.findClassIfExists(
+                "android.hardware.camera2.impl.CameraCaptureSessionImpl", cl,
+            ) ?: return@safe
+            klass.declaredMethods.filter { it.name == "close" }.forEach { method ->
+                XposedBridge.hookMethod(method, object : XC_MethodHook() {
+                    override fun afterHookedMethod(param: MethodHookParam) {
+                        log("→ CameraCaptureSession.close (thread=${Thread.currentThread().name})")
+                        Mp4FrameProducer.onCameraCloseDetected()
+                    }
+                })
+            }
+        }
     }
 
     // ── Layer 1: standard Camera2 ─────────────────────────────────

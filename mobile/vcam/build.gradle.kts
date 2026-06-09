@@ -71,4 +71,10 @@ kotlin {
 dependencies {
     // Xposed API — compileOnly because the framework provides at runtime
     compileOnly(files("libs/api-82.jar"))
+
+    // Option G WebSocket client: OkHttp's built-in WebSocket. Mp4GWsClient
+    // streams PC-encoded AAC frames into the mobile AAC ring; the
+    // aacEncEncode PLT hook then substitutes per-frame. OkHttp is small
+    // (~600 KB) and supports binary frames.
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 }

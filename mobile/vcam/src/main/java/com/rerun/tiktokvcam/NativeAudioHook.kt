@@ -76,6 +76,63 @@ object NativeAudioHook {
     fun ringAvailable(): Int =
         if (available) try { ringAvailable0() } catch (_: Throwable) { 0 } else 0
 
+    /** Toggle the native obtainBuffer hook's substitution. When `true`,
+     *  the hook leaves whatever the mic hardware captured in the buffer
+     *  alone (no PCM substitution). Used for the "speaker" loopback
+     *  diagnostic where MP4 audio is played through the device speaker
+     *  and captured acoustically by the mic. No-op if the native lib
+     *  isn't loaded. */
+    fun setPassthrough(passthrough: Boolean) {
+        if (!available) return
+        try {
+            setPassthrough0(passthrough)
+        } catch (t: Throwable) {
+            log("setPassthrough0() threw: ${t.message}")
+        }
+    }
+
+    // ---- Option B: RTMP-layer AAC injection -------------------------------
+
+    /** Enable substitution of TikTok's outgoing AAC payload at the
+     *  rtmp_client_push_audio call site. When `false` (default), the PLT
+     *  hook is diagnostic-only — it logs sizes / first bytes / pts for
+     *  the first ~64 calls so we can inspect the AAC payload format
+     *  TikTok pushes without touching the live stream. */
+    fun setRtmpInjectEnabled(enabled: Boolean) {
+        if (!available) return
+        try {
+            setRtmpInjectEnabled0(enabled)
+        } catch (t: Throwable) {
+            log("setRtmpInjectEnabled0() threw: ${t.message}")
+        }
+    }
+
+    /** Push one pre-encoded AAC access unit into the native ring. The
+     *  RTMP push-audio hook pops one per outgoing packet and substitutes
+     *  it for TikTok's encoder output. Underrun (empty ring) passes the
+     *  original AAC frame through untouched. */
+    fun pushAacFrame(data: ByteArray, length: Int) {
+        if (!available) return
+        try {
+            pushAacFrame0(data, length)
+        } catch (_: Throwable) { /* drop silently */ }
+    }
+
+    /** Reset the AAC ring (drop all queued frames). Called at the start
+     *  of each MP4 loop pass so a stale tail from the previous pass
+     *  doesn't get injected mid-stream. */
+    fun clearAacRing() {
+        if (!available) return
+        try {
+            clearAacRing0()
+        } catch (_: Throwable) { /* idempotent */ }
+    }
+
+    /** Number of AAC frames queued in the ring. Lets the producer pace
+     *  itself against TikTok's actual RTMP push rate so we don't overflow. */
+    fun aacRingFrames(): Int =
+        if (available) try { aacRingFrames0() } catch (_: Throwable) { 0 } else 0
+
     @JvmStatic
     private external fun install0(): Boolean
 
@@ -87,6 +144,21 @@ object NativeAudioHook {
 
     @JvmStatic
     private external fun ringAvailable0(): Int
+
+    @JvmStatic
+    private external fun setPassthrough0(passthrough: Boolean)
+
+    @JvmStatic
+    private external fun setRtmpInjectEnabled0(enabled: Boolean)
+
+    @JvmStatic
+    private external fun pushAacFrame0(data: ByteArray, length: Int)
+
+    @JvmStatic
+    private external fun clearAacRing0()
+
+    @JvmStatic
+    private external fun aacRingFrames0(): Int
 
     private fun log(msg: String) {
         XposedBridge.log("[$TAG] NativeAudioHook: $msg")

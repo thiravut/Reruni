@@ -76,6 +76,21 @@ object Autopilot {
     private const val SAY_HI_INTERVAL_MS = 20_000L
 
     /**
+     * Background coachmark dismisser — polls the active accessibility tree
+     * every [COACHMARK_POLL_MS] and silently taps any [TUTORIAL_DISMISS_LABELS]
+     * popover it sees. Tutorial overlays appear at unpredictable steps in
+     * TikTok's live-setup flow and block the next tap; this catches them so
+     * the main script doesn't need to know they exist.
+     *
+     * Lifecycle: started at the top of every flow (`runFlow`,
+     * `runShoppableFlow`, `runEndLiveFlow`) so it covers script execution
+     * AND the keepalive period that follows; stopped by
+     * [stopCoachmarkDismisser] in cancel / fail / endLive-success.
+     */
+    private var coachmarkDismissJob: Job? = null
+    private const val COACHMARK_POLL_MS = 1500L
+
+    /**
      * Time-based auto-end-live timer — fires [endLive] after the
      * staged playback file's duration × [playbackLoopCount] elapses,
      * plus [AUTO_END_GRACE_MS] safety margin. Mode-agnostic: works for
@@ -161,6 +176,18 @@ object Autopilot {
     // TikTok 2026.
     private val END_LIVE_LABELS         = listOf("End", "End live", "End LIVE", "End broadcast", "Stop live", "Stop LIVE", "Stop broadcast", "ปิดไลฟ์", "จบไลฟ์", "ปิด LIVE", "สิ้นสุดไลฟ์", "หยุดไลฟ์", "หยุด")
     private val END_LIVE_CONFIRM_LABELS = listOf("End", "End LIVE", "End broadcast", "Confirm", "ยืนยัน", "ปิดไลฟ์", "ใช่", "Yes", "OK", "ตกลง")
+
+    // Tutorial / coachmark dismiss labels — TikTok sprinkles "Got it"
+    // popovers across the live-setup flow ("New feature", "Tip" overlays,
+    // first-time business-account hints, etc.). These appear at unpredictable
+    // steps and block the next tap until dismissed. Kept deliberately narrow
+    // to "Got it" wording only so we don't accidentally tap legitimate
+    // "Continue" / "Skip" buttons that are part of a required flow.
+    private val TUTORIAL_DISMISS_LABELS = listOf(
+        "Got it", "GOT IT", "Got It", "got it",
+        "I got it", "I understand", "OK, got it",
+        "เข้าใจแล้ว", "เข้าใจ", "รับทราบ",
+    )
 
     // Captcha markers — TikTok throws a slide-puzzle / slider-verify modal
     // periodically (login, mid-broadcast, suspicious-activity). Markers below
@@ -251,6 +278,7 @@ object Autopilot {
         job?.cancel()
         stopLiveKeepalive()
         cancelAutoEndLive()
+        stopCoachmarkDismisser()
         followupIntent = null
         state.value = AutopilotState.Idle
         lastStep.value = ""
@@ -311,6 +339,7 @@ object Autopilot {
 
     private suspend fun runEndLiveFlow(context: Context, launchIntent: Intent) {
         state.value = AutopilotState.Running
+        ensureCoachmarkDismisser(context)
         currentScript = ScriptStore.END_LIVE
         // Snapshot session context — markDone() / fail() clear it before
         // we can read it back to build the live_ended + ack envelopes.
@@ -334,6 +363,7 @@ object Autopilot {
         when (val result = runner.execute(script)) {
             is ScriptRunner.Result.Success -> {
                 markDone()
+                stopCoachmarkDismisser()
                 if (savedLiveSessionId != 0L) {
                     WsClient.sendLiveEnded(savedLiveSessionId, savedReason)
                 }
@@ -368,6 +398,7 @@ object Autopilot {
      */
     private suspend fun runFlow(context: Context, launchIntent: Intent) {
         state.value = AutopilotState.Running
+        ensureCoachmarkDismisser(context)
         currentScript = ScriptStore.PERSONAL_LIVE
 
         // V1 Personal is executed from a JSON script. ScriptStore returns the
@@ -626,7 +657,11 @@ object Autopilot {
     private suspend fun tapByText(
         labels: List<String>,
         retries: Int = 5,
-        intervalMs: Long = 400,
+        // 700ms (was 400ms) — slow renders sometimes need more than the old
+        // ~3.2s budget at retries=8. With 700ms we get ~5.6s before giving
+        // up, which is enough to absorb most network-induced UI stalls
+        // observed during testing.
+        intervalMs: Long = 700,
         allowContentDesc: Boolean = false,
         /**
          * When true, after each "successful" tap we wait briefly and check if
@@ -740,6 +775,7 @@ object Autopilot {
      */
     private suspend fun runShoppableFlow(context: Context, launchIntent: Intent, vcam: Boolean = true) {
         state.value = AutopilotState.Running
+        ensureCoachmarkDismisser(context)
 
         if (vcam) {
             currentScript = ScriptStore.SHOPPABLE_VCAM
@@ -1737,6 +1773,7 @@ object Autopilot {
         activeMode.value = null
         stopLiveKeepalive()
         cancelAutoEndLive()
+        stopCoachmarkDismisser()
         emitAutopilotStatus(
             stateLabel = "failed",
             errorUser = friendlyUserError(attemptedStep, reason),
@@ -1845,6 +1882,35 @@ object Autopilot {
             Log.i(TAG, "keepalive: stopped")
         }
         liveKeepaliveJob = null
+    }
+
+    /**
+     * Idempotent — safe to call from each flow's entry point. The dismisser
+     * runs until [stopCoachmarkDismisser] is called (cancel / fail /
+     * endLive-success).
+     */
+    private fun ensureCoachmarkDismisser(context: Context) {
+        if (coachmarkDismissJob?.isActive == true) return
+        coachmarkDismissJob = scope.launch {
+            while (true) {
+                delay(COACHMARK_POLL_MS)
+                if (!TikTokAutopilotService.isEnabled(context)) continue
+                val root = TikTokAutopilotService.instance?.activeRoot() ?: continue
+                val match = findMatch(root, TUTORIAL_DISMISS_LABELS, allowContentDesc = true)
+                    ?: continue
+                Log.i(TAG, "coachmark: dismissing '${labelOf(match)}'")
+                gestureTap(match)
+            }
+        }
+        Log.i(TAG, "coachmark dismisser: started")
+    }
+
+    private fun stopCoachmarkDismisser() {
+        coachmarkDismissJob?.let {
+            it.cancel()
+            Log.i(TAG, "coachmark dismisser: stopped")
+        }
+        coachmarkDismissJob = null
     }
 
     /**

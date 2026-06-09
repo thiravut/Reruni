@@ -38,18 +38,66 @@ object Mp4FrameProducer {
     @Volatile
     private var currentTargetSurfaces: List<Surface> = emptyList()
 
+    /**
+     * Deferred-stop handle for the audio producer. Camera close fires
+     * even on flip (rear↔selfie) and brief session reconfigures, so we
+     * don't stop audio immediately on close — instead we schedule a
+     * stop and cancel it if a new surface set arrives within
+     * [AUDIO_STOP_DELAY_MS]. That delay covers normal flip transitions
+     * (~100–500 ms) while still tearing down audio when the broadcaster
+     * actually leaves the preview screen entirely.
+     */
+    private const val AUDIO_STOP_DELAY_MS = 2000L
+    @Volatile private var pendingAudioStop: Runnable? = null
+    private val deferStopHandler by lazy {
+        android.os.Handler(android.os.Looper.getMainLooper())
+    }
+
+    /** Called from Camera2Hook when CameraDevice or CameraCaptureSession
+     *  closes. Schedule audio stop in [AUDIO_STOP_DELAY_MS]; a new
+     *  [onSurfacesChanged] with non-empty surfaces cancels it. */
+    fun onCameraCloseDetected() {
+        cancelPendingAudioStop()
+        val r = Runnable {
+            log("camera quiet for ${AUDIO_STOP_DELAY_MS}ms → stopping audio")
+            Mp4AudioProducer.stop()
+            pendingAudioStop = null
+        }
+        pendingAudioStop = r
+        deferStopHandler.postDelayed(r, AUDIO_STOP_DELAY_MS)
+    }
+
+    private fun cancelPendingAudioStop() {
+        pendingAudioStop?.let { deferStopHandler.removeCallbacks(it) }
+        pendingAudioStop = null
+    }
+
     fun onSurfacesChanged(newSurfaces: List<Surface>) {
         currentTargetSurfaces = newSurfaces.filter { it.isValid }
+        // Any incoming surface activity means the broadcaster is still
+        // in / returning to a camera context — cancel any pending stop.
+        cancelPendingAudioStop()
         if (currentTargetSurfaces.isEmpty()) {
             log("no valid surfaces; stop")
             stop()
+            // Tear the audio producer down alongside the video one so a
+            // cancelled preview doesn't leave MP4 audio bleeding through
+            // the speaker.
+            Mp4AudioProducer.stop()
             return
         }
         // Defer the videoReady check to runOnePass — the producer retry loop
         // will keep polling VcamBridge so the user can stage the video after
         // navigating into the camera preview.
         stop()
+        Mp4AudioProducer.stop()
         start()
+        // Trigger audio at the same preview-screen moment as video so
+        // they start aligned. In speaker mode this kicks off MediaPlayer
+        // playback through the device speaker; in mp4/tone modes start()
+        // gracefully defers until configureTarget is invoked from the
+        // AudioRecord ctor hook (later, when LIVE actually begins).
+        Mp4AudioProducer.start()
     }
 
     private fun start() {
@@ -79,7 +127,15 @@ object Mp4FrameProducer {
 
         while (running.get() && !Thread.interrupted()) {
             val ok = runOnePass(targetSurface)
-            if (!ok) {
+            if (ok) {
+                // Video reached EOS — tell audio to rewind so its next pass
+                // starts from t=0 at the same wall-clock boundary as video's
+                // next pass. Without this, audio loops on its own track-EOS
+                // (typically tens of ms before/after video EOS depending on
+                // AAC frame alignment) and the delta accumulates as A/V drift
+                // that grows with loop count.
+                Mp4AudioProducer.signalLoopBoundary()
+            } else {
                 log("pass failed; retry in 2s")
                 try { Thread.sleep(2000) } catch (_: InterruptedException) { break }
             }

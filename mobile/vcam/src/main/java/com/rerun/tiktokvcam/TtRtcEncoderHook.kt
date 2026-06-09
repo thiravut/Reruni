@@ -152,12 +152,16 @@ object TtRtcEncoderHook {
             }
 
             // Bump bitrate. Field type may be int or Integer.
+            // 256 kbps = TikTok Live Studio's documented max audio bitrate.
+            // 128 was the previous compromise; bumping to 256 gives the
+            // AAC-LC encoder enough budget to preserve full-band music
+            // detail rather than degrading sibilants and high harmonics.
             val bitrateField = runCatching { clazz.getDeclaredField("bitrateKbps") }.getOrNull()
             if (bitrateField != null) {
                 bitrateField.isAccessible = true
                 val before = bitrateField.get(config)
-                bitrateField.setInt(config, 128)
-                log("rewrote bitrateKbps: $before → 128")
+                bitrateField.setInt(config, 256)
+                log("rewrote bitrateKbps: $before → 256")
             }
 
             // aacEncType=4 was the HE-AAC-v1 encoder mode. 0 is the default

@@ -53,6 +53,210 @@ object Mp4AudioProducer {
     private var workerThread: HandlerThread? = null
 
     /**
+     * Set by [signalLoopBoundary] when video reaches EOS, cleared at the
+     * start of each pass. The audio MP4 track and video MP4 track in the
+     * same file usually differ in duration by tens of ms (AAC frame
+     * alignment), so independent track-EOS loops drift apart by that delta
+     * every iteration and accumulate. Pinning audio's rewind to video's
+     * rewind keeps the per-loop offset bounded to the audio decoder's
+     * restart cost (~50 ms) instead of growing without bound.
+     */
+    @Volatile private var abortCurrentPass: Boolean = false
+
+    /**
+     * Default target rate (Hz). The native AR ctor PLT hook attempts to
+     * force the broadcast AR to 48000 Hz but TikTok 45.3.2 apparently
+     * creates the broadcast AR via a different ctor variant that our PLT
+     * hook misses — empirically the consumer still drains at ~72 kHz on
+     * Samsung A15 (per Pond's "too fast" report after the PLT force).
+     *
+     * Use 72000 to match the actual consumer rate. Cubic resampling +
+     * pre-LPF (introduced 2026-06-05) handle the 44.1 → 72 upsample
+     * cleanly enough to keep aliasing out of the audible band.
+     */
+    private const val NATIVE_BROADCAST_RATE_HZ = 72000
+
+    /**
+     * Pre-resample anti-alias LPF state. We apply a 1-pole IIR low-pass
+     * at ~16 kHz on source PCM samples *before* the cubic upsample.
+     * Removes the 16-22 kHz source content that would otherwise fold
+     * back into the audible band as aliased images at the 1.63× upsample
+     * ratio (44.1 → 72). Symptom it targets: the "ลำโพงแตก" crackling
+     * that survived cubic interp.
+     *
+     * α = 1 - exp(-2π × fc/fs) for a 1-pole IIR. For fc=16000,
+     * fs=44100: α ≈ 0.898. Hardcoded — works close enough for the
+     * 44.1/48 kHz source rates we'll see in practice.
+     */
+    private const val DEFAULT_LPF_CUTOFF_HZ = 16000
+    @Volatile private var preLpfPrevL = 0.0
+    @Volatile private var currentLpfAlpha = 0.0   // 0 = disabled (passthrough)
+
+    /**
+     * Optional noise-floor injection — adds low-level white noise to each
+     * output sample. Hypothesis: TikTok's voice DSP downstream of the
+     * mic buffer might be calibrated for "real mic" input which always
+     * has some noise floor (~-50 dBFS from electronics + room). Our
+     * synthesized PCM has *zero* noise floor; DSP detecting "perfectly
+     * clean signal" could trigger weird processing (excessive denoising,
+     * dynamic compression artefacts) that we hear as "ทุ้ม + แตก".
+     *
+     * File contents = int16 noise amplitude (peak), e.g. 100 ≈ -50 dBFS,
+     * 327 ≈ -40 dBFS, 1024 ≈ -30 dBFS. 0 = disabled (default).
+     */
+    private const val NOISE_OVERRIDE_PATH =
+        "/sdcard/Android/data/com.zhiliaoapp.musically/files/vcam_audio_noise.txt"
+    @Volatile private var currentNoiseAmp = 0
+
+    private fun refreshNoiseAmp() {
+        val n = try {
+            val f = java.io.File(NOISE_OVERRIDE_PATH)
+            if (!f.exists() || f.length() <= 0L || f.length() > 16L) 0
+            else f.readText().trim().toIntOrNull()?.coerceIn(0, 8192) ?: 0
+        } catch (_: Throwable) {
+            0
+        }
+        if (n != currentNoiseAmp) {
+            log("noise floor: ${currentNoiseAmp} → ${n} (int16 peak)")
+            currentNoiseAmp = n
+        }
+    }
+
+    // Carry the last 3 source mono samples across chunk boundaries so the
+    // cubic interp at the START of the next chunk has real previous samples
+    // (not boundary-clamped copies of s0). Without this carry, every chunk
+    // boundary (~50/sec from MediaCodec's ~20 ms output chunks) introduces
+    // a small discontinuity in the interpolated waveform — perceptible as
+    // constant low-level crackling that matches the "ลำโพงแตก" symptom.
+    @Volatile private var prevChunkTail0: Short = 0   // last source mono sample of prev chunk
+    @Volatile private var prevChunkTail1: Short = 0   // second-to-last (for cubic s-2 if ever needed)
+    @Volatile private var prevChunkValid: Boolean = false
+
+    /** Override file: integer Hz cutoff. 0 = disable LPF. Per-chunk refresh. */
+    private const val LPF_OVERRIDE_PATH =
+        "/sdcard/Android/data/com.zhiliaoapp.musically/files/vcam_audio_lpf_hz.txt"
+
+    /** Override file: any contents → enable pure passthrough. When the
+     *  source MP4's audio rate + channel count match our broadcast
+     *  target, this bypasses pushDecodedChunk entirely and memcpys the
+     *  decoder's PCM directly into the ring. Used as the last
+     *  diagnostic for whether ANY of our processing contributes to the
+     *  remaining crackling. */
+    private const val PURE_BYPASS_PATH =
+        "/sdcard/Android/data/com.zhiliaoapp.musically/files/vcam_audio_pure_pass.txt"
+
+    private fun pureBypassEnabled(): Boolean = try {
+        java.io.File(PURE_BYPASS_PATH).exists()
+    } catch (_: Throwable) {
+        false
+    }
+
+    private fun readLpfCutoffOverride(): Int? = try {
+        val f = java.io.File(LPF_OVERRIDE_PATH)
+        if (!f.exists() || f.length() <= 0L || f.length() > 16L) null
+        else f.readText().trim().toIntOrNull()?.takeIf { it in 0..24000 }
+    } catch (_: Throwable) {
+        null
+    }
+
+    /** α = 1 - exp(-2π·fc/fs) for a 1-pole IIR low-pass.
+     *  cutoffHz=0 returns 1.0 (passthrough — y = x). */
+    private fun computeLpfAlpha(cutoffHz: Int, fs: Int): Double {
+        if (cutoffHz <= 0 || fs <= 0) return 1.0
+        return 1.0 - kotlin.math.exp(-2.0 * Math.PI * cutoffHz.toDouble() / fs.toDouble())
+    }
+
+    private fun refreshLpfAlpha(srcSampleRate: Int) {
+        val cutoff = readLpfCutoffOverride() ?: DEFAULT_LPF_CUTOFF_HZ
+        val newAlpha = computeLpfAlpha(cutoff, srcSampleRate)
+        if (kotlin.math.abs(newAlpha - currentLpfAlpha) > 0.001) {
+            log("LPF cutoff: ${cutoff} Hz (α=${"%.4f".format(newAlpha)})" +
+                (if (cutoff == 0) " — disabled" else ""))
+            currentLpfAlpha = newAlpha
+        }
+    }
+
+    /**
+     * Optional override file: a single integer sample rate (Hz). Read on
+     * every [configureTarget] call so a TikTok process restart picks it
+     * up without an APK reinstall. Falls back to [NATIVE_BROADCAST_RATE_HZ]
+     * when missing or unparseable.
+     */
+    private const val RATE_OVERRIDE_PATH =
+        "/sdcard/Android/data/com.zhiliaoapp.musically/files/vcam_audio_rate.txt"
+
+    /**
+     * Optional mode override:
+     *  - "mp4" (default): decode MP4 audio → PCM → substitute into mic buffer
+     *  - "tone": stream a 1000 Hz sine at the configured target rate;
+     *     viewer perceived freq = 1000 × (native_rate / target_rate)
+     *  - "speaker": play MP4 audio through the device speaker via
+     *     MediaPlayer and stop substituting the mic buffer; the mic
+     *     captures the speaker acoustically. This is the SamuraiLive
+     *     architecture, kept as a diagnostic A/B baseline. If audio
+     *     sounds clean in "speaker" mode but distorted in "mp4" mode,
+     *     the issue is in our PCM injection pipeline (resampler, encoder
+     *     rewrite, downstream resampling). Multi-device cross-
+     *     contamination makes this unviable for production but it's a
+     *     pure test of upstream-of-mic quality.
+     */
+    private const val MODE_OVERRIDE_PATH =
+        "/sdcard/Android/data/com.zhiliaoapp.musically/files/vcam_audio_mode.txt"
+
+    /** Tone frequency for diagnostic mode. 1000 Hz is the canonical test
+     *  tone and sits clear of voice fundamentals so DSP downstream is less
+     *  likely to mangle it. */
+    private const val TONE_FREQ_HZ = 1000.0
+
+    private fun readRateOverride(): Int? = try {
+        val f = java.io.File(RATE_OVERRIDE_PATH)
+        if (!f.exists() || f.length() <= 0L || f.length() > 32L) null
+        else f.readText().trim().toIntOrNull()?.takeIf { it in 8000..192000 }
+    } catch (_: Throwable) {
+        null
+    }
+
+    /**
+     * Production default = "speaker" (acoustic loopback through device
+     * speaker → mic → TikTok pipeline). After exhaustive PCM-injection
+     * investigation on TikTok 45.3.2 + Samsung A15 (2026-06-08), every
+     * post-decode processing knob we could touch failed to clean up the
+     * "ลำโพงแตก" residue that downstream voice DSP imposes on any
+     * non-silent PCM written into the AudioRecord buffer. Speaker mode
+     * bypasses the issue by routing audio through the mic — TikTok's
+     * pipeline treats it as natural mic input and processes cleanly.
+     *
+     * Trade-off: multi-device rooms get cross-contamination (one phone's
+     * speaker leaks into another's mic). For single-device tests + demos
+     * speaker mode is the right default; for true multi-device the path
+     * is AAC injection at the RTMP transport layer (Option B).
+     *
+     * Mode options:
+     *  - "speaker" (default)   — MediaPlayer → device speaker → mic
+     *  - "mp4"                 — PCM substitution into AudioRecord buffer
+     *  - "tone"                — 1 kHz sine into AudioRecord buffer
+     *  - "lyrax"               — Inject staged MP4 through TikTok's own
+     *                            LyraxAudioPlayer with mixingType=PUBLISH.
+     *                            Routes audio through the broadcast Aux
+     *                            Pipeline (TikTok's in-LIVE music feature
+     *                            path), bypassing voice DSP entirely.
+     *                            Multi-device safe (no acoustic loopback).
+     *  - "rtmp_inject" / "rtmp_diag" — SUPERSEDED 2026-06-08 (Option B was
+     *                            based on misread architecture; TikTok LIVE
+     *                            uses native UDP RTC, not standard RTMP).
+     *                            Hooks kept for diag log-only fallback.
+     */
+    private const val DEFAULT_MODE = "speaker"
+
+    private fun readModeOverride(): String = try {
+        val f = java.io.File(MODE_OVERRIDE_PATH)
+        if (!f.exists() || f.length() <= 0L || f.length() > 32L) DEFAULT_MODE
+        else f.readText().trim().lowercase()
+    } catch (_: Throwable) {
+        DEFAULT_MODE
+    }
+
+    /**
      * Lock-protected byte ring buffer. PCM 16-bit, little-endian, target
      * format. Producer (decode loop) appends; consumer (AudioRecord hook)
      * drains.
@@ -81,15 +285,32 @@ object Mp4AudioProducer {
      *  obtainBuffer hook hands back to TikTok. */
     fun configureTarget(sampleRate: Int, channelCount: Int) {
         if (sampleRate <= 0 || channelCount <= 0) return
-        // Native broadcast AudioRecord = 48 kHz stereo PCM16 (confirmed via
-        // AR_DUMP scan of the AudioRecord object's mSampleRate field at
-        // offset +0x140). Both 48 kHz and 44.1 kHz produced "blown-speaker"
-        // artifacts on the viewer side at full-scale amplitude — likely
-        // TikTok's WebRTC AGC overshooting on music transients. Output
-        // amplitude is scaled below in pushDecodedChunk to keep peaks
-        // within the AGC's expected voice range.
-        val effectiveRate = if (NativeAudioHook.available) 48000 else sampleRate
-        val effectiveCh   = if (NativeAudioHook.available) 2     else channelCount
+        // 2026-06-04 rate diagnostic. Pond's listening test reframed the
+        // V1 "blown speaker" artefact: it isn't voice-DSP distortion, it's
+        // PCM playing 1.5–2× too fast. obtainBuffer log analysis confirms
+        // it — the encoder consumes ~1440 frames every ~20 ms steady-state
+        // (pair of 960 + 480 calls per cycle) = **~72 000 Hz** effective
+        // native rate on this Samsung A15 build.
+        //
+        // The phase3 doc baked in `forced 48000` from an older device's
+        // AR_DUMP. On this device the native AR really is ~72 kHz, so our
+        // 48 kHz output gets sucked through at 72/48 = 1.5× speed exactly
+        // matching the perceptual symptom.
+        //
+        // Force our output to track the native consumption rate. 72 kHz
+        // isn't a standard MP4 sample rate but our linear resampler in
+        // pushDecodedChunk accepts any rational target — it'll upsample
+        // 44.1/48 kHz MP4 sources to whatever we ask for.
+        val overrideRate = readRateOverride()
+        val effectiveRate = when {
+            !NativeAudioHook.available -> sampleRate
+            overrideRate != null -> overrideRate
+            else -> NATIVE_BROADCAST_RATE_HZ
+        }
+        val effectiveCh   = if (NativeAudioHook.available) 2 else channelCount
+        if (overrideRate != null) {
+            log("rate override active: $overrideRate Hz (from $RATE_OVERRIDE_PATH)")
+        }
         val changed = effectiveRate != targetSampleRate || effectiveCh != targetChannelCount
         targetSampleRate = effectiveRate
         targetChannelCount = effectiveCh
@@ -99,15 +320,38 @@ object Mp4AudioProducer {
     }
 
     /**
-     * Output amplitude scale applied to MP4 PCM before it lands in the
-     * broadcast ring. Initially used to dodge an assumed AGC overshoot;
-     * later diagnostics showed even near-silence sine bursts distorted,
-     * pointing at the HAL DSP chain (AGC/ANS/AEC enabled by TikTok's
-     * VOICE_COMMUNICATION audio source) rather than level. Restored to
-     * 1.0 now that the AudioRecord ctor PLT hook forces the source to
-     * UNPROCESSED, bypassing that chain entirely.
+     * Default output amplitude scale. 0.85 ≈ -1.4 dBTP headroom under
+     * TikTok's documented -1 dBTP peak ceiling. Override at runtime via
+     * [AMP_OVERRIDE_PATH] so Pond can iterate without an APK rebuild —
+     * the "blown speaker" residue at 0.85 is likely from peaks still
+     * clipping through the encoder; try 0.7 / 0.6 / 0.5 to dial in.
      */
-    private const val OUTPUT_AMP_SCALE = 1.0f
+    private const val DEFAULT_currentAmpScale = 0.85f
+    private const val AMP_OVERRIDE_PATH =
+        "/sdcard/Android/data/com.zhiliaoapp.musically/files/vcam_audio_amp.txt"
+
+    private fun readAmpOverride(): Float? = try {
+        val f = java.io.File(AMP_OVERRIDE_PATH)
+        if (!f.exists() || f.length() <= 0L || f.length() > 16L) null
+        // Allow 0.0 explicitly so we can force silent output as a
+        // diagnostic — "does the substitution mechanism itself produce
+        // clean silence when given zero input?"
+        else f.readText().trim().toFloatOrNull()?.takeIf { it in 0.0f..1.5f }
+    } catch (_: Throwable) {
+        null
+    }
+
+    @Volatile private var currentAmpScale: Float = DEFAULT_currentAmpScale
+
+    private fun refreshAmpScale() {
+        val override = readAmpOverride()
+        val newScale = override ?: DEFAULT_currentAmpScale
+        if (kotlin.math.abs(newScale - currentAmpScale) > 0.001f) {
+            log("amp scale: ${currentAmpScale} → ${newScale}" +
+                (if (override != null) " (from $AMP_OVERRIDE_PATH)" else " (default)"))
+            currentAmpScale = newScale
+        }
+    }
 
     // ----------------------------------------------------------------------
     // Voice-like pre-processing — Phase 3j workaround.
@@ -189,11 +433,24 @@ object Mp4AudioProducer {
 
     fun start() {
         if (running.get()) return
-        if (!VcamConfig.videoReady() && VcamBridge.resolve() == null) {
+        val mode = readModeOverride()
+        if (mode == "tone") {
+            // Tone synthesizes its own samples, doesn't need a staged MP4.
+        } else if (!VcamConfig.videoReady() && VcamBridge.resolve() == null) {
+            // MP4 / speaker / rtmp_inject all consume the staged MP4 file.
             log("no staged video; not starting audio producer")
             return
         }
-        if (!hasTarget) {
+        if (mode != "speaker" && mode != "rtmp_inject" && mode != "rtmp_diag" && !hasTarget) {
+            // mp4 and tone need to know the AudioRecord format. The other
+            // modes don't touch the AudioRecord buffer at all.
+            // ws_inject mode INTENTIONALLY uses the same PCM-into-AudioRecord
+            // path as mp4 mode (falls into runDecodeLoop below) — this
+            // creates "audio activity" that triggers TikTok's AAC encoder
+            // to fire, which then activates our aacEncEncode PLT hook for
+            // the actual byte substitution. Without the PCM path, TikTok
+            // may not even initialise its encoder (no audio = no encode),
+            // and our PLT hook gets nothing to substitute.
             log("no AudioRecord target yet; deferring producer start")
             return
         }
@@ -203,19 +460,163 @@ object Mp4AudioProducer {
             readPos = 0
             ringSize = 0
         }
+        // Passthrough on the mic-substitution hook: ON for all modes that
+        // don't drive the obtainBuffer ring. lyrax mode leaves the mic
+        // untouched (TikTok captures ambient — discarded because lyrax's
+        // PUBLISH-only player overrides the broadcast audio path).
+        // ws_inject NOT in this list — see rationale at the videoReady
+        // check above. PCM substitution provides audio activity that
+        // makes TikTok's encoder fire so our AAC PLT hook gets hits.
+        val leaveMicAlone = mode == "speaker" || mode == "rtmp_inject" ||
+                            mode == "rtmp_diag"
+        NativeAudioHook.setPassthrough(leaveMicAlone)
+
+        // Default off — only `ws_inject` mode below turns substitution on.
+        NativeAudioHook.setRtmpInjectEnabled(false)
+        // ws_inject mode = Option G live: connect to PC encoder via
+        // WebSocket and substitute AAC frames at the aacEncEncode hook.
+        if (mode == "ws_inject") {
+            Mp4GWsClient.start()
+        }
+
         val thread = HandlerThread("Mp4AudioProducer").apply { start() }
         workerThread = thread
-        Thread { runDecodeLoop() }.apply {
-            name = "Mp4AudioProducer-decode"
-            isDaemon = true
-            start()
+        when (mode) {
+            "rtmp_inject" -> {
+                log("⚠ MODE: rtmp_inject — pre-encoded AAC injection at RTMP " +
+                    "layer. TikTok's encoder output is replaced per-frame; " +
+                    "viewer hears the staged MP4's AAC track directly. " +
+                    "Mic is left untouched (ambient sound encoded but " +
+                    "discarded). Clear $MODE_OVERRIDE_PATH to return to default.")
+                // No per-thread work here — Mp4AacProducer runs its own
+                // dedicated demux thread. Just park.
+                Thread {
+                    while (running.get() && !Thread.interrupted()) {
+                        try { Thread.sleep(1000) } catch (_: InterruptedException) { break }
+                    }
+                }.apply {
+                    name = "Mp4AudioProducer-rtmp-park"
+                    isDaemon = true
+                    start()
+                }
+            }
+            "rtmp_diag" -> {
+                log("⚠ MODE: rtmp_diag — PLT hook on rtmp_client_push_audio " +
+                    "is ACTIVE in log-only mode. Check logcat for " +
+                    "'rtmp_push_audio#N' lines to see what TikTok pushes. " +
+                    "Switch to rtmp_inject to start AAC substitution.")
+                Thread {
+                    while (running.get() && !Thread.interrupted()) {
+                        try { Thread.sleep(1000) } catch (_: InterruptedException) { break }
+                    }
+                }.apply {
+                    name = "Mp4AudioProducer-rtmp-diag-park"
+                    isDaemon = true
+                    start()
+                }
+            }
+            "tone" -> {
+                log("⚠ DIAGNOSTIC MODE: tone (${TONE_FREQ_HZ.toInt()} Hz sine at " +
+                    "${targetSampleRate} Hz × ${targetChannelCount} ch) — viewer hears a tone, not MP4. " +
+                    "Clear $MODE_OVERRIDE_PATH to return to MP4 playback.")
+                Thread { runToneLoop() }.apply {
+                    name = "Mp4AudioProducer-tone"
+                    isDaemon = true
+                    start()
+                }
+            }
+            "speaker" -> {
+                log("⚠ DIAGNOSTIC MODE: speaker (acoustic loopback) — MP4 plays through " +
+                    "device speaker, mic captures it, our PCM substitution is DISABLED. " +
+                    "Use this only as A/B baseline against mp4 mode; multi-device cross- " +
+                    "contamination makes it unviable for production. " +
+                    "Clear $MODE_OVERRIDE_PATH to return to MP4 PCM injection.")
+                Thread { runSpeakerLoop() }.apply {
+                    name = "Mp4AudioProducer-speaker"
+                    isDaemon = true
+                    start()
+                }
+            }
+            else -> {
+                Thread { runDecodeLoop() }.apply {
+                    name = "Mp4AudioProducer-decode"
+                    isDaemon = true
+                    start()
+                }
+            }
         }
+    }
+
+    /**
+     * Synthesize a continuous [TONE_FREQ_HZ] sine into the producer ring at
+     * the configured target rate. Used to measure exact native consumption
+     * rate without an ear A/B: viewer hears the tone, screen-record the
+     * LIVE, then ffmpeg/sox reads the peak frequency from the recording.
+     *
+     * Expected: if we configured target=R and consumer plays at R too,
+     * viewer hears 1000 Hz. If consumer plays at C ≠ R, viewer hears
+     * 1000 × (C/R) Hz. Solve for C, set our target to C, done.
+     */
+    private fun runToneLoop() {
+        // Reset the loop-abort flag so a stray signalLoopBoundary call
+        // (e.g. set before mode was switched) doesn't silently suppress
+        // appendToRing writes the tone needs to make.
+        abortCurrentPass = false
+        val sampleRate = targetSampleRate.takeIf { it > 0 } ?: 48000
+        val channels = targetChannelCount.takeIf { it > 0 } ?: 2
+        val phaseIncr = 2.0 * Math.PI * TONE_FREQ_HZ / sampleRate
+        // 100 ms chunks — small enough to pace cleanly against the
+        // backpressure throttle, big enough that allocation overhead stays
+        // below threading cost.
+        val chunkFrames = (sampleRate / 10).coerceAtLeast(1)
+        val chunkBytes = chunkFrames * channels * 2
+        val chunk = ByteArray(chunkBytes)
+        // Loud enough to dominate any residual mic input mixed alongside,
+        // and well clear of the noise floor so aubiopitch latches on the
+        // tone immediately. ~50 % of full scale = -6 dBFS, still under
+        // the -1 dBTP clip ceiling.
+        val amp = 16000
+        var phase = 0.0
+        var pushed = 0L
+        log("tone loop entered (target=${sampleRate} Hz × ${channels} ch, chunkFrames=$chunkFrames)")
+        while (running.get() && !Thread.interrupted()) {
+            // Defensive: clear the abort flag every iteration in case
+            // signalLoopBoundary fires from the video producer (we already
+            // gate that on mode, but belt-and-braces).
+            abortCurrentPass = false
+            var i = 0
+            while (i < chunkFrames) {
+                val s = (kotlin.math.sin(phase) * amp).toInt()
+                    .coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
+                phase += phaseIncr
+                if (phase > 2.0 * Math.PI) phase -= 2.0 * Math.PI
+                val frameOffset = i * channels * 2
+                for (c in 0 until channels) {
+                    val o = frameOffset + c * 2
+                    chunk[o] = (s and 0xFF).toByte()
+                    chunk[o + 1] = ((s shr 8) and 0xFF).toByte()
+                }
+                i++
+            }
+            appendToRing(chunk, chunkBytes)
+            pushed++
+            if (pushed == 1L || pushed % 50L == 0L) {
+                log("tone: pushed ${pushed * chunkFrames} frames @ ${TONE_FREQ_HZ.toInt()} Hz")
+            }
+        }
+        log("tone loop exited (pushed ${pushed * chunkFrames} frames total)")
+        running.set(false)
     }
 
     fun stop() {
         if (!running.compareAndSet(true, false)) return
         workerThread?.quitSafely()
         workerThread = null
+        // Always re-arm substitution on stop so a stale speaker-mode
+        // passthrough doesn't leak into the next session.
+        NativeAudioHook.setPassthrough(false)
+        Mp4GWsClient.stop()
+        releaseSpeakerPlayer()
         synchronized(lock) {
             writePos = 0
             readPos = 0
@@ -224,9 +625,109 @@ object Mp4AudioProducer {
         }
     }
 
+    @Volatile private var speakerPlayer: android.media.MediaPlayer? = null
+
+    private fun releaseSpeakerPlayer() {
+        speakerPlayer?.let { p ->
+            try { p.stop() } catch (_: Throwable) {}
+            try { p.release() } catch (_: Throwable) {}
+        }
+        speakerPlayer = null
+    }
+
+    /**
+     * Production speaker-loopback path. Spin up an Android MediaPlayer
+     * pointed at the staged MP4 (audio track only — MediaPlayer ignores
+     * video by default if it has no surface), set volume to max, let it
+     * loop. The device speaker emits the audio; the broadcaster's mic
+     * captures it as ambient sound; TikTok's pipeline handles the mic
+     * input through its normal voice path. PCM substitution stays
+     * disabled via the passthrough flag set by [start].
+     *
+     * Audio attributes: STREAM_MUSIC + USAGE_MEDIA for full-quality DAC
+     * routing through the device's media speaker (not the voice
+     * earpiece, not voice-call-tuned downsampling).
+     */
+    private fun runSpeakerLoop() {
+        log("speaker loop entered")
+        try {
+            val source = VcamBridge.resolve() ?: run {
+                log("speaker: no staged source; bailing")
+                running.set(false)
+                return
+            }
+            val mp = android.media.MediaPlayer()
+            // Pin to media-stream audio attributes so the system routes
+            // through the loud speaker (not the voice earpiece) and uses
+            // the music-quality codec path, not voice-tuned downsampling.
+            try {
+                mp.setAudioAttributes(
+                    android.media.AudioAttributes.Builder()
+                        .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
+                        .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC)
+                        .build()
+                )
+            } catch (t: Throwable) {
+                log("speaker: setAudioAttributes failed: ${t.message}")
+            }
+            when (source) {
+                is VcamBridge.Source.Pfd -> {
+                    mp.setDataSource(source.pfd.fileDescriptor)
+                }
+                is VcamBridge.Source.Path -> mp.setDataSource(source.absolutePath)
+            }
+            mp.isLooping = true
+            // Full-volume L+R; SamuraiLive uses 1.0/1.0 too. The system
+            // mixer / AGC will normalise on the encoder side.
+            mp.setVolume(1.0f, 1.0f)
+            mp.setOnErrorListener { _, what, extra ->
+                log("speaker: MediaPlayer error what=$what extra=$extra")
+                false
+            }
+            mp.prepare()
+            mp.start()
+            speakerPlayer = mp
+            log("speaker: MediaPlayer started looping (source=${source.javaClass.simpleName})")
+            // Park the thread; MediaPlayer runs on its own internal
+            // threads. Wait until stop().
+            while (running.get() && !Thread.interrupted()) {
+                try { Thread.sleep(1000) } catch (_: InterruptedException) { break }
+            }
+        } catch (t: Throwable) {
+            log("speaker loop error: ${t.javaClass.simpleName}: ${t.message}")
+            XposedBridge.log(Log.getStackTraceString(t))
+        } finally {
+            releaseSpeakerPlayer()
+            log("speaker loop exited")
+            running.set(false)
+        }
+    }
+
     private fun restart() {
         stop()
         start()
+    }
+
+    /**
+     * Called from [Mp4FrameProducer] each time video reaches EOS. Aborts
+     * whatever the audio decoder is doing so its next pass starts from
+     * t=0 at the same loop boundary as video. Without this signal the
+     * audio and video paths each loop on their own track-EOS — and the
+     * tens-of-ms duration mismatch between the MP4's audio and video
+     * tracks accumulates as A/V drift across loops.
+     *
+     * In tone mode this signal is a no-op — there's no MP4 pass to
+     * abort, the tone is continuous. Letting it set the flag would
+     * silence the tone after the first video loop (~22 s) because
+     * appendToRing bails when abortCurrentPass is true.
+     */
+    fun signalLoopBoundary() {
+        if (readModeOverride() == "tone") return
+        abortCurrentPass = true
+        // Wake the producer if it's parked in the backpressure sleep so
+        // the abort takes effect immediately instead of after the next
+        // 10 ms tick.
+        synchronized(lock) { lock.notifyAll() }
     }
 
     /**
@@ -274,6 +775,14 @@ object Mp4AudioProducer {
         val source = VcamBridge.resolve() ?: run {
             log("no source; cannot decode audio"); return false
         }
+        // Reset the abort flag on entry — any signal from a prior pass has
+        // already been honoured by the time we get here, and a fresh signal
+        // arriving mid-setup is fine: the inner while loop will pick it up
+        // on the next iteration.
+        abortCurrentPass = false
+        // Invalidate the chunk-boundary cubic carry — the next chunk is
+        // the first of a fresh MP4 pass, so prev-pass samples are stale.
+        prevChunkValid = false
         val extractor = MediaExtractor()
         var decoder: MediaCodec? = null
         var pfd: android.os.ParcelFileDescriptor? = null
@@ -313,7 +822,7 @@ object Mp4AudioProducer {
             var srcPosFrac = 0.0
             // We pull from the decoder's output ByteBuffer into a transient
             // float buffer to convert + resample, then write PCM16 to the ring.
-            while (!sawOutputEOS && running.get() && !Thread.interrupted()) {
+            while (!sawOutputEOS && running.get() && !Thread.interrupted() && !abortCurrentPass) {
                 if (!sawInputEOS) {
                     val inIdx = decoder.dequeueInputBuffer(DEQUEUE_TIMEOUT_US)
                     if (inIdx >= 0) {
@@ -340,7 +849,26 @@ object Mp4AudioProducer {
                             out.order(ByteOrder.LITTLE_ENDIAN)
                             out.position(info.offset)
                             out.limit(info.offset + info.size)
-                            srcPosFrac = pushDecodedChunk(out, srcSampleRate, srcChannelCount, srcPosFrac)
+                            // PURE PASSTHROUGH diagnostic: if the source
+                            // already matches our target rate + stereo and
+                            // the override file exists, memcpy the bytes
+                            // straight into the ring — bypass downmix /
+                            // LPF / cubic / amp entirely. Used to prove
+                            // whether ANY of our post-decode processing
+                            // contributes to the crackling.
+                            if (pureBypassEnabled() &&
+                                srcSampleRate == targetSampleRate &&
+                                srcChannelCount == targetChannelCount) {
+                                val n = out.remaining()
+                                if (n > 0) {
+                                    val raw = ByteArray(n)
+                                    out.get(raw)
+                                    appendToRing(raw, n)
+                                }
+                                srcPosFrac = 0.0
+                            } else {
+                                srcPosFrac = pushDecodedChunk(out, srcSampleRate, srcChannelCount, srcPosFrac)
+                            }
                         }
                     }
                     decoder.releaseOutputBuffer(outIdx, false)
@@ -378,6 +906,10 @@ object Mp4AudioProducer {
         srcChannelCount: Int,
         startFrac: Double,
     ): Double {
+        // Pick up amp / noise override file changes per chunk so Pond
+        // can iterate without forcing a TikTok restart.
+        refreshAmpScale()
+        refreshNoiseAmp()
         val tSampleRate = targetSampleRate.takeIf { it > 0 } ?: srcSampleRate
         val tChannels = targetChannelCount.takeIf { it > 0 } ?: srcChannelCount
         val srcShortCount = srcBuf.remaining() / 2
@@ -390,16 +922,53 @@ object Mp4AudioProducer {
         val sb = srcBuf.asShortBuffer()
         sb.get(srcShorts)
 
+        // ===== Stage 1: stereo-to-mono downmix =====
+        // Adopt the expert-recommended architecture: collapse to mono
+        // *first*, before LPF or resample, so the rest of the chain
+        // operates on a single unified signal. TikTok's voice pipeline
+        // downmixes to mono internally anyway; doing it ourselves keeps
+        // L=R perfectly (no mid-side phase artefacts that survive their
+        // downmixer) and halves the per-sample CPU for LPF/cubic.
+        val srcMono: ShortArray
+        val srcMonoCount: Int
+        if (srcChannelCount == 2) {
+            srcMonoCount = srcFrameCount
+            srcMono = ShortArray(srcMonoCount)
+            var i = 0
+            while (i < srcMonoCount) {
+                val l = srcShorts[i * 2].toInt()
+                val r = srcShorts[i * 2 + 1].toInt()
+                srcMono[i] = ((l + r) / 2).toShort()
+                i++
+            }
+        } else {
+            srcMonoCount = srcFrameCount
+            srcMono = srcShorts
+        }
+
+        // ===== Stage 2: anti-alias pre-LPF =====
+        // Configurable 1-pole IIR low-pass. Default 16 kHz cutoff;
+        // override via [LPF_OVERRIDE_PATH] (0 = disabled).
+        refreshLpfAlpha(srcSampleRate)
+        val alpha = currentLpfAlpha
+        if (alpha < 0.999) {
+            val oneMinusAlpha = 1.0 - alpha
+            var i = 0
+            while (i < srcMonoCount) {
+                val x = srcMono[i].toDouble()
+                val y = alpha * x + oneMinusAlpha * preLpfPrevL
+                preLpfPrevL = y
+                srcMono[i] = y.toInt()
+                    .coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
+                i++
+            }
+        }
+
+        // ===== Stage 3: cubic resample (mono) =====
         val ratio = srcSampleRate.toDouble() / tSampleRate.toDouble()
-        // We don't bridge interpolation across chunks (would require keeping
-        // the last source frame of the previous chunk in a tail buffer); the
-        // resulting one-sample discontinuity is inaudible in practice.
-        // Clamp any negative residual carried in from the prior chunk so we
-        // never index srcShorts with a negative s0 — that crashed the
-        // producer on the very first run.
-        var pos = startFrac.coerceIn(0.0, (srcFrameCount - 1).toDouble())
+        var pos = startFrac.coerceIn(0.0, (srcMonoCount - 1).toDouble())
         val outFramesEstimate =
-            ((srcFrameCount - pos) / ratio).toInt().coerceAtLeast(0)
+            ((srcMonoCount - pos) / ratio).toInt().coerceAtLeast(0)
         if (outFramesEstimate == 0) {
             return 0.0
         }
@@ -410,24 +979,48 @@ object Mp4AudioProducer {
         while (frameI < outFramesEstimate) {
             val s0 = pos.toInt()
             val s1 = s0 + 1
-            if (s0 < 0 || s1 >= srcFrameCount) break
+            if (s0 < 0 || s1 >= srcMonoCount) break
             val frac = (pos - s0)
 
-            // Read interpolated source frame as up-to-2 channels.
-            val srcCh0L = srcShorts[s0 * srcChannelCount].toInt()
-            val srcCh0R = srcShorts[s1 * srcChannelCount].toInt()
-            val leftRaw = (srcCh0L + (srcCh0R - srcCh0L) * frac)
-            val left = (leftRaw * OUTPUT_AMP_SCALE).toInt()
-                .coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
-            val right = if (srcChannelCount >= 2) {
-                val srcCh1L = srcShorts[s0 * srcChannelCount + 1].toInt()
-                val srcCh1R = srcShorts[s1 * srcChannelCount + 1].toInt()
-                val rightRaw = (srcCh1L + (srcCh1R - srcCh1L) * frac)
-                (rightRaw * OUTPUT_AMP_SCALE).toInt()
-                    .coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
+            // Catmull-Rom cubic interpolation on the mono signal.
+            // For sm1: when s0 == 0 (chunk start), use the previous
+            // chunk's last sample (prevChunkTail0) instead of clamping
+            // to srcMono[0]. This eliminates the chunk-boundary
+            // discontinuity that produces audible crackling at ~50 Hz
+            // (MediaCodec output rate).
+            //
+            // For s2: still clamp to srcMono[s1] at chunk end — we
+            // don't have the next chunk's first sample yet without
+            // deferring output. The one-sample edge artefact at chunk
+            // end is much less perceptible than the chunk-start one.
+            val ym1 = if (s0 > 0) {
+                srcMono[s0 - 1].toInt()
+            } else if (prevChunkValid) {
+                prevChunkTail0.toInt()
             } else {
-                left
+                srcMono[s0].toInt()
             }
+            val y0  = srcMono[s0 ].toInt()
+            val y1  = srcMono[s1 ].toInt()
+            val y2  = if (s1 + 1 < srcMonoCount) srcMono[s1 + 1].toInt() else srcMono[s1].toInt()
+            val raw = catmullRom(ym1, y0, y1, y2, frac)
+
+            // ===== Stage 4: amp scale + optional noise floor =====
+            var sample = (raw * currentAmpScale).toInt()
+            if (currentNoiseAmp > 0) {
+                // Cheap white-ish noise; not cryptographic, just enough
+                // to fake a mic noise floor for TikTok's voice DSP.
+                val n = ((Math.random() - 0.5) * 2.0 * currentNoiseAmp).toInt()
+                sample += n
+            }
+            sample = sample.coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
+            // Stage 5 (writing) — duplicate mono to L and R for stereo
+            // output. The native ring expects whatever channel count the
+            // AR was created with; we keep tChannels-aware writing
+            // below so a mono AR ctor (if one ever happens) just writes
+            // a single sample per frame.
+            val left = sample
+            val right = sample
 
             // Write target frame.
             if (tChannels == 1) {
@@ -453,10 +1046,45 @@ object Mp4AudioProducer {
         }
 
         if (outIdx > 0) appendToRing(outBytes, outIdx)
+
+        // Save the last 2 source mono samples for the next chunk's cubic
+        // interp boundary. Without this, every MediaCodec output chunk
+        // start would have a 1-sample discontinuity at the cubic's sm1
+        // point, producing audible crackling at the chunk emission rate.
+        if (srcMonoCount >= 2) {
+            prevChunkTail0 = srcMono[srcMonoCount - 1]
+            prevChunkTail1 = srcMono[srcMonoCount - 2]
+            prevChunkValid = true
+        } else if (srcMonoCount == 1) {
+            prevChunkTail0 = srcMono[0]
+            prevChunkTail1 = 0
+            prevChunkValid = true
+        }
+
         // Carry only the sub-sample phase so we keep aligned with the source
         // grid; the integer part of pos resets to 0 at the start of the next
         // chunk. Always in [0, 1).
         return pos - pos.toInt()
+    }
+
+    /**
+     * Catmull-Rom cubic spline interpolation. Returns the interpolated
+     * sample at fractional position [frac] in [0, 1) between [y0] and [y1],
+     * using [yMinus1] and [y2] as outer control points. Reduces aliased
+     * images by ~12 dB vs linear interp without the runtime cost of a
+     * polyphase FIR.
+     */
+    private fun catmullRom(yMinus1: Int, y0: Int, y1: Int, y2: Int, frac: Double): Double {
+        val ym1 = yMinus1.toDouble()
+        val y0d = y0.toDouble()
+        val y1d = y1.toDouble()
+        val y2d = y2.toDouble()
+        val a = -0.5 * ym1 + 1.5 * y0d - 1.5 * y1d + 0.5 * y2d
+        val b =        ym1 - 2.5 * y0d + 2.0 * y1d - 0.5 * y2d
+        val c = -0.5 * ym1               + 0.5 * y1d
+        val d =                  y0d
+        // Horner form for fewer multiplications.
+        return ((a * frac + b) * frac + c) * frac + d
     }
 
     private fun appendToRing(buf: ByteArray, length: Int) {
@@ -478,9 +1106,13 @@ object Mp4AudioProducer {
         // padding bleeding into the audio.
         if (NativeAudioHook.available) {
             val headroom = 32 * 1024
-            while (running.get() && NativeAudioHook.ringAvailable() > headroom) {
+            while (running.get() && !abortCurrentPass && NativeAudioHook.ringAvailable() > headroom) {
                 try { Thread.sleep(10) } catch (_: InterruptedException) { return }
             }
+            // Drop this chunk if the pass was just aborted — the next pass
+            // will start from t=0 and push fresh PCM. Holding it back avoids
+            // a stale-audio glitch at the loop boundary.
+            if (abortCurrentPass) return
             NativeAudioHook.writePcm(buf, length)
         }
         synchronized(lock) {

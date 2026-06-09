@@ -34,7 +34,15 @@ server/uploads/*
 **/logs/
 apk/*
 .data/*
+
+# tools/ ignored by default — operator scratch / vendored binaries /
+# anything else live there. Allow shell + Python scripts that are part
+# of the published toolchain.
 tools/*
+!tools/release.sh
+!tools/dev-install.sh
+!tools/aac-server.py
+!tools/test-audio-rate.sh
 
 # Release artifacts — built locally by tools/release.sh, hosted on R2.
 # Keep only CHANGELOG.md + the directory shape under git.

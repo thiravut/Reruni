@@ -45,28 +45,28 @@ class HookEntry : IXposedHookLoadPackage {
             Log.e(TAG, "Camera2Hook.install failed", t)
         }
 
-        // Audio injection is shipped in V1 with known distortion ("blown
-        // speaker" artefact from TikTok's voice-tuned downstream pipeline
-        // mangling our PCM). Pond's call: an audible MP4 soundtrack that's
-        // a bit broken still beats no soundtrack at all.
+        // Audio path = speaker-mode acoustic loopback (production default
+        // as of 2026-06-08). After exhaustive PCM injection investigation
+        // we proved TikTok 45.3.2 + Samsung A15's voice DSP is
+        // incompatible with any non-silent injected PCM — every knob
+        // (rate, amp, LPF cutoff, encoder rewrite, audio scene, noise
+        // floor, source bitrate, mono downmix, cubic vs linear vs pure
+        // passthrough) all leave the same "ลำโพงแตก" residue. Speaker
+        // mode bypasses the issue: MediaPlayer plays MP4 audio through
+        // device speaker → mic captures acoustically → TikTok handles
+        // mic input normally.
         //
-        // We deliberately do NOT install TtRtcEncoderHook here: the encoder
-        // config rewrite (AACHEv1 → AAC-LC + bitrate bump) made the
-        // distortion slightly better but shifted the encoder's frame
-        // pacing, which produced audible A/V drift that grew with LIVE
-        // duration. Drift was Pond's hard blocker for V1; distortion is
-        // not. So we let TikTok keep its default encoder config and accept
-        // the worse-sounding-but-sync'd audio.
-        //
-        // See docs/vcam-findings/phase3-audio-injection-deferred.md for the
-        // full V2 roadmap (Pixel hardware test + inline hooking).
+        // The AudioRecord substitution hooks below stay installed so the
+        // "mp4"/"tone" override modes (via vcam_audio_mode.txt) still
+        // function for diagnostic A/B testing. Mp4AudioProducer's start()
+        // routes to runSpeakerLoop() by default — runDecodeLoop and
+        // runToneLoop only fire when an override file requests them.
         try {
             AudioRecordHook.install(lpparam)
         } catch (t: Throwable) {
             XposedBridge.log("[$TAG] AudioRecordHook.install failed: ${t.message}")
             Log.e(TAG, "AudioRecordHook.install failed", t)
         }
-
         try {
             NativeAudioHook.install()
         } catch (t: Throwable) {
@@ -74,6 +74,57 @@ class HookEntry : IXposedHookLoadPackage {
             Log.e(TAG, "NativeAudioHook.install failed", t)
         }
 
-        // TtRtcEncoderHook intentionally NOT installed — see comment above.
+        // TtLivePusherAudioHook intentionally NOT installed — none of the
+        // method hooks it sets up fire in 45.3.2 (kept in tree as the
+        // V3 / Lyrax / encoder-path attempt log).
+
+        // Encoder rewrite (AAC-LC 256 kbps). Toggleable via file —
+        // create /sdcard/Android/data/com.zhiliaoapp.musically/files/
+        // vcam_encoder_rewrite_off.txt to skip the install so TikTok's
+        // default HE-AACv1 64 kbps stays in effect (for A/B against
+        // the rewrite).
+        val encoderRewriteDisabled = try {
+            java.io.File("/sdcard/Android/data/com.zhiliaoapp.musically/files/vcam_encoder_rewrite_off.txt").exists()
+        } catch (_: Throwable) { false }
+        if (encoderRewriteDisabled) {
+            XposedBridge.log("[$TAG] TtRtcEncoderHook.install SKIPPED (off-flag present)")
+            Log.i(TAG, "TtRtcEncoderHook.install SKIPPED (off-flag present)")
+        } else {
+            try {
+                TtRtcEncoderHook.install(lpparam)
+            } catch (t: Throwable) {
+                XposedBridge.log("[$TAG] TtRtcEncoderHook.install failed: ${t.message}")
+                Log.e(TAG, "TtRtcEncoderHook.install failed", t)
+            }
+        }
+
+        // Force every WebRTC voice processor switch to OFF on
+        // AudioDeviceModule. Phase3 recon found they were already false
+        // on the build we tested then, but TikTok 45.3.2's pipeline may
+        // re-assert them — belt-and-braces.
+        try {
+            TtRtcAudioHook.install(lpparam)
+        } catch (t: Throwable) {
+            XposedBridge.log("[$TAG] TtRtcAudioHook.install failed: ${t.message}")
+            Log.e(TAG, "TtRtcAudioHook.install failed", t)
+        }
+
+        // Force audio scene to KARAOKE (music-friendly) instead of the
+        // CHATROOM default that voice-tunes the broadcast DSP. The
+        // "ทุ้ม + แตก" residue after every PCM-side fix traces here.
+        try {
+            TtAudioSceneHook.install(lpparam)
+        } catch (t: Throwable) {
+            XposedBridge.log("[$TAG] TtAudioSceneHook.install failed: ${t.message}")
+            Log.e(TAG, "TtAudioSceneHook.install failed", t)
+        }
+
+        // EncoderOutputRecon DISABLED — confirmed via Phase 1 testing that
+        // Java-side AudioEncoder.nativeEncoded never fires on TikTok 45.3.2.
+        // Re-enable only when investigating a NEW TikTok build's encoder
+        // path. Leaving it installed seems to coincide with the
+        // aacEncEncode PLT hook intermittently not firing — possibly
+        // because hooking the abstract Java method affects class
+        // initialisation order or encoder selection.
     }
 }

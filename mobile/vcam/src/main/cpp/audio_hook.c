@@ -25,9 +25,14 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <time.h>
 #include <android/log.h>
 
 #include "xhook/xhook.h"
+// shadowhook include removed — caused TikTok SIGSEGV on Samsung A15
+// Android 16 (signal handler / .init_array conflict). Phase 1.7 will
+// try a different inline-hook strategy (manual prologue patching or
+// vendoring a more conservative library like dobby).
 
 #define TAG "TiktokRerunVCam"
 #define LOGI(fmt, ...) __android_log_print(ANDROID_LOG_INFO,  TAG, "NativeAudioHook: " fmt, ##__VA_ARGS__)
@@ -107,7 +112,10 @@ static AudioRecord_read2_t real_AudioRecord_read2 = NULL;
 
 // Per-call budget so we don't spam logcat once the broadcast is live.
 // AudioRecord::read fires ~50–100 Hz; log the first N then go silent.
-#define AUDIO_READ_LOG_BUDGET 12
+// Bumped to 64 for the 2026-06-04 sample-rate diagnostic — Pond's hypothesis
+// is the v0.1.1 path was right but PCM played at wrong rate. More log
+// samples = more reliable rate estimate from frames/elapsed-ms.
+#define AUDIO_READ_LOG_BUDGET 64
 static int audio_read_log_count = 0;
 
 static long hooked_AudioRecord_read3(void *self, void *buffer, size_t size, int blocking) {
@@ -237,16 +245,31 @@ typedef struct {
 typedef void (*AudioRecord_ctor_t)(void *self, int audio_source);
 static AudioRecord_ctor_t real_AudioRecord_ctor = NULL;
 
-// arm64 trampoline: load forced source into x1, then jump to real ctor.
-// All other registers (x0=this, x2..x7=remaining args, stack=overflow
-// args) flow through untouched. This is the only safe way to mutate one
-// arg of a variadic C++ ctor without knowing the rest of the signature.
+// arm64 trampoline: rewrite two args of the variadic ctor (audio_source_t
+// at x1, sampleRate at x2), then jump to real ctor. All other registers
+// (x0=this, x3..x7=remaining args, stack=overflow args) flow through
+// untouched. This is the only safe way to mutate args of a variadic C++
+// ctor without knowing the rest of the signature.
+//
+// Why we also force sampleRate (2026-06-05): the native broadcast AR was
+// being created at ~72 kHz, forcing us to resample our 44.1 kHz MP4
+// source up to 72 kHz with linear/cubic interp. The aliased images and
+// AAC encoder mangling that followed produced the "ทุ้ม + ลำโพงแตก"
+// distortion Pond heard. Forcing the AR to 48000 Hz (TikTok's encoder
+// native rate per phase3 doc) means:
+//   * our resample becomes 44.1 → 48 = 1.088×, vs 44.1 → 72 = 1.633×
+//     — far less aliasing
+//   * TikTok's internal resample to encoder rate disappears entirely
+//   * the audio path stays at 48 kHz from our buffer write through
+//     encoder input — only one lossy step (the unavoidable AAC encode)
 #if defined(__aarch64__)
 __attribute__((naked, used))
 static void hooked_AudioRecord_ctor_thunk(void) {
     __asm__ volatile(
         // Force x1 = AUDIO_SOURCE_UNPROCESSED (9).
         "mov    x1, #9                  \n"
+        // Force w2 (sampleRate) = 48000 (0xBB80).
+        "movz   w2, #0xBB80             \n"
         // Load real ctor address into x16 (scratch).
         "adrp   x16, real_AudioRecord_ctor              \n"
         "ldr    x16, [x16, #:lo12:real_AudioRecord_ctor]\n"
@@ -257,9 +280,11 @@ static void hooked_AudioRecord_ctor_thunk(void) {
 #elif defined(__arm__)
 __attribute__((naked, used))
 static void hooked_AudioRecord_ctor_thunk(void) {
-    // 32-bit ARM equivalent: r1 carries audio_source_t (after r0=this).
+    // 32-bit ARM equivalent: r1 = audio_source_t (after r0=this),
+    // r2 = sampleRate.
     __asm__ volatile(
         "mov    r1, #9                                  \n"
+        "movw   r2, #0xBB80                             \n"  // 48000
         "ldr    r12, =real_AudioRecord_ctor             \n"
         "ldr    r12, [r12]                              \n"
         "bx     r12                                     \n"
@@ -290,6 +315,13 @@ static int release_log_count = 0;
 // confirmed this works — viewer-side heard silence. Flipped to 0 now
 // that Phase 3 (native PCM ring) is wired.
 #define VCAM_AUDIO_SILENCE_TEST 0
+
+// Passthrough flag — when set (via JNI from Mp4AudioProducer "speaker"
+// mode), obtainBuffer skips PCM substitution entirely. The mic buffer
+// keeps whatever the hardware captured, which for the acoustic-loopback
+// diagnostic is the MP4 audio being played through the device speaker.
+// Atomic so the audio thread reads it without locking.
+static _Atomic int g_passthrough = 0;
 
 // ---------------------------------------------------------------------------
 // Native PCM ring buffer. Java side (Mp4AudioProducer) pushes resampled PCM
@@ -343,6 +375,46 @@ static size_t pcm_ring_read(uint8_t *dst, size_t want) {
 
 // Forward decls so pcm_ring_write can snapshot to disk for the producer dump.
 static void prod_capture_write(const void *src, size_t len);
+
+// Forward decls for Option B (rtmp_client_push_audio/video PLT hooks). The
+// definitions live after the JNI exports at the bottom of the file; the
+// install0 below registers the hooks first, so we declare them up top.
+typedef void (*rtmp_client_push_audio_t)(void *handle, void *data,
+                                          uint32_t size, uint32_t pts);
+typedef void (*rtmp_client_push_video_t)(void *handle, void *data,
+                                          uint32_t size, uint32_t pts);
+static rtmp_client_push_audio_t real_rtmp_client_push_audio;
+static rtmp_client_push_video_t real_rtmp_client_push_video;
+static void hooked_rtmp_client_push_audio(void *handle, void *data,
+                                          uint32_t size, uint32_t pts);
+static void hooked_rtmp_client_push_video(void *handle, void *data,
+                                          uint32_t size, uint32_t pts);
+
+// Option G: aacEncEncode PLT hook. libfdk-aac is bundled separately as
+// libfdk-aac.so and libvolcenginertc.so imports `aacEncEncode` via PLT
+// (confirmed by `objdump -R libvolcenginertc.so | grep aacEnc`). Hooking
+// it intercepts every AAC encode call from TikTok's encoder — we see the
+// PCM input + the encoded AAC output, and can overwrite the output bytes
+// with our PC-encoded AAC (Option G architecture). Voice DSP runs
+// UPSTREAM of the encoder so substitution AT THE ENCODER OUTPUT bypasses
+// DSP entirely.
+//
+// libfdk-aac signature (Frontends/aacenc/aacenc_lib.h):
+//   AACENC_ERROR aacEncEncode(HANDLE_AACENCODER hAacEncoder,
+//                              const AACENC_BufDesc *inBufDesc,
+//                              const AACENC_BufDesc *outBufDesc,
+//                              const AACENC_InArgs  *inargs,
+//                                    AACENC_OutArgs *outargs);
+//
+// We treat all but the first arg as opaque pointers; the only struct we
+// need to know is AACENC_OutArgs (so we can read numOutBytes after the
+// call). To keep this compile-time-decoupled from libfdk-aac headers,
+// we mirror just the offset of numOutBytes (first 4 bytes of the struct).
+typedef int (*aacEncEncode_t)(void *h, const void *in, const void *out,
+                              const void *inargs, void *outargs);
+static aacEncEncode_t real_aacEncEncode;
+static int hooked_aacEncEncode(void *h, const void *in, const void *out,
+                               const void *inargs, void *outargs);
 
 // Producer side: drop-oldest on overflow so the audio thread always reads
 // the freshest PCM. Called from Java (Mp4AudioProducer) per decoded chunk.
@@ -574,6 +646,11 @@ static void format_hex_dump_once(const ar_buffer_t *audioBuffer) {
 // started yet) produces silence, which TikTok handles cleanly.
 static void substitute_audio_buffer(ar_buffer_t *audioBuffer) {
     if (!audioBuffer || !audioBuffer->raw || audioBuffer->size == 0) return;
+    // Passthrough: leave whatever the mic hardware captured in the buffer
+    // untouched. Used by Mp4AudioProducer's "speaker" diagnostic mode so
+    // the acoustic loopback (speaker → air → mic) reaches the encoder
+    // through the broadcast's normal mic pathway.
+    if (atomic_load_explicit(&g_passthrough, memory_order_acquire)) return;
 #if DIAG_MODE == 1
     // Mic-capture mode: log hex+typed interpretations of the first few raw
     // buffers (Pond pastes log → I read format directly), snapshot what
@@ -643,11 +720,19 @@ static int hooked_AudioRecord_obtainBufferTs(void *self, ar_buffer_t *audioBuffe
     int rc = real_AudioRecord_obtainBufferTs(self, audioBuffer, requested, elapsed, nonContig);
     if (obtain_ts_log_count < AUDIO_READ_LOG_BUDGET) {
         obtain_ts_log_count++;
-        LOGI("AudioRecord::obtainBuffer[ts](this=%p) → rc=%d frames=%zu size=%zu raw=%p%s",
+        // Log wall-clock nanoseconds so a downstream awk over consecutive
+        // log lines can compute the actual sample rate:
+        //   rate_hz = frames / (elapsed_ns / 1e9)
+        // If TikTok asks for 48000 but native really runs at e.g. 32000,
+        // our 48 kHz PCM plays 1.5× faster — Pond's reported symptom.
+        struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts);
+        long long now_ns = (long long)ts.tv_sec * 1000000000LL + ts.tv_nsec;
+        LOGI("AudioRecord::obtainBuffer[ts](this=%p) → rc=%d frames=%zu size=%zu raw=%p t=%lldns%s",
              self, rc,
              audioBuffer ? audioBuffer->frameCount : 0,
              audioBuffer ? audioBuffer->size : 0,
              audioBuffer ? audioBuffer->raw : NULL,
+             now_ns,
              obtain_ts_log_count == AUDIO_READ_LOG_BUDGET ? " (silencing log)" : "");
     }
     if (rc == 0) {
@@ -749,6 +834,9 @@ static int audio_symbol_match(const char *name) {
         "PCM", "pcm", "Record", "Capture", "Encode", "Codec",
         "AAC", "Opus", "FLAC", "AudioRecord", "obtainBuffer",
         "releaseBuffer", "MediaCodec", "BufferQueue", "Enqueue",
+        // Phase 6 video encoder recon strings removed — they added log
+        // volume without yielding useful info, and removing them coincides
+        // with restoring the working Option G state.
     };
     for (size_t i = 0; i < sizeof(kHits)/sizeof(kHits[0]); i++) {
         if (strstr(name, kHits[i])) return 1;
@@ -960,9 +1048,56 @@ Java_com_rerun_tiktokvcam_NativeAudioHook_install0(JNIEnv *env, jclass clazz) {
         LOGI("xhook_register(%s, dlsym) = %d", k_audio_target_libs[i], rc_dl);
     }
 
+    // Option B: rtmp_client_push_audio / push_video. libvolcenginertc_plugin.so
+    // imports both via PLT (R_AARCH64_JUMP_SLOT confirmed via objdump -R).
+    // Register against catch-all so any future caller is also intercepted.
+    int rc_rtmp_audio = xhook_register(
+            ".*\\.so$",
+            "rtmp_client_push_audio",
+            (void *) hooked_rtmp_client_push_audio,
+            (void **) &real_rtmp_client_push_audio);
+    LOGI("xhook_register(.*\\.so$, rtmp_client_push_audio) = %d", rc_rtmp_audio);
+
+    int rc_rtmp_video = xhook_register(
+            ".*\\.so$",
+            "rtmp_client_push_video",
+            (void *) hooked_rtmp_client_push_video,
+            (void **) &real_rtmp_client_push_video);
+    LOGI("xhook_register(.*\\.so$, rtmp_client_push_video) = %d", rc_rtmp_video);
+
+    // Option G: aacEncEncode PLT hook on libvolcenginertc.so. This is the
+    // libfdk-aac entry point for AAC encoding — libvolcenginertc.so imports
+    // it (R_AARCH64_JUMP_SLOT confirmed via objdump -R). Every AAC encode
+    // call from TikTok's encoder transits this PLT slot, giving us a clean
+    // intercept BEFORE the encoded bytes reach the transport layer. Voice
+    // DSP runs upstream of the encoder so substitution here bypasses DSP
+    // entirely.
+    //
+    // Phase 1.8 = diagnostic-only (log fires + first bytes of each frame).
+    // Phase 3 = enable substitution when g_rtmp_inject_enabled is set.
+    int rc_aac_enc = xhook_register(
+            ".*/libvolcenginertc\\.so$",
+            "aacEncEncode",
+            (void *) hooked_aacEncEncode,
+            (void **) &real_aacEncEncode);
+    LOGI("xhook_register(libvolcenginertc.so, aacEncEncode) = %d", rc_aac_enc);
+    // Also register catch-all so plugin builds that re-import via PLT are
+    // covered.
+    int rc_aac_enc_any = xhook_register(
+            ".*\\.so$",
+            "aacEncEncode",
+            (void *) hooked_aacEncEncode,
+            (void **) &real_aacEncEncode);
+    LOGI("xhook_register(.*\\.so$, aacEncEncode) = %d", rc_aac_enc_any);
+
     int refresh = xhook_refresh(0);
     LOGI("xhook_refresh = %d (registered %d/%zu specific libs + catch-all)",
          refresh, registered, n_libs);
+
+    // shadowhook inline-hook attempt was reverted — its .init_array hook
+    // setup crashed TikTok with SIGSEGV on Samsung A15 Android 16.
+    // Phase 1.7 will try a different approach (manual ARM64 inline
+    // patching, or vendoring Dobby which has a more conservative init).
     return registered > 0 ? JNI_TRUE : JNI_FALSE;
 }
 
@@ -1007,4 +1142,344 @@ Java_com_rerun_tiktokvcam_NativeAudioHook_ringAvailable0(JNIEnv *env, jclass cla
     (void) env;
     (void) clazz;
     return (jint) pcm_ring_available();
+}
+
+// Toggle the obtainBuffer hook's substitution. When set to 1, the hook
+// leaves the mic-captured PCM in the buffer untouched; when 0 (default),
+// it overwrites with our ring contents. Used for the "speaker" loopback
+// diagnostic mode in Mp4AudioProducer.
+JNIEXPORT void JNICALL
+Java_com_rerun_tiktokvcam_NativeAudioHook_setPassthrough0(
+        JNIEnv *env, jclass clazz, jboolean passthrough) {
+    (void) env;
+    (void) clazz;
+    atomic_store_explicit(&g_passthrough,
+                          passthrough ? 1 : 0,
+                          memory_order_release);
+    LOGI("passthrough mode = %s", passthrough ? "ON (skip substitute)" : "OFF (substitute)");
+}
+
+// ---------------------------------------------------------------------------
+// Option B: RTMP-layer AAC injection.
+//
+// libvolcenginertc.so exports rtmp_client_push_audio — this is the entry
+// point where pre-encoded AAC frames are handed to the RTMP muxer just
+// before they go on the wire. libvolcenginertc_plugin.so imports the symbol
+// via PLT (R_AARCH64_JUMP_SLOT relocation confirmed), so PLT-hooking it
+// catches the production audio path without inline hooks.
+//
+// Strategy:
+//  - Diagnostic mode (always-on): log size + first 8 bytes + pts for the
+//    first ~64 calls so we can verify the hook fires and inspect the AAC
+//    payload format TikTok pushes.
+//  - Injection mode (gated by g_rtmp_inject_enabled): pop next pre-encoded
+//    AAC frame from g_aac_ring and substitute payload pointer + size while
+//    keeping the handle + pts intact. TikTok continues to encode mic input
+//    (typically silence in this mode); the encoder's frame cadence stays
+//    canonical and we just swap the bits that go into the RTMP packet.
+//
+// Function signature inferred from disassembly at libvolcenginertc.so
+// 0x9c9b98 — small thunk that builds a small metadata header on the stack
+// then tail-calls an internal push routine:
+//
+//   void rtmp_client_push_audio(void* handle, void* data, uint32_t size,
+//                                uint32_t pts);
+//
+// The handle is the rtmp_client opaque pointer (created via
+// rtmp_client_create). `data` is the AAC payload. `size` is the byte
+// count. `pts` is the presentation timestamp in milliseconds (FLV-style).
+// ---------------------------------------------------------------------------
+
+// Definitions for the typedefs + globals forward-declared near the top
+// of the file. real_* fall back to NULL because they have no initialiser
+// in the forward decl (static storage = zero-init by default).
+static _Atomic int g_rtmp_inject_enabled = 0;
+
+#define RTMP_LOG_BUDGET 64
+static int rtmp_audio_log_count = 0;
+static int rtmp_video_log_count = 0;
+static int rtmp_audio_inject_count = 0;
+static int rtmp_audio_underrun_count = 0;
+
+// AAC frame ring — fixed-capacity circular buffer of variable-size AAC
+// access units. Producer (Java Mp4AacProducer) pushes one access unit per
+// MP4 audio sample; consumer (rtmp_client_push_audio hook) pops one per
+// outgoing RTMP audio packet. SPSC across producer/audio threads.
+//
+// 256 slots × max 8 KB/frame = 2 MB worst case. Typical AAC-LC frame at
+// 128 kbps stereo is ~340 bytes, so this holds ~5 seconds of audio —
+// enough to ride out producer hiccups without underrun.
+#define AAC_RING_SLOTS    256
+#define AAC_FRAME_MAX     8192
+
+typedef struct {
+    uint32_t size;     // 0 = empty slot
+    uint8_t data[AAC_FRAME_MAX];
+} aac_slot_t;
+
+static aac_slot_t g_aac_ring[AAC_RING_SLOTS];
+static _Atomic uint32_t g_aac_write = 0;
+static _Atomic uint32_t g_aac_read  = 0;
+
+static inline uint32_t aac_ring_count(void) {
+    uint32_t w = atomic_load_explicit(&g_aac_write, memory_order_relaxed);
+    uint32_t r = atomic_load_explicit(&g_aac_read,  memory_order_relaxed);
+    return w - r;  // unsigned wrap handles overflow
+}
+
+// Producer-side push. Drop-oldest on overflow so we never block the Java
+// pre-extract loop. Returns 1 on accept, 0 on truncation (size > MAX).
+static int aac_ring_push(const uint8_t *data, uint32_t size) {
+    if (size == 0 || size > AAC_FRAME_MAX) return 0;
+    uint32_t w = atomic_load_explicit(&g_aac_write, memory_order_relaxed);
+    uint32_t r = atomic_load_explicit(&g_aac_read,  memory_order_acquire);
+    if (w - r >= AAC_RING_SLOTS) {
+        // Full → drop oldest by advancing read cursor.
+        atomic_store_explicit(&g_aac_read, r + 1, memory_order_release);
+    }
+    aac_slot_t *slot = &g_aac_ring[w & (AAC_RING_SLOTS - 1)];
+    memcpy(slot->data, data, size);
+    slot->size = size;
+    atomic_store_explicit(&g_aac_write, w + 1, memory_order_release);
+    return 1;
+}
+
+// Consumer-side pop into caller's stable buffer (the rtmp_client expects
+// the data pointer to remain valid until the call returns — we copy into
+// the caller's thread-local scratch). Returns size, or 0 if empty.
+static uint32_t aac_ring_pop(uint8_t *out, uint32_t out_max) {
+    uint32_t r = atomic_load_explicit(&g_aac_read,  memory_order_relaxed);
+    uint32_t w = atomic_load_explicit(&g_aac_write, memory_order_acquire);
+    if (r == w) return 0;
+    aac_slot_t *slot = &g_aac_ring[r & (AAC_RING_SLOTS - 1)];
+    uint32_t size = slot->size;
+    if (size == 0 || size > out_max) {
+        // Stale or oversize — skip.
+        atomic_store_explicit(&g_aac_read, r + 1, memory_order_release);
+        return 0;
+    }
+    memcpy(out, slot->data, size);
+    atomic_store_explicit(&g_aac_read, r + 1, memory_order_release);
+    return size;
+}
+
+static void hooked_rtmp_client_push_audio(void *handle, void *data,
+                                          uint32_t size, uint32_t pts) {
+    // Diagnostic log: first byte often distinguishes ADTS (0xFF) from raw
+    // AAC AU (top bits typically not all 1s) from FLV audio tag header
+    // (0xAF for AAC sequence header / raw frame).
+    if (rtmp_audio_log_count < RTMP_LOG_BUDGET) {
+        rtmp_audio_log_count++;
+        const uint8_t *b = (const uint8_t *) data;
+        uint8_t b0 = (data && size > 0) ? b[0] : 0;
+        uint8_t b1 = (data && size > 1) ? b[1] : 0;
+        uint8_t b2 = (data && size > 2) ? b[2] : 0;
+        uint8_t b3 = (data && size > 3) ? b[3] : 0;
+        uint8_t b4 = (data && size > 4) ? b[4] : 0;
+        uint8_t b5 = (data && size > 5) ? b[5] : 0;
+        uint8_t b6 = (data && size > 6) ? b[6] : 0;
+        uint8_t b7 = (data && size > 7) ? b[7] : 0;
+        LOGI("rtmp_push_audio#%d handle=%p size=%u pts=%u "
+             "bytes[0..7]=%02x %02x %02x %02x %02x %02x %02x %02x%s",
+             rtmp_audio_log_count, handle, size, pts,
+             b0, b1, b2, b3, b4, b5, b6, b7,
+             rtmp_audio_log_count == RTMP_LOG_BUDGET ? " (silencing)" : "");
+    }
+
+    if (atomic_load_explicit(&g_rtmp_inject_enabled, memory_order_acquire)) {
+        // Pop the next pre-encoded AAC frame from our ring. Use stack
+        // scratch so the buffer lifetime covers the real call exactly.
+        uint8_t scratch[AAC_FRAME_MAX];
+        uint32_t aac_size = aac_ring_pop(scratch, sizeof(scratch));
+        if (aac_size > 0) {
+            rtmp_audio_inject_count++;
+            if (rtmp_audio_inject_count <= 8 || rtmp_audio_inject_count % 100 == 0) {
+                LOGI("INJECT#%d size=%u (was %u) pts=%u remaining=%u",
+                     rtmp_audio_inject_count, aac_size, size, pts,
+                     aac_ring_count());
+            }
+            if (real_rtmp_client_push_audio) {
+                real_rtmp_client_push_audio(handle, scratch, aac_size, pts);
+            }
+            return;
+        } else {
+            rtmp_audio_underrun_count++;
+            if (rtmp_audio_underrun_count <= 8 || rtmp_audio_underrun_count % 200 == 0) {
+                LOGW("underrun#%d (no AAC ready) — passthrough orig size=%u",
+                     rtmp_audio_underrun_count, size);
+            }
+        }
+    }
+
+    if (real_rtmp_client_push_audio) {
+        real_rtmp_client_push_audio(handle, data, size, pts);
+    }
+}
+
+static void hooked_rtmp_client_push_video(void *handle, void *data,
+                                          uint32_t size, uint32_t pts) {
+    // Diagnostic only — we never modify video at the RTMP layer.
+    if (rtmp_video_log_count < RTMP_LOG_BUDGET) {
+        rtmp_video_log_count++;
+        const uint8_t *b = (const uint8_t *) data;
+        uint8_t b0 = (data && size > 0) ? b[0] : 0;
+        uint8_t b1 = (data && size > 1) ? b[1] : 0;
+        uint8_t b2 = (data && size > 2) ? b[2] : 0;
+        uint8_t b3 = (data && size > 3) ? b[3] : 0;
+        LOGI("rtmp_push_video#%d handle=%p size=%u pts=%u bytes[0..3]=%02x %02x %02x %02x%s",
+             rtmp_video_log_count, handle, size, pts, b0, b1, b2, b3,
+             rtmp_video_log_count == RTMP_LOG_BUDGET ? " (silencing)" : "");
+    }
+    if (real_rtmp_client_push_video) {
+        real_rtmp_client_push_video(handle, data, size, pts);
+    }
+}
+
+JNIEXPORT void JNICALL
+Java_com_rerun_tiktokvcam_NativeAudioHook_setRtmpInjectEnabled0(
+        JNIEnv *env, jclass clazz, jboolean enabled) {
+    (void) env;
+    (void) clazz;
+    atomic_store_explicit(&g_rtmp_inject_enabled,
+                          enabled ? 1 : 0,
+                          memory_order_release);
+    LOGI("RTMP AAC injection = %s (ring=%u frames queued)",
+         enabled ? "ENABLED" : "disabled", aac_ring_count());
+}
+
+JNIEXPORT void JNICALL
+Java_com_rerun_tiktokvcam_NativeAudioHook_pushAacFrame0(
+        JNIEnv *env, jclass clazz, jbyteArray data, jint length) {
+    (void) clazz;
+    if (data == NULL || length <= 0 || length > AAC_FRAME_MAX) return;
+    jbyte *src = (*env)->GetByteArrayElements(env, data, NULL);
+    if (src == NULL) return;
+    aac_ring_push((const uint8_t *) src, (uint32_t) length);
+    (*env)->ReleaseByteArrayElements(env, data, src, JNI_ABORT);
+}
+
+JNIEXPORT void JNICALL
+Java_com_rerun_tiktokvcam_NativeAudioHook_clearAacRing0(JNIEnv *env, jclass clazz) {
+    (void) env;
+    (void) clazz;
+    // Single-writer reset is safe: even if the consumer reads stale w/r
+    // values mid-update it just sees an empty or full ring momentarily.
+    atomic_store_explicit(&g_aac_read,  0, memory_order_release);
+    atomic_store_explicit(&g_aac_write, 0, memory_order_release);
+}
+
+JNIEXPORT jint JNICALL
+Java_com_rerun_tiktokvcam_NativeAudioHook_aacRingFrames0(JNIEnv *env, jclass clazz) {
+    (void) env;
+    (void) clazz;
+    return (jint) aac_ring_count();
+}
+
+// ---------------------------------------------------------------------------
+// Option G — aacEncEncode PLT hook (Phase 1.8 diagnostic + Phase 3
+// substitution).
+//
+// libfdk-aac's AACENC_OutArgs layout (we only need offset 0 = numOutBytes):
+//   struct AACENC_OutArgs {
+//       INT numOutBytes;       // offset 0  — bytes written to output buffer
+//       INT numInSamples;      // offset 4
+//       INT numAncBytes;       // offset 8
+//       INT bitResState;       // offset 12
+//   };
+//
+// AACENC_BufDesc layout (we need outBufDesc->bufs[0] which is the output
+// pointer):
+//   struct AACENC_BufDesc {
+//       INT numBufs;
+//       void **bufs;
+//       INT *bufferIdentifiers;
+//       INT *bufSizes;
+//       INT *bufElSizes;
+//   };
+//
+// On arm64 (AArch64 ABI, LP64) INT == 32-bit, pointers == 64-bit. Struct
+// padding follows natural alignment.
+typedef struct {
+    int   numBufs;       // offset 0  (4 bytes)
+    int   _pad0;         // offset 4  (alignment)
+    void **bufs;         // offset 8  (8 bytes — points to array of pointers)
+    int  *bufferIdentifiers;
+    int  *bufSizes;
+    int  *bufElSizes;
+} aacenc_bufdesc_t;
+
+// Per-call budget so logcat doesn't flood during steady-state.
+#define AAC_ENC_LOG_BUDGET 32
+static int aac_enc_log_count = 0;
+static int aac_enc_substitute_count = 0;
+static int aac_enc_underrun_count = 0;
+
+static int hooked_aacEncEncode(void *h, const void *in, const void *out,
+                               const void *inargs, void *outargs) {
+    if (real_aacEncEncode == NULL) return -1;
+    int rc = real_aacEncEncode(h, in, out, inargs, outargs);
+
+    // Read numOutBytes from outargs (first int field).
+    int numOutBytes = 0;
+    if (outargs) numOutBytes = *(const int *)outargs;
+
+    // Try to grab the output buffer pointer for diagnostic + substitution.
+    void *outBuf = NULL;
+    int   outBufSize = 0;
+    const aacenc_bufdesc_t *outDesc = (const aacenc_bufdesc_t *) out;
+    if (outDesc && outDesc->numBufs > 0 && outDesc->bufs) {
+        outBuf = outDesc->bufs[0];
+        if (outDesc->bufSizes) outBufSize = outDesc->bufSizes[0];
+    }
+
+    // Diagnostic log of the first ~32 fires so we can confirm the hook
+    // is on the right path + inspect frame format.
+    if (aac_enc_log_count < AAC_ENC_LOG_BUDGET) {
+        aac_enc_log_count++;
+        const uint8_t *b = (const uint8_t *) outBuf;
+        uint8_t b0 = (outBuf && numOutBytes > 0) ? b[0] : 0;
+        uint8_t b1 = (outBuf && numOutBytes > 1) ? b[1] : 0;
+        uint8_t b2 = (outBuf && numOutBytes > 2) ? b[2] : 0;
+        uint8_t b3 = (outBuf && numOutBytes > 3) ? b[3] : 0;
+        uint8_t b4 = (outBuf && numOutBytes > 4) ? b[4] : 0;
+        uint8_t b5 = (outBuf && numOutBytes > 5) ? b[5] : 0;
+        uint8_t b6 = (outBuf && numOutBytes > 6) ? b[6] : 0;
+        uint8_t b7 = (outBuf && numOutBytes > 7) ? b[7] : 0;
+        LOGI("aacEncEncode#%d rc=%d numOutBytes=%d outBuf=%p outBufSize=%d "
+             "bytes[0..7]=%02x %02x %02x %02x %02x %02x %02x %02x%s",
+             aac_enc_log_count, rc, numOutBytes, outBuf, outBufSize,
+             b0, b1, b2, b3, b4, b5, b6, b7,
+             aac_enc_log_count == AAC_ENC_LOG_BUDGET ? " (silencing)" : "");
+    }
+
+    // Phase 3 substitution: if RTMP-inject mode is on AND we have an AAC
+    // frame ready in g_aac_ring AND TikTok's encoder produced a non-empty
+    // output buffer, overwrite the bytes in place.
+    if (atomic_load_explicit(&g_rtmp_inject_enabled, memory_order_acquire) &&
+        outBuf && outBufSize > 0 && numOutBytes > 0) {
+        uint8_t scratch[AAC_FRAME_MAX];
+        uint32_t aac_size = aac_ring_pop(scratch, sizeof(scratch));
+        if (aac_size > 0) {
+            uint32_t copy = aac_size <= (uint32_t) outBufSize
+                            ? aac_size : (uint32_t) outBufSize;
+            memcpy(outBuf, scratch, copy);
+            // Update numOutBytes in outargs (first int).
+            if (outargs) *(int *) outargs = (int) copy;
+            aac_enc_substitute_count++;
+            if (aac_enc_substitute_count <= 8 ||
+                aac_enc_substitute_count % 100 == 0) {
+                LOGI("AAC SUBSTITUTE #%d  was=%d → now=%u  outBufSize=%d  ring_left=%u",
+                     aac_enc_substitute_count, numOutBytes, copy, outBufSize,
+                     aac_ring_count());
+            }
+        } else {
+            aac_enc_underrun_count++;
+            if (aac_enc_underrun_count <= 8 ||
+                aac_enc_underrun_count % 200 == 0) {
+                LOGW("AAC underrun #%d — passthrough orig %d bytes",
+                     aac_enc_underrun_count, numOutBytes);
+            }
+        }
+    }
+    return rc;
 }

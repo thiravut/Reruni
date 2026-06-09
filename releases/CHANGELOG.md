@@ -12,6 +12,54 @@ Versioned snapshots live at `s3://<bucket>/v<version>/`. The guide page reads
 Build-only (no upload) writes the same set into `releases/v<version>/` for
 local verification; that directory is gitignored.
 
+## v0.1.2 — 2026-06-08
+
+Audio path pivots to speaker-loopback after v0.1.1's PCM injection turned
+out to be unfixable on this device class. Viewer-side audio is now clean
+for single-device LIVE — the cost is multi-device acoustic cross-talk,
+which v0.1.x ships with documented and accepted.
+
+**What's new**
+
+- `Mp4AudioProducer` defaults to `speaker` mode: `MediaPlayer` plays the
+  staged MP4 through the device speaker, the broadcast mic captures it
+  acoustically, TikTok's pipeline handles the mic input normally. No PCM
+  substitution in the default flow.
+- `MediaPlayer` pinned to `USAGE_MEDIA + CONTENT_TYPE_MUSIC` audio
+  attributes so the system routes through the loud media speaker (not
+  the voice earpiece) and avoids voice-tuned downsampling.
+- Audio + video start aligned: `Mp4FrameProducer.onSurfacesChanged` now
+  also kicks off `Mp4AudioProducer.start()`, so MP4 playback begins
+  the moment the broadcaster enters the LIVE preview screen — both
+  tracks are mid-loop at the same offset when broadcast actually starts.
+
+**Why PCM injection was abandoned**
+
+Two days of A/B ruling-out (rate, amp, LPF cutoff, AAC encoder rewrite,
+audio scene, noise floor, source bitrate, mono downmix, cubic vs linear
+resampler, pure-passthrough memcpy with zero processing) all left the
+same "ลำโพงแตก" distortion on viewer side. `amp=0` (silence) was
+verifiably clean, proving the substitution mechanism itself is fine —
+the issue is a deep voice DSP in TikTok 45.3.2 (likely
+`libkryptonaudio` or similar ByteDance custom DSP) that mangles *any*
+non-silent injected PCM but processes acoustically-captured mic input
+cleanly. Full trail in `memory/project_audio_speaker_production.md`.
+
+**Known limits**
+
+- Multi-device rooms get acoustic cross-talk: one phone's speaker leaks
+  into another phone's mic. Single-device tests + demos are unaffected.
+- Diagnostic modes (`mp4`, `tone`) preserved behind override files
+  (`/sdcard/Android/data/com.zhiliaoapp.musically/files/vcam_audio_*`)
+  for any future TikTok build where PCM injection might become viable.
+
+**What's next**
+
+- Option B (R&D, not in this release): AAC injection at TikTok's RTMP
+  transport layer — PC pre-encodes AAC to TikTok's spec, mobile injects
+  the AAC frames directly after the encoder, bypassing the entire voice
+  DSP chain. Estimated ~500 lines of native hook code.
+
 ## v0.1.1 — 2026-06-04
 
 Audio injection lands in V1 with known distortion. Operators can now run
