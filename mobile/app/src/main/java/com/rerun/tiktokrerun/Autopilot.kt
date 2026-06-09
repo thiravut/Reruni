@@ -587,6 +587,8 @@ object Autopilot {
                 return this@Autopilot.autoPinProducts(keywords)
             }
 
+            override fun hasKeywords(): Boolean = effectiveKeywords(androidContext).isNotEmpty()
+
             override fun warn(message: String) {
                 Log.w(TAG, message)
             }
@@ -948,12 +950,24 @@ object Autopilot {
             delay(800)
         }
 
-        // 5. Tap business icon (top-left on Device camera setup, labeled "Details" in EN).
-        // Opens the commerce / Add product flow (a sheet that slides up — animation takes time).
-        setStep("กด business icon (Details)")
-        if (!tapByText(BUSINESS_ICON_LABELS, allowContentDesc = true, retries = 8)) {
-            return fail("ไม่พบ business icon (Details) — ดู dump")
-        }
+        // 5. Skip the entire commerce/Add-products block when the operator
+        //    has no product keywords for this run. Opening the business
+        //    icon and navigating Layer 2/3/4 has no purpose if nothing
+        //    will be pinned; the visible side-effect is the user seeing
+        //    TikTok briefly flash to the product picker and back, which
+        //    looks like a bug. Jump straight to Mobile gaming reveal.
+        val operatorKeywords = effectiveKeywords(context)
+        if (operatorKeywords.isEmpty()) {
+            Log.i(TAG, "no product keywords for this run — skipping pin-product block")
+            setStep("ข้าม Add products (ไม่มี keyword)")
+            // Fall through to the Mobile gaming swipe-reveal section below.
+        } else {
+            // 5a. Tap business icon (top-left on Device camera setup, labeled "Details" in EN).
+            // Opens the commerce / Add product flow (a sheet that slides up — animation takes time).
+            setStep("กด business icon (Details)")
+            if (!tapByText(BUSINESS_ICON_LABELS, allowContentDesc = true, retries = 8)) {
+                return fail("ไม่พบ business icon (Details) — ดู dump")
+            }
 
         // 5b. There are 3 sheet layers between Business icon and the actual
         //     product picker — each animates in separately. We must traverse
@@ -1009,11 +1023,9 @@ object Autopilot {
         delay(5000)  // picker render + product list load
 
         // Auto-pin: pick operator's keyword target from the picker list.
-        val prefs = AppPrefs(context)
-        val keywords = keywordsOverride ?: prefs.productKeywordList
-        if (keywords.isEmpty()) {
-            return fail("ไม่มี Product keywords — ใส่ใน web dashboard หรือ Settings ก่อน")
-        }
+        // operatorKeywords was validated non-empty at the top of this block
+        // (we'd have skipped the commerce navigation otherwise).
+        val keywords = operatorKeywords
         Log.i(TAG, "auto-pin keywords (${if (keywordsOverride != null) "from web" else "from prefs"}): $keywords")
 
         // Default-load shows recent/suggested — type the keyword into
@@ -1047,16 +1059,17 @@ object Autopilot {
         }
         delay(1500)
 
-        // Layer 2 → Device camera (auto-close or explicit Done)
-        // Some TikTok versions auto-close after picker Done; try one more
-        // Done tap best-effort then verify we're back on Device camera setup.
-        tapByText(DONE_LABELS, allowContentDesc = true, retries = 2)
-        delay(1500)
-        val resumed = waitForAny(DEVICE_CAMERA_MARKERS, timeoutMs = 10_000L)
-        if (!resumed) {
-            return fail("auto-pin หลัง Done ไม่กลับมาที่ Device camera — ดู dump")
-        }
-        delay(500)
+            // Layer 2 → Device camera (auto-close or explicit Done)
+            // Some TikTok versions auto-close after picker Done; try one more
+            // Done tap best-effort then verify we're back on Device camera setup.
+            tapByText(DONE_LABELS, allowContentDesc = true, retries = 2)
+            delay(1500)
+            val resumed = waitForAny(DEVICE_CAMERA_MARKERS, timeoutMs = 10_000L)
+            if (!resumed) {
+                return fail("auto-pin หลัง Done ไม่กลับมาที่ Device camera — ดู dump")
+            }
+            delay(500)
+        }  // end of `if operatorKeywords.isNotEmpty()` — pin-product block
 
         // V1 path: switch to Mobile gaming tab — broadcast mode for screen-share.
         // After pinning product on Device camera mode, the tab strip typically shows

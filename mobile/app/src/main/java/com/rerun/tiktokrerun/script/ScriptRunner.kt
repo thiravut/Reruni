@@ -52,16 +52,47 @@ class ScriptRunner(private val ctx: ScriptContext) {
         val version = script.optInt("version", 0)
         Log.i(TAG, "execute script: $name v$version")
         val steps = script.getJSONArray("steps")
-        for (i in 0 until steps.length()) {
+        var i = 0
+        while (i < steps.length()) {
             val step = steps.getJSONObject(i)
+            // `skip_if_no_keywords` lets the script declare a conditional
+            // block — when the operator has no product keywords, we
+            // fast-forward to the step labelled by `to`. Used to skip the
+            // commerce-sheet / Add-products section so we don't open it
+            // pointlessly.
+            if (step.getString("op") == "skip_if_no_keywords" && !ctx.hasKeywords()) {
+                val target = step.getString("to")
+                val advanced = advanceToLabel(steps, i + 1, target)
+                if (advanced < 0) {
+                    val msg = "skip_if_no_keywords: no label '$target' downstream"
+                    Log.w(TAG, "script $name aborted at step $i: $msg")
+                    return Result.Failed(msg)
+                }
+                Log.i(TAG, "script $name: skip_if_no_keywords → label '$target' (step $advanced)")
+                i = advanced + 1
+                continue
+            }
             val res = runOp(step, i)
             if (res is Result.Failed) {
                 Log.w(TAG, "script $name failed at step $i (${step.optString("op")}): ${res.message}")
                 return res
             }
+            i++
         }
         Log.i(TAG, "script $name completed (${steps.length()} steps)")
         return Result.Success
+    }
+
+    /** Linear scan for `{"op":"label", "name":"<target>"}`. Returns the
+     *  matching step index, or -1 if no match. */
+    private fun advanceToLabel(steps: org.json.JSONArray, fromIndex: Int, target: String): Int {
+        for (i in fromIndex until steps.length()) {
+            val s = steps.getJSONObject(i)
+            if (s.optString("op") == "label" && s.optString("name") == target) {
+                return i
+            }
+        }
+        return -1
     }
 
     private suspend fun runOp(step: JSONObject, index: Int): Result {
@@ -168,6 +199,16 @@ class ScriptRunner(private val ctx: ScriptContext) {
                         "auto-pin: ไม่พบ product ใดตรง keyword — เช็ค Settings + ดู dump"))
                 }
                 ctx.warn("auto-pinned $pinned product(s)")
+                Result.Success
+            }
+            "label" -> {
+                // No-op marker; used as a jump target by `skip_if_no_keywords`.
+                Result.Success
+            }
+            "skip_if_no_keywords" -> {
+                // Handled in execute()'s pre-pass — reaching here means the
+                // condition was false (keywords ARE present), so we just
+                // proceed past this marker.
                 Result.Success
             }
             else -> {

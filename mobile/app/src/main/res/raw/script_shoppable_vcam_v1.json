@@ -50,6 +50,8 @@
     {"op": "set_live_title_if_provided"},
     {"op": "delay", "ms": 800},
 
+    {"op": "skip_if_no_keywords", "to": "post_pin_products"},
+
     {"op": "step", "label": "กด business icon (Details)"},
     {"op": "tap_by_text",
      "labels": ["Business", "ธุรกิจ"],
@@ -135,6 +137,8 @@
      "timeout_ms": 10000,
      "fail": "auto-pin หลัง Done ไม่กลับมาที่ Device camera — ดู dump"},
     {"op": "delay", "ms": 500},
+
+    {"op": "label", "name": "post_pin_products"},
 
     {"op": "step", "label": "กด Go LIVE (Device camera)"},
     {"op": "tap_by_text",

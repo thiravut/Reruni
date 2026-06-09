@@ -90,6 +90,12 @@ interface ScriptContext {
      *  Returns 0 when no keywords are configured. */
     suspend fun autoPinProducts(): Int
 
+    /** True when the operator (per-run override OR persisted prefs) has at
+     *  least one product keyword to pin. Used by `skip_if_no_keywords` to
+     *  jump past the commerce-sheet block — opening business icon and
+     *  navigating Layer 2/3/4 has no purpose when nothing will be pinned. */
+    fun hasKeywords(): Boolean
+
     /** Used by ops that want to log a warning but proceed (e.g. optional taps). */
     fun warn(message: String)
 }
