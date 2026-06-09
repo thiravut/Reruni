@@ -31,6 +31,18 @@ data class PlayCommand(
      * (api-contract §3.4).
      */
     val liveSessionId: Long = 0L,
+    /**
+     * Absolute WebSocket URL (`wss://...`) the vcam module's Mp4GWsClient
+     * connects to for Option G AAC injection. Pushed into the override
+     * file `/sdcard/Android/data/com.zhiliaoapp.musically/files/
+     * vcam_ws_endpoint.txt` by Autopilot before TikTok launches, so each
+     * LIVE session can target a different encoder backend (server may
+     * route different sessions to different edge boxes).
+     *
+     * Empty string = no override; mobile keeps whatever endpoint is
+     * already in the file (legacy PC-server flow).
+     */
+    val aacWsUrl: String = "",
 )
 
 data class StartLiveCommand(

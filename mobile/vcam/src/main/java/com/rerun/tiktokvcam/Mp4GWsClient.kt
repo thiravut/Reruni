@@ -11,6 +11,7 @@ import okio.ByteString
 import java.io.File
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Option G — Mobile WebSocket client.
@@ -56,40 +57,66 @@ object Mp4GWsClient {
     private var receivedFrames = 0L
     private var lastLogTimeMs = 0L
 
+    /**
+     * Generation counter incremented on every [stop] (and seeded by [start]).
+     * Each [openOnce] call captures the value at entry; in-flight listener
+     * callbacks (onMessage etc.) compare their captured id against the
+     * current value before pushing AAC frames into the native ring.
+     *
+     * Why this exists: Mp4FrameProducer.onSurfacesChanged invokes stop() →
+     * start() in rapid succession during camera surface transitions. The
+     * previous WebSocket's OkHttp listener can still drain onMessage events
+     * AFTER stop() returns, while the next start() opens a fresh socket.
+     * Without this guard, the AAC ring receives interleaved frames from
+     * both the stale socket and the active one — viewer hears the same MP4
+     * audio twice, time-offset = "doubled audio".
+     */
+    private val sessionId = AtomicLong(0L)
+
     fun start() {
         if (!NativeAudioHook.available) {
             log("native lib not loaded; refusing to start")
             return
         }
         if (!running.compareAndSet(false, true)) return
+        // Capture the sessionId at start time so this connect-loop only
+        // owns connections for its specific session. The previous connect
+        // loop (if still alive) sees the mismatch and exits when its
+        // current openOnce returns, instead of looping back into a fresh
+        // reconnect on top of ours.
+        val myConnectSession = sessionId.get()
         NativeAudioHook.clearAacRing()
         NativeAudioHook.setRtmpInjectEnabled(true)
-        Thread { connectLoop() }.apply {
+        Thread { connectLoop(myConnectSession) }.apply {
             name = "Mp4GWsClient-connect"
             isDaemon = true
             start()
         }
-        log("WS client started; injection enabled")
+        log("WS client started; injection enabled (session=$myConnectSession)")
     }
 
     fun stop() {
         if (!running.compareAndSet(true, false)) return
+        // Invalidate any in-flight listener BEFORE we close the socket —
+        // OkHttp may still deliver buffered onMessage events after close,
+        // and we don't want those frames in the AAC ring.
+        val invalidated = sessionId.incrementAndGet()
         try { socket?.close(1000, "client stop") } catch (_: Throwable) {}
         socket = null
         try { client?.dispatcher?.executorService?.shutdown() } catch (_: Throwable) {}
         client = null
         NativeAudioHook.setRtmpInjectEnabled(false)
         NativeAudioHook.clearAacRing()
-        log("WS client stopped; injection disabled")
+        log("WS client stopped; injection disabled (sessionId → $invalidated)")
     }
 
-    private fun connectLoop() {
+    private fun connectLoop(myConnectSession: Long) {
         var backoffMs = 500L
-        while (running.get()) {
+        while (running.get() && sessionId.get() == myConnectSession) {
             val endpoint = readEndpoint()
-            log("connecting to $endpoint")
+            log("connecting to $endpoint (session=$myConnectSession)")
             try {
-                val ok = openOnce(endpoint)
+                val ok = openOnce(endpoint, myConnectSession)
                 if (ok) {
                     // Connection established + closed normally → reset
                     // backoff so next reconnect is fast.
@@ -100,17 +127,20 @@ object Mp4GWsClient {
             } catch (t: Throwable) {
                 log("connectLoop error: ${t.javaClass.simpleName}: ${t.message}")
             }
-            if (!running.get()) break
+            if (!running.get() || sessionId.get() != myConnectSession) break
             try { Thread.sleep(backoffMs) } catch (_: InterruptedException) { break }
             backoffMs = (backoffMs * 2).coerceAtMost(10_000L)
         }
-        log("connect loop exited")
+        log("connect loop exited (session=$myConnectSession)")
     }
 
     /** Open one WebSocket attempt; blocks until disconnect.
      *  Returns true if the socket opened successfully (regardless of
      *  later disconnect cause); false if the initial handshake failed. */
-    private fun openOnce(endpoint: String): Boolean {
+    private fun openOnce(endpoint: String, mySession: Long): Boolean {
+        // Re-check before allocating the OkHttpClient — if our session was
+        // superseded between connectLoop's gate and now, skip cleanly.
+        if (sessionId.get() != mySession) return false
         val httpClient = OkHttpClient.Builder()
             .readTimeout(0, TimeUnit.MILLISECONDS)        // long-lived stream
             .pingInterval(20, TimeUnit.SECONDS)            // keepalive
@@ -122,12 +152,30 @@ object Mp4GWsClient {
 
         val listener = object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
+                if (sessionId.get() != mySession) {
+                    // We've already been superseded by a newer start cycle.
+                    // Close immediately so OkHttp tears down the listener.
+                    try { webSocket.close(1000, "stale session on open") } catch (_: Throwable) {}
+                    return
+                }
                 opened.set(true)
                 socket = webSocket
-                log("WS open (status=${response.code})")
+                log("WS open (status=${response.code}, session=$mySession)")
+                // libvolcenginertc.so is typically dlopen()'d when the user
+                // taps "Go LIVE" — by the time WS connects, the broadcast
+                // pipeline is initialising. Re-refresh xhook so the
+                // aacEncEncode PLT slot gets rewritten on this just-loaded
+                // lib. Idempotent: redundant on sessions where the
+                // AudioRecord ctor hook already triggered refresh.
+                NativeAudioHook.refresh()
             }
 
             override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
+                // Drop frames if this listener has been superseded — without
+                // this guard, a stale socket draining buffered messages
+                // after stop() would push duplicate MP4 audio into the AAC
+                // ring alongside the active socket's stream.
+                if (sessionId.get() != mySession) return
                 try {
                     handleFrame(bytes)
                 } catch (t: Throwable) {
@@ -136,20 +184,23 @@ object Mp4GWsClient {
             }
 
             override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
-                log("WS closing: $code $reason")
+                log("WS closing: $code $reason (session=$mySession)")
             }
 
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-                log("WS closed: $code $reason after $receivedFrames frames")
-                receivedFrames = 0L
-                socket = null
+                log("WS closed: $code $reason after $receivedFrames frames (session=$mySession)")
+                if (sessionId.get() == mySession) {
+                    receivedFrames = 0L
+                    socket = null
+                }
                 done.countDown()
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                 log("WS failure: ${t.javaClass.simpleName}: ${t.message}" +
-                    (response?.let { " (status=${it.code})" } ?: ""))
-                socket = null
+                    (response?.let { " (status=${it.code})" } ?: "") +
+                    " (session=$mySession)")
+                if (sessionId.get() == mySession) socket = null
                 done.countDown()
             }
         }

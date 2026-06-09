@@ -437,6 +437,20 @@ object WsClient {
         // outbound `live_ended` envelope spec uses `live_session_id`. Accept
         // either incoming key for resilience.
         val liveSessionId = payload.optLong("live_session", payload.optLong("live_session_id", 0L))
+        // Option G AAC streamer URL. Server may send relative (`/ws/aac?...`)
+        // or absolute (`wss://other-edge.../ws/aac?...`). Resolve relative
+        // against serverOrigin and swap http→ws scheme. Empty string =
+        // server didn't issue a token (legacy / dev path), leave vcam's
+        // existing override file untouched.
+        val aacWsUrl = payload.optString("aac_ws_url").let { raw ->
+            when {
+                raw.isEmpty() -> ""
+                raw.startsWith("ws://") || raw.startsWith("wss://") -> raw
+                raw.startsWith("http") -> raw.replaceFirst(Regex("^http"), "ws")
+                raw.startsWith("/") -> serverOrigin.replaceFirst(Regex("^http"), "ws") + raw
+                else -> ""
+            }
+        }
         scope.launch {
             WsBus.playCommands.emit(
                 PlayCommand(
@@ -450,6 +464,7 @@ object WsClient {
                     loopCount = loopCount,
                     commandId = commandId,
                     liveSessionId = liveSessionId,
+                    aacWsUrl = aacWsUrl,
                 )
             )
         }

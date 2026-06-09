@@ -839,6 +839,20 @@ func startLiveHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// Per-session AAC streamer token — vcam module's Mp4GWsClient
+		// reads `aac_ws_url` from the start_live envelope and writes it to
+		// the override file before TikTok launches. The token is single-
+		// session and expires after one hour; failing to issue it is NOT
+		// fatal (device falls back to silent encoder substitution = brief
+		// distorted audio per Option G's degradation mode), so we log and
+		// continue rather than aborting the LIVE.
+		aacWsURL := ""
+		if tok, errTok := registerAACToken(filepath.Join(uploadsDir, broadcastFilename)); errTok != nil {
+			log.Printf("aac_ws: registerAACToken failed for device %s: %v", did, errTok)
+		} else {
+			aacWsURL = "/ws/aac?token=" + tok
+		}
+
 		payload := map[string]any{
 			"video_url":    "/uploads/" + broadcastFilename,
 			"video_id":     broadcastVideoID,
@@ -848,6 +862,7 @@ func startLiveHandler(w http.ResponseWriter, r *http.Request) {
 			"hashtags":     body.Hashtags,
 			"pinned_sku":   body.PinnedSKU,
 			"live_session": liveID,
+			"aac_ws_url":   aacWsURL,
 			"banners":      fetchBannersForLiveStart(user.ID, broadcastVideoID),
 			// loop_count: nil → loop forever, int → finite passes.
 			"loop_count": loopCount,

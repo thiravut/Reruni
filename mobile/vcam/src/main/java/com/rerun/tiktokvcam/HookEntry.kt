@@ -126,5 +126,27 @@ class HookEntry : IXposedHookLoadPackage {
         // aacEncEncode PLT hook intermittently not firing — possibly
         // because hooking the abstract Java method affects class
         // initialisation order or encoder selection.
+
+        // MediaCodecRecon is in the tree as a diagnostic-only file (used
+        // briefly while we suspected per-session encoder randomisation
+        // was the root cause). It's not installed in the build — the
+        // actual root cause turned out to be xhook refresh timing
+        // (libvolcenginertc.so not yet dlopen()'d at install-time
+        // refresh, and the only re-refresh trigger was the AudioRecord
+        // ctor hook which intermittently misses). The refresh is now
+        // also triggered from Mp4GWsClient.onOpen + the ws_inject
+        // bootstrap path in Mp4AudioProducer.
+
+        // Cross-process kill switch — lets Reruni controller force-stop
+        // this TikTok process before launching a new LIVE session. See
+        // [VcamKillSwitch] for the rationale (encoder pipeline enters
+        // partial-suspend state when TikTok is backgrounded; only a full
+        // process kill recovers).
+        try {
+            VcamKillSwitch.install(lpparam)
+        } catch (t: Throwable) {
+            XposedBridge.log("[$TAG] VcamKillSwitch.install failed: ${t.message}")
+            Log.e(TAG, "VcamKillSwitch.install failed", t)
+        }
     }
 }

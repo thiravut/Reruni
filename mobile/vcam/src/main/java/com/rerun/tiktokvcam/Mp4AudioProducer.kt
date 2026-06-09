@@ -53,6 +53,22 @@ object Mp4AudioProducer {
     private var workerThread: HandlerThread? = null
 
     /**
+     * Generation counter for decode-thread liveness. Incremented in [start]
+     * after the CAS succeeds. The decode loop captures the value at thread
+     * spawn and exits when it no longer matches.
+     *
+     * Why this exists: [Mp4FrameProducer.onSurfacesChanged] calls stop() →
+     * start() back-to-back during camera surface transitions. Stop sets
+     * `running=false`, but the decode thread only checks `running` between
+     * runOnePass iterations (each ~10 s). The immediate next start() sets
+     * `running=true` again — when the old decode thread eventually returns
+     * from runOnePass, it sees running=true and continues, alongside the
+     * new thread. The runId mismatch lets us evict the old thread
+     * deterministically.
+     */
+    private val runId = java.util.concurrent.atomic.AtomicLong(0L)
+
+    /**
      * Set by [signalLoopBoundary] when video reaches EOS, cleared at the
      * start of each pass. The audio MP4 track and video MP4 track in the
      * same file usually differ in duration by tens of ms (AAC frame
@@ -441,20 +457,29 @@ object Mp4AudioProducer {
             log("no staged video; not starting audio producer")
             return
         }
-        if (mode != "speaker" && mode != "rtmp_inject" && mode != "rtmp_diag" && !hasTarget) {
-            // mp4 and tone need to know the AudioRecord format. The other
-            // modes don't touch the AudioRecord buffer at all.
-            // ws_inject mode INTENTIONALLY uses the same PCM-into-AudioRecord
-            // path as mp4 mode (falls into runDecodeLoop below) — this
-            // creates "audio activity" that triggers TikTok's AAC encoder
-            // to fire, which then activates our aacEncEncode PLT hook for
-            // the actual byte substitution. Without the PCM path, TikTok
-            // may not even initialise its encoder (no audio = no encode),
-            // and our PLT hook gets nothing to substitute.
+        if (mode != "speaker" && mode != "rtmp_inject" && mode != "rtmp_diag" && mode != "ws_inject" && !hasTarget) {
             log("no AudioRecord target yet; deferring producer start")
             return
         }
+        // ws_inject bootstrap (2026-06-09): TikTok's AudioRecord ctor hook
+        // sometimes misses (different ctor path per session on A15 Android
+        // 16) → hasTarget never becomes true → without this seed, WS
+        // client never starts and viewer hears nothing. Read rate
+        // override file directly so PCM resample matches encoder rate.
+        // Also trigger xhook refresh — the ctor hook is the normal
+        // refresh trigger (see AudioRecordHook); without it, the
+        // aacEncEncode PLT slot in libvolcenginertc.so stays unhooked
+        // and viewer hears TikTok's mic+DSP audio instead of our PC AAC.
+        if (mode == "ws_inject" && !hasTarget) {
+            val override = readRateOverride() ?: NATIVE_BROADCAST_RATE_HZ
+            targetSampleRate = override
+            targetChannelCount = 2
+            hasTarget = true
+            log("ws_inject bootstrap: seeded target = $override Hz / 2 ch")
+            NativeAudioHook.refresh()
+        }
         if (!running.compareAndSet(false, true)) return
+        val myRunId = runId.incrementAndGet()
         synchronized(lock) {
             writePos = 0
             readPos = 0
@@ -538,7 +563,7 @@ object Mp4AudioProducer {
                 }
             }
             else -> {
-                Thread { runDecodeLoop() }.apply {
+                Thread { runDecodeLoop(myRunId) }.apply {
                     name = "Mp4AudioProducer-decode"
                     isDaemon = true
                     start()
@@ -758,20 +783,24 @@ object Mp4AudioProducer {
         }
     }
 
-    private fun runDecodeLoop() {
-        while (running.get() && !Thread.interrupted()) {
-            val ok = runOnePass()
+    private fun runDecodeLoop(myRunId: Long) {
+        while (running.get() && !Thread.interrupted() && runId.get() == myRunId) {
+            val ok = runOnePass(myRunId)
             if (!ok) {
                 log("audio pass failed; retry in 2s")
                 try { Thread.sleep(2000) } catch (_: InterruptedException) { break }
             }
             if (!VcamConfig.LOOP) break
         }
-        log("audio decode loop ended")
-        running.set(false)
+        // Only the active runId should clear `running`. A stale thread
+        // exiting because it was superseded must NOT reset running, because
+        // the new thread is the one currently holding it true.
+        val staleExit = runId.get() != myRunId
+        log("audio decode loop ended (runId=$myRunId, stale=$staleExit)")
+        if (!staleExit) running.set(false)
     }
 
-    private fun runOnePass(): Boolean {
+    private fun runOnePass(myRunId: Long = runId.get()): Boolean {
         val source = VcamBridge.resolve() ?: run {
             log("no source; cannot decode audio"); return false
         }
@@ -822,7 +851,8 @@ object Mp4AudioProducer {
             var srcPosFrac = 0.0
             // We pull from the decoder's output ByteBuffer into a transient
             // float buffer to convert + resample, then write PCM16 to the ring.
-            while (!sawOutputEOS && running.get() && !Thread.interrupted() && !abortCurrentPass) {
+            while (!sawOutputEOS && running.get() && !Thread.interrupted() &&
+                   !abortCurrentPass && runId.get() == myRunId) {
                 if (!sawInputEOS) {
                     val inIdx = decoder.dequeueInputBuffer(DEQUEUE_TIMEOUT_US)
                     if (inIdx >= 0) {

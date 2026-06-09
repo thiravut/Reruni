@@ -233,6 +233,14 @@ object Autopilot {
         liveSessionId: Long = 0L,
         /** Server-side device_commands row id; "" for a local / test run. */
         commandId: String = "",
+        /**
+         * Absolute WebSocket URL the vcam module connects to for Option G
+         * AAC injection. Server issues this per LIVE session in the
+         * start_live envelope. We write it into the override file the
+         * patched TikTok reads on Go LIVE. Empty = no override
+         * (legacy PC-server / dev path).
+         */
+        aacWsUrl: String = "",
     ) {
         if (state.value == AutopilotState.Running) {
             Log.w(TAG, "already running")
@@ -266,12 +274,75 @@ object Autopilot {
         stopLiveKeepalive()
         cancelAutoEndLive()
         job = scope.launch {
+            // Write the AAC streamer endpoint BEFORE killing TikTok so the
+            // patched module's first read of vcam_ws_endpoint.txt on
+            // re-launch picks up the new URL. Each LIVE session may target
+            // a different encoder backend.
+            if (aacWsUrl.isNotEmpty()) {
+                writeVcamAacEndpoint(aacWsUrl)
+            }
+            // Force-stop any prior TikTok process before launching. Without
+            // this, a previous LIVE session's libvolcenginertc.so encoder
+            // enters partial-suspend on re-foreground and fires at ~2 Hz
+            // instead of 50 Hz — viewer hears brief audio snippets then
+            // silence (Option G's PLT hook has nothing to substitute).
+            // Full process kill via the vcam module's BroadcastReceiver is
+            // the only reliable way; killBackgroundProcesses doesn't catch
+            // foreground processes.
+            killTikTokForFreshStart(context)
             when (mode) {
                 AutopilotMode.Personal      -> runFlow(context, launchIntent)
                 AutopilotMode.Shoppable     -> runShoppableFlow(context, launchIntent, vcam = false)
                 AutopilotMode.ShoppableVCam -> runShoppableFlow(context, launchIntent, vcam = true)
             }
         }
+    }
+
+    /**
+     * Writes the per-session AAC streamer URL to the vcam module's
+     * override file. The patched TikTok's Mp4GWsClient reads this on
+     * Go LIVE — see `vcam/src/main/java/com/rerun/tiktokvcam/
+     * Mp4GWsClient.kt::readEndpoint`. World-writable path because both
+     * Reruni and the patched TikTok (different UIDs) need to read/write.
+     */
+    private fun writeVcamAacEndpoint(url: String) {
+        val targetPath =
+            "/sdcard/Android/data/com.zhiliaoapp.musically/files/vcam_ws_endpoint.txt"
+        try {
+            val f = File(targetPath)
+            f.parentFile?.mkdirs()
+            f.writeText(url)
+            Log.i(TAG, "wrote vcam endpoint: $url → $targetPath")
+        } catch (t: Throwable) {
+            Log.w(TAG, "writeVcamAacEndpoint failed: ${t.javaClass.simpleName}: ${t.message}", t)
+        }
+    }
+
+    /**
+     * Broadcasts the kill-switch action that the vcam module's
+     * [VcamKillSwitch] receiver listens for. The receiver lives inside
+     * TikTok's process and calls `Process.killProcess(myPid)` on receipt —
+     * the only reliable way to reset libvolcenginertc.so's encoder state.
+     *
+     * Best-effort: if TikTok isn't currently running, the broadcast is
+     * a no-op. We wait briefly after sending so the next launchIntent
+     * doesn't race a still-dying process.
+     */
+    private suspend fun killTikTokForFreshStart(context: Context) {
+        val killIntent = Intent("com.rerun.vcam.KILL_SELF")
+        for (pkg in TikTokAutopilotService.TIKTOK_PACKAGES) {
+            try {
+                val intent = Intent(killIntent).setPackage(pkg)
+                context.sendBroadcast(intent)
+                Log.i(TAG, "killTikTokForFreshStart: broadcast KILL_SELF → $pkg")
+            } catch (t: Throwable) {
+                Log.w(TAG, "killTikTokForFreshStart: sendBroadcast failed for $pkg", t)
+            }
+        }
+        // 500 ms is enough for SIGKILL to propagate + zygote to finish
+        // cleanup. Empirically the receiver's 50 ms log-flush delay plus
+        // process teardown completes well under this budget.
+        delay(500)
     }
 
     fun cancel() {

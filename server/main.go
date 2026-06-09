@@ -236,6 +236,11 @@ func buildRouter() *http.ServeMux {
 	// -------------------------------------------------------------------------
 	mux.HandleFunc("/ws/device", deviceWsHandler)
 	mux.HandleFunc("/ws/portal", portalWsHandler)
+	// /ws/aac?token=<token> — streams pre-encoded AAC AU frames for the
+	// vcam module's Option G audio-substitution path. Token is generated
+	// per LIVE session in [startLiveHandler] and carried back to mobile
+	// via the start_live envelope's `aac_ws_url` field.
+	mux.HandleFunc("/ws/aac", handleAACWebSocket)
 
 	// -------------------------------------------------------------------------
 	// Static

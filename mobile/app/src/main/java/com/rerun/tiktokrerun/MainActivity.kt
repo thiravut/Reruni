@@ -402,6 +402,7 @@ class MainActivity : AppCompatActivity() {
                             playbackLoopCount = cmd.loopCount,
                             liveSessionId = cmd.liveSessionId,
                             commandId = cmd.commandId,
+                            aacWsUrl = cmd.aacWsUrl,
                         )
                     } else if (cmd.useOverlay) {
                         if (!Settings.canDrawOverlays(this@MainActivity)) {
@@ -422,6 +423,7 @@ class MainActivity : AppCompatActivity() {
                             liveTitle = cmd.liveTitle,
                             liveSessionId = cmd.liveSessionId,
                             commandId = cmd.commandId,
+                            aacWsUrl = cmd.aacWsUrl,
                         )
                     } else {
                         Autopilot.start(
@@ -434,6 +436,7 @@ class MainActivity : AppCompatActivity() {
                             liveTitle = cmd.liveTitle,
                             liveSessionId = cmd.liveSessionId,
                             commandId = cmd.commandId,
+                            aacWsUrl = cmd.aacWsUrl,
                         )
                     }
                 } else {
