@@ -146,6 +146,9 @@
      "retries": 8,
      "allow_content_desc": true,
      "fail": "ไม่พบ Go LIVE (Device camera)"},
+
+    {"op": "step", "label": "🔄 A/V resync — rewind audio + video to MP4 t=0"},
+    {"op": "broadcast_av_resync"},
     {"op": "delay", "ms": 2000},
 
     {"op": "tap_by_text",

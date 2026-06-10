@@ -106,7 +106,21 @@ class ScriptRunner(private val ctx: ScriptContext) {
                 Result.Success
             }
             "launch_tiktok" -> {
-                ctx.context.startActivity(ctx.launchIntent)
+                // preserve_task=true strips CLEAR_TASK so the existing
+                // TikTok activity stack is preserved. Critical for the
+                // end_live script: TikTok is currently on the LIVE screen,
+                // and CLEAR_TASK would force it back to Home — dropping
+                // the broadcast instantly and making the End-Live tap
+                // impossible to find.
+                val preserveTask = step.optBoolean("preserve_task", false)
+                val intent = if (preserveTask) {
+                    android.content.Intent(ctx.launchIntent).apply {
+                        flags = flags and android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK.inv()
+                    }
+                } else {
+                    ctx.launchIntent
+                }
+                ctx.context.startActivity(intent)
                 Result.Success
             }
             "ensure_home" -> {
@@ -203,6 +217,15 @@ class ScriptRunner(private val ctx: ScriptContext) {
             }
             "label" -> {
                 // No-op marker; used as a jump target by `skip_if_no_keywords`.
+                Result.Success
+            }
+            "broadcast_av_resync" -> {
+                // Tell the vcam module (in TikTok's process) to rewind
+                // BOTH audio (server WS "reset") and video
+                // (Mp4FrameProducer rewind) to MP4 t=0 — used right after
+                // the Go LIVE button tap so both producers settle at t=0
+                // before broadcast pipeline initialises.
+                ctx.broadcastAvResync()
                 Result.Success
             }
             "skip_if_no_keywords" -> {

@@ -625,6 +625,18 @@ object Autopilot {
 
             override fun hasKeywords(): Boolean = effectiveKeywords(androidContext).isNotEmpty()
 
+            override fun broadcastAvResync() {
+                for (pkg in TikTokAutopilotService.TIKTOK_PACKAGES) {
+                    try {
+                        val i = Intent("com.rerun.vcam.AV_RESYNC").setPackage(pkg)
+                        androidContext.sendBroadcast(i)
+                        Log.i(TAG, "broadcastAvResync: AV_RESYNC → $pkg")
+                    } catch (t: Throwable) {
+                        Log.w(TAG, "broadcastAvResync failed for $pkg", t)
+                    }
+                }
+            }
+
             override fun warn(message: String) {
                 Log.w(TAG, message)
             }

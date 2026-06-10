@@ -160,5 +160,16 @@ class HookEntry : IXposedHookLoadPackage {
             XposedBridge.log("[$TAG] VcamEndpointReceiver.install failed: ${t.message}")
             Log.e(TAG, "VcamEndpointReceiver.install failed", t)
         }
+
+        // A/V resync trigger — Reruni broadcasts at the Go LIVE tap so
+        // audio (PC stream) and video (Mp4FrameProducer) both rewind to
+        // MP4 t=0 BEFORE TikTok's broadcast pipeline initialises, giving
+        // them seconds to settle into sync. See [VcamAvResyncReceiver].
+        try {
+            VcamAvResyncReceiver.install(lpparam)
+        } catch (t: Throwable) {
+            XposedBridge.log("[$TAG] VcamAvResyncReceiver.install failed: ${t.message}")
+            Log.e(TAG, "VcamAvResyncReceiver.install failed", t)
+        }
     }
 }

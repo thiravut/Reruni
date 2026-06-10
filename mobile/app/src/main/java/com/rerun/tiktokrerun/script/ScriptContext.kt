@@ -96,6 +96,17 @@ interface ScriptContext {
      *  navigating Layer 2/3/4 has no purpose when nothing will be pinned. */
     fun hasKeywords(): Boolean
 
+    /** Broadcasts `com.rerun.vcam.AV_RESYNC` to the patched TikTok process.
+     *  The vcam module's receiver responds by:
+     *    1. Sending WS "reset" to the AAC streamer so audio restarts from
+     *       MP4 frame 0,
+     *    2. Calling Mp4FrameProducer.requestRestart() so video rewinds
+     *       to MP4 video frame 0.
+     *  Called from the autopilot script right after the Go LIVE button
+     *  tap, so both producers re-align before TikTok's broadcast pipeline
+     *  initialises. */
+    fun broadcastAvResync()
+
     /** Used by ops that want to log a warning but proceed (e.g. optional taps). */
     fun warn(message: String)
 }
