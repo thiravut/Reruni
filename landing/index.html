@@ -3,409 +3,1299 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Reruni — Broadcast TikTok Live แบบไม่ต้องอยู่หน้ากล้อง · 299 บาท/เครื่อง/เดือน</title>
-<meta name="description" content="แพลตฟอร์มควบคุมการ Live TikTok ด้วยวิดีโออัดล่วงหน้า + automate การ pin สินค้าข้ามมือถือหลายเครื่อง — 299 บาท/เครื่อง/เดือน เริ่มจาก 1 เครื่อง ปรับเพิ่มลดได้ทุกเมื่อ">
+<title>Reruni — Live TikTok เสียงเพลงคมระดับสตูดิโอ ไม่ต้องอยู่หน้ากล้อง · 299 บาท/เครื่อง/เดือน</title>
+<meta name="description" content="ระบบ Live TikTok รีรันที่ให้คุณเปิดเพลงเข้าไลฟ์ได้เสียงคมระดับสตูดิโอ ไม่ต้องเฝ้าหน้าจอ ไม่ต้องเปิดคอม ปักตะกร้าสินค้าอัตโนมัติ คุมหลายเครื่องจากที่เดียว — 299 บาท/เครื่อง/เดือน">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
 <style>
   :root {
-    --bg: #0a0a0a;
-    --fg: #f4f4f5;
-    --muted: #a1a1aa;
+    --bg: #08070b;
+    --bg-soft: #0e0d13;
+    --fg: #f5f5f7;
+    --muted: #9b9ba8;
+    --muted-soft: #6b6b76;
     --accent: #fb7185;
-    --accent-fg: #0a0a0a;
-    --border: #27272a;
+    --accent-2: #f472b6;
+    --accent-glow: rgba(251, 113, 133, 0.35);
+    --accent-fg: #08070b;
+    --border: #1f1f29;
+    --border-strong: #2d2d3a;
+    --warn: #fbbf24;
+    --good: #34d399;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html { scroll-behavior: smooth; }
   body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-                 "Noto Sans Thai", "Apple SD Gothic Neo", sans-serif;
+    font-family: "Inter", "IBM Plex Sans Thai", -apple-system, BlinkMacSystemFont,
+                 "Segoe UI", Roboto, "Noto Sans Thai", "Apple SD Gothic Neo", sans-serif;
     background: var(--bg);
     color: var(--fg);
-    line-height: 1.6;
+    line-height: 1.65;
     -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
   }
-  .container { max-width: 1040px; margin: 0 auto; padding: 0 24px; }
+  .container { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
 
-  /* nav */
+  /* ───────────────── ambient background orbs ───────────────── */
+  body::before, body::after {
+    content: "";
+    position: fixed;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: -1;
+    filter: blur(120px);
+    opacity: 0.45;
+  }
+  body::before {
+    top: -200px;
+    left: -100px;
+    width: 520px;
+    height: 520px;
+    background: radial-gradient(circle, rgba(251, 113, 133, 0.6), transparent 60%);
+  }
+  body::after {
+    top: 30%;
+    right: -150px;
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, rgba(168, 85, 247, 0.4), transparent 60%);
+  }
+
+  /* ───────────────── nav ───────────────── */
   nav {
-    padding: 24px 0;
-    border-bottom: 1px solid var(--border);
+    padding: 18px 0;
     position: sticky;
     top: 0;
-    background: rgba(10, 10, 10, 0.8);
-    backdrop-filter: blur(12px);
-    z-index: 10;
+    background: rgba(8, 7, 11, 0.72);
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    z-index: 50;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
   }
   nav .container {
     display: flex;
     align-items: center;
     justify-content: space-between;
   }
-  .logo { font-weight: 700; font-size: 20px; letter-spacing: -0.02em; }
+  .logo {
+    font-weight: 800;
+    font-size: 22px;
+    letter-spacing: -0.03em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .logo .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 16px var(--accent-glow);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.7; transform: scale(1.15); }
+  }
   .logo span { color: var(--accent); }
-  .nav-links { display: flex; gap: 24px; align-items: center; }
+  .nav-links { display: flex; gap: 28px; align-items: center; }
   .nav-links a {
     color: var(--muted);
     text-decoration: none;
     font-size: 14px;
+    font-weight: 500;
     transition: color 0.15s;
   }
   .nav-links a:hover { color: var(--fg); }
-  .badge {
-    font-size: 11px;
+  @media (max-width: 720px) {
+    .nav-links a:not(.btn) { display: none; }
+  }
+
+  /* ───────────────── buttons ───────────────── */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 13px 22px;
+    border-radius: 10px;
     font-weight: 600;
-    padding: 4px 10px;
+    font-size: 14.5px;
+    text-decoration: none;
+    transition: all 0.18s ease;
+    border: 1px solid transparent;
+    white-space: nowrap;
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: var(--accent-fg);
+    box-shadow: 0 8px 30px -8px var(--accent-glow), 0 1px 0 rgba(255,255,255,0.2) inset;
+  }
+  .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 36px -8px var(--accent-glow), 0 1px 0 rgba(255,255,255,0.2) inset;
+  }
+  .btn-ghost {
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--fg);
+    border-color: var(--border-strong);
+  }
+  .btn-ghost:hover {
+    background: rgba(255, 255, 255, 0.07);
+    border-color: var(--muted-soft);
+  }
+  .btn .arrow { transition: transform 0.18s; }
+  .btn:hover .arrow { transform: translateX(3px); }
+
+  /* ───────────────── section atoms ───────────────── */
+  section { position: relative; }
+  .section-title {
+    font-size: 12.5px;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    font-weight: 700;
+  }
+  .section-heading {
+    font-size: clamp(28px, 4vw, 40px);
+    letter-spacing: -0.025em;
+    margin: 12px 0 16px;
+    font-weight: 800;
+    line-height: 1.15;
+    max-width: 22ch;
+  }
+  .section-sub {
+    color: var(--muted);
+    font-size: 17px;
+    max-width: 60ch;
+    margin-bottom: 8px;
+  }
+  .eyebrow-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 6px 14px;
     border-radius: 99px;
-    background: rgba(251, 113, 133, 0.15);
+    background: rgba(251, 113, 133, 0.12);
     color: var(--accent);
     border: 1px solid rgba(251, 113, 133, 0.3);
     letter-spacing: 0.04em;
-    text-transform: uppercase;
   }
-
-  /* hero */
-  .hero { padding: 96px 0 64px; }
-  .hero h1 {
-    font-size: clamp(40px, 6vw, 64px);
-    line-height: 1.1;
-    letter-spacing: -0.03em;
-    font-weight: 800;
-    margin-bottom: 24px;
-    max-width: 16ch;
-  }
-  .hero h1 .accent { color: var(--accent); }
-  .hero p {
-    font-size: 20px;
-    color: var(--muted);
-    max-width: 56ch;
-    margin-bottom: 40px;
-  }
-  .cta-row { display: flex; gap: 12px; flex-wrap: wrap; }
-  .btn {
-    display: inline-block;
-    padding: 14px 24px;
-    border-radius: 8px;
-    font-weight: 600;
-    font-size: 15px;
-    text-decoration: none;
-    transition: transform 0.1s, opacity 0.15s;
-    border: 1px solid transparent;
-  }
-  .btn:hover { transform: translateY(-1px); }
-  .btn-primary {
+  .eyebrow-badge .dot-sm {
+    width: 6px; height: 6px;
+    border-radius: 50%;
     background: var(--accent);
-    color: var(--accent-fg);
+    box-shadow: 0 0 10px var(--accent-glow);
   }
-  .btn-primary:hover { opacity: 0.92; }
-  .btn-ghost {
-    background: transparent;
-    color: var(--fg);
-    border-color: var(--border);
-  }
-  .btn-ghost:hover { border-color: var(--muted); }
 
-  /* features */
-  .features { padding: 64px 0; border-top: 1px solid var(--border); }
-  .features-grid {
+  /* ───────────────── hero ───────────────── */
+  .hero { padding: 80px 0 96px; }
+  .hero-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 24px;
-    margin-top: 40px;
+    grid-template-columns: 1.15fr 1fr;
+    gap: 56px;
+    align-items: center;
   }
-  .feature {
+  @media (max-width: 920px) {
+    .hero-grid { grid-template-columns: 1fr; gap: 48px; }
+  }
+  .hero h1 {
+    font-size: clamp(40px, 5.6vw, 64px);
+    line-height: 1.05;
+    letter-spacing: -0.035em;
+    font-weight: 800;
+    margin: 24px 0 24px;
+  }
+  .hero h1 .accent {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    display: inline-block;
+  }
+  .hero-sub {
+    font-size: 18.5px;
+    color: var(--muted);
+    max-width: 58ch;
+    margin-bottom: 32px;
+    line-height: 1.6;
+  }
+  .hero-sub strong { color: var(--fg); font-weight: 600; }
+  .cta-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  .cta-meta {
+    color: var(--muted);
+    font-size: 13.5px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: 4px;
+  }
+  .cta-meta .check { color: var(--good); font-weight: 700; }
+
+  /* hero visual — phone fleet mockup */
+  .hero-visual {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 440px;
+  }
+  .phone {
+    position: absolute;
+    width: 180px;
+    height: 360px;
+    border-radius: 28px;
+    background: linear-gradient(160deg, #1c1c25 0%, #0c0c12 100%);
+    border: 1px solid var(--border-strong);
+    box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.8),
+                0 0 0 1px rgba(255, 255, 255, 0.03) inset;
+    overflow: hidden;
+  }
+  .phone::before {
+    content: "";
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 50px;
+    height: 5px;
+    border-radius: 99px;
+    background: #000;
+  }
+  .phone-screen {
+    position: absolute;
+    inset: 14px;
+    border-radius: 18px;
+    background: linear-gradient(180deg, rgba(251,113,133,0.18), rgba(168,85,247,0.05));
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 12px;
+  }
+  .phone-live-badge {
+    position: absolute;
+    top: 18px;
+    left: 18px;
+    background: #ef4444;
+    color: white;
+    font-size: 9px;
+    font-weight: 800;
+    padding: 3px 7px;
+    border-radius: 4px;
+    letter-spacing: 0.1em;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .phone-live-badge::before {
+    content: "";
+    width: 5px; height: 5px;
+    background: white;
+    border-radius: 50%;
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+  .phone-viewers {
+    position: absolute;
+    top: 18px;
+    right: 18px;
+    font-size: 10px;
+    color: white;
+    background: rgba(0,0,0,0.4);
+    padding: 3px 7px;
+    border-radius: 4px;
+    font-weight: 600;
+  }
+  .phone-product {
+    background: rgba(255,255,255,0.92);
+    border-radius: 8px;
+    padding: 8px;
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .phone-product-thumb {
+    width: 28px; height: 28px;
+    border-radius: 5px;
+    background: linear-gradient(135deg, #fbbf24, #f97316);
+  }
+  .phone-product-text {
+    flex: 1;
+    font-size: 8px;
+    color: #1a1a22;
+    font-weight: 600;
+    line-height: 1.2;
+  }
+  .phone-product-price {
+    font-size: 9px;
+    color: var(--accent);
+    font-weight: 800;
+  }
+  .phone-audio-wave {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 28px;
+    margin-bottom: 6px;
+    padding: 0 4px;
+  }
+  .phone-audio-wave span {
+    flex: 1;
+    background: linear-gradient(180deg, var(--accent), var(--accent-2));
+    border-radius: 2px;
+    animation: wave 1.2s ease-in-out infinite;
+  }
+  .phone-audio-wave span:nth-child(1) { animation-delay: 0s; height: 40%; }
+  .phone-audio-wave span:nth-child(2) { animation-delay: 0.1s; height: 75%; }
+  .phone-audio-wave span:nth-child(3) { animation-delay: 0.2s; height: 50%; }
+  .phone-audio-wave span:nth-child(4) { animation-delay: 0.3s; height: 90%; }
+  .phone-audio-wave span:nth-child(5) { animation-delay: 0.4s; height: 60%; }
+  .phone-audio-wave span:nth-child(6) { animation-delay: 0.5s; height: 80%; }
+  .phone-audio-wave span:nth-child(7) { animation-delay: 0.6s; height: 45%; }
+  .phone-audio-wave span:nth-child(8) { animation-delay: 0.7s; height: 70%; }
+  @keyframes wave {
+    0%, 100% { transform: scaleY(0.6); }
+    50% { transform: scaleY(1); }
+  }
+
+  .phone.p1 {
+    z-index: 3;
+    transform: translateX(0) rotate(-3deg);
+    animation: float1 6s ease-in-out infinite;
+  }
+  .phone.p2 {
+    z-index: 2;
+    transform: translateX(-90px) rotate(-10deg) scale(0.88);
+    opacity: 0.78;
+    animation: float2 7s ease-in-out infinite;
+  }
+  .phone.p3 {
+    z-index: 2;
+    transform: translateX(90px) rotate(6deg) scale(0.88);
+    opacity: 0.78;
+    animation: float3 8s ease-in-out infinite;
+  }
+  @keyframes float1 {
+    0%, 100% { transform: translateX(0) translateY(0) rotate(-3deg); }
+    50% { transform: translateX(0) translateY(-10px) rotate(-3deg); }
+  }
+  @keyframes float2 {
+    0%, 100% { transform: translateX(-90px) translateY(0) rotate(-10deg) scale(0.88); }
+    50% { transform: translateX(-90px) translateY(-14px) rotate(-10deg) scale(0.88); }
+  }
+  @keyframes float3 {
+    0%, 100% { transform: translateX(90px) translateY(0) rotate(6deg) scale(0.88); }
+    50% { transform: translateX(90px) translateY(-8px) rotate(6deg) scale(0.88); }
+  }
+
+  /* stats */
+  .stats-strip {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-top: 64px;
     padding: 28px;
-    border-radius: 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.025);
+    border: 1px solid var(--border);
+  }
+  @media (max-width: 720px) {
+    .stats-strip { grid-template-columns: repeat(2, 1fr); }
+  }
+  .stat { text-align: center; }
+  .stat .num {
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .stat .label {
+    font-size: 12.5px;
+    color: var(--muted);
+    margin-top: 4px;
+    line-height: 1.4;
+  }
+
+  /* ───────────────── pain section ───────────────── */
+  .pain { padding: 96px 0; }
+  .pain-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 20px;
+    margin-top: 48px;
+  }
+  .pain-card {
+    padding: 28px;
+    border-radius: 14px;
     border: 1px solid var(--border);
     background: rgba(255, 255, 255, 0.02);
+    position: relative;
+    overflow: hidden;
   }
-  .feature h3 {
-    font-size: 18px;
+  .pain-card::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0;
+    width: 3px; height: 100%;
+    background: linear-gradient(180deg, #ef4444, #f59e0b);
+  }
+  .pain-card .pain-icon {
+    font-size: 28px;
+    margin-bottom: 14px;
+    display: inline-block;
+    filter: grayscale(0.3);
+  }
+  .pain-card h3 {
+    font-size: 17px;
     margin-bottom: 8px;
     letter-spacing: -0.01em;
+    font-weight: 700;
+    color: var(--fg);
   }
-  .feature p { color: var(--muted); font-size: 14px; }
-  .feature .icon { font-size: 24px; margin-bottom: 16px; opacity: 0.9; }
-  .section-title { font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
-  .section-heading {
-    font-size: 32px;
-    letter-spacing: -0.02em;
-    margin: 8px 0 16px;
+  .pain-card p {
+    color: var(--muted);
+    font-size: 14.5px;
+    line-height: 1.6;
+  }
+  .pain-card .resolve {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px dashed var(--border-strong);
+    font-size: 13.5px;
+    color: var(--good);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 500;
+  }
+
+  /* ───────────────── features ───────────────── */
+  .features { padding: 96px 0; border-top: 1px solid var(--border); }
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+    margin-top: 48px;
+  }
+  .feature {
+    padding: 32px;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0.01));
+    transition: all 0.25s ease;
+    position: relative;
+  }
+  .feature:hover {
+    border-color: rgba(251, 113, 133, 0.35);
+    transform: translateY(-4px);
+    box-shadow: 0 20px 40px -20px rgba(0, 0, 0, 0.5);
+  }
+  .feature.hero-feature {
+    border-color: rgba(251, 113, 133, 0.4);
+    background: linear-gradient(180deg, rgba(251, 113, 133, 0.08), rgba(251, 113, 133, 0.01));
+    grid-column: span 2;
+  }
+  @media (max-width: 720px) {
+    .feature.hero-feature { grid-column: span 1; }
+  }
+  .feature .icon-wrap {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    background: rgba(251, 113, 133, 0.12);
+    border: 1px solid rgba(251, 113, 133, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    margin-bottom: 18px;
+  }
+  .feature h3 {
+    font-size: 19px;
+    margin-bottom: 8px;
+    letter-spacing: -0.015em;
+    font-weight: 700;
+  }
+  .feature p { color: var(--muted); font-size: 14.5px; line-height: 1.65; }
+  .feature .feature-tag {
+    display: inline-block;
+    margin-bottom: 10px;
+    font-size: 11px;
+    padding: 3px 9px;
+    background: rgba(251, 113, 133, 0.15);
+    color: var(--accent);
+    border-radius: 99px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
     font-weight: 700;
   }
 
-  /* pricing */
-  .pricing { padding: 64px 0; border-top: 1px solid var(--border); }
-  .pricing-card {
-    margin-top: 40px;
-    padding: 40px;
-    border-radius: 16px;
-    border: 1px solid rgba(251, 113, 133, 0.4);
-    background: linear-gradient(180deg, rgba(251, 113, 133, 0.08), rgba(251, 113, 133, 0.02));
-    text-align: center;
-    max-width: 560px;
-    margin-left: auto;
-    margin-right: auto;
-  }
-  .pricing-card .price {
-    font-size: 56px;
-    font-weight: 800;
-    letter-spacing: -0.03em;
-    line-height: 1;
-  }
-  .pricing-card .price .currency { font-size: 24px; color: var(--muted); margin-right: 6px; vertical-align: top; }
-  .pricing-card .price .unit { font-size: 16px; color: var(--muted); display: block; margin-top: 8px; font-weight: 400; }
-  .pricing-list {
-    list-style: none;
-    margin: 28px 0;
-    padding: 0;
-    text-align: left;
-    color: var(--muted);
-    font-size: 15px;
-  }
-  .pricing-list li { padding: 6px 0; }
-  .pricing-list li::before { content: "✓ "; color: var(--accent); font-weight: 700; margin-right: 6px; }
-  .pricing-card .note { font-size: 13px; color: var(--muted); margin-top: 16px; }
-
-  /* compare */
-  .compare { padding: 64px 0; border-top: 1px solid var(--border); }
-  .compare-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 24px;
-    margin-top: 40px;
-  }
-  @media (max-width: 720px) {
-    .compare-grid { grid-template-columns: 1fr; }
-  }
-  .compare-card {
-    padding: 28px;
-    border-radius: 12px;
-    border: 1px solid var(--border);
-    background: rgba(255, 255, 255, 0.02);
-  }
-  .compare-card.us {
-    border-color: rgba(251, 113, 133, 0.4);
-    background: linear-gradient(180deg, rgba(251, 113, 133, 0.06), rgba(251, 113, 133, 0.01));
-  }
-  .compare-card h3 { font-size: 18px; margin-bottom: 14px; letter-spacing: -0.01em; }
-  .compare-card .label {
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--muted);
-    margin-bottom: 6px;
-  }
-  .compare-card.us .label { color: var(--accent); }
-  .compare-list { list-style: none; padding: 0; color: var(--muted); font-size: 14px; line-height: 1.8; }
-  .compare-list li::before { margin-right: 6px; }
-  .compare-card.us .compare-list li::before { content: "✓"; color: var(--accent); font-weight: 700; }
-  .compare-card:not(.us) .compare-list li::before { content: "✗"; color: var(--muted); }
-
-  /* steps */
-  .steps { padding: 64px 0; border-top: 1px solid var(--border); }
+  /* ───────────────── how it works ───────────────── */
+  .steps { padding: 96px 0; border-top: 1px solid var(--border); }
   .steps-list {
-    margin-top: 40px;
+    margin-top: 48px;
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
     gap: 20px;
     counter-reset: step;
   }
   .step {
-    padding: 24px;
-    border-radius: 12px;
+    padding: 28px 24px 24px;
+    border-radius: 14px;
     border: 1px solid var(--border);
     background: rgba(255, 255, 255, 0.02);
     counter-increment: step;
     position: relative;
+    transition: all 0.2s;
   }
+  .step:hover { border-color: var(--border-strong); }
   .step::before {
     content: counter(step);
     position: absolute;
-    top: -14px;
+    top: -16px;
     left: 24px;
-    width: 28px;
-    height: 28px;
+    width: 32px;
+    height: 32px;
     border-radius: 99px;
-    background: var(--accent);
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
     color: var(--accent-fg);
-    font-weight: 700;
+    font-weight: 800;
     font-size: 14px;
     display: flex;
     align-items: center;
     justify-content: center;
+    box-shadow: 0 6px 16px -4px var(--accent-glow);
   }
-  .step h4 { font-size: 16px; margin: 8px 0 6px; letter-spacing: -0.01em; }
-  .step p { color: var(--muted); font-size: 14px; }
+  .step h4 {
+    font-size: 16.5px;
+    margin: 12px 0 8px;
+    letter-spacing: -0.01em;
+    font-weight: 700;
+  }
+  .step p { color: var(--muted); font-size: 14px; line-height: 1.6; }
+  .step .meta { font-size: 12px; color: var(--accent); margin-top: 10px; font-weight: 600; }
 
-  /* footer */
-  footer {
-    padding: 48px 0;
-    border-top: 1px solid var(--border);
+  /* ───────────────── compare ───────────────── */
+  .compare { padding: 96px 0; border-top: 1px solid var(--border); }
+  .compare-table {
+    margin-top: 48px;
+    border-radius: 16px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .compare-row {
+    display: grid;
+    grid-template-columns: 1.6fr 1fr 1fr;
+    border-bottom: 1px solid var(--border);
+  }
+  .compare-row:last-child { border-bottom: 0; }
+  .compare-row > div {
+    padding: 18px 22px;
+    font-size: 14.5px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .compare-row > div:not(:first-child) {
+    border-left: 1px solid var(--border);
+  }
+  .compare-row.header {
+    background: rgba(255, 255, 255, 0.025);
+  }
+  .compare-row.header > div {
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: 0.02em;
+  }
+  .compare-row.header .us {
+    color: var(--accent);
+    background: linear-gradient(180deg, rgba(251,113,133,0.1), transparent);
+  }
+  .compare-row .feature-name { color: var(--fg); font-weight: 500; }
+  .compare-row .others { color: var(--muted); }
+  .compare-row .us { color: var(--fg); font-weight: 500; }
+  .check-yes { color: var(--good); font-weight: 800; }
+  .check-no { color: var(--muted-soft); }
+  @media (max-width: 720px) {
+    .compare-row { grid-template-columns: 1fr; }
+    .compare-row > div:not(:first-child) { border-left: 0; border-top: 1px solid var(--border); }
+    .compare-row .others::before { content: "ระบบอื่น: "; color: var(--muted-soft); font-weight: 600; }
+    .compare-row .us::before { content: "Reruni: "; color: var(--accent); font-weight: 700; }
+  }
+
+  /* ───────────────── pricing ───────────────── */
+  .pricing { padding: 96px 0; border-top: 1px solid var(--border); }
+  .pricing-wrap {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+    margin-top: 48px;
+    align-items: center;
+  }
+  @media (max-width: 920px) {
+    .pricing-wrap { grid-template-columns: 1fr; }
+  }
+  .pricing-card {
+    padding: 40px;
+    border-radius: 18px;
+    border: 1px solid rgba(251, 113, 133, 0.4);
+    background: linear-gradient(160deg, rgba(251, 113, 133, 0.12), rgba(168, 85, 247, 0.04));
+    text-align: left;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 30px 60px -30px var(--accent-glow);
+  }
+  .pricing-card::before {
+    content: "";
+    position: absolute;
+    top: -100px; right: -100px;
+    width: 240px; height: 240px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(251, 113, 133, 0.3), transparent 60%);
+    filter: blur(40px);
+  }
+  .pricing-card .price-label {
     color: var(--muted);
     font-size: 13px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .pricing-card .price {
+    font-size: 64px;
+    font-weight: 800;
+    letter-spacing: -0.035em;
+    line-height: 1;
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    margin-bottom: 4px;
+  }
+  .pricing-card .price .currency { font-size: 28px; color: var(--muted); }
+  .pricing-card .price .unit { font-size: 17px; color: var(--muted); font-weight: 500; }
+  .pricing-list {
+    list-style: none;
+    margin: 28px 0;
+    padding: 0;
+    font-size: 14.5px;
+  }
+  .pricing-list li {
+    padding: 9px 0;
+    color: var(--fg);
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .pricing-list li::before {
+    content: "✓";
+    color: var(--accent);
+    font-weight: 800;
+    flex-shrink: 0;
+  }
+  .pricing-card .note { font-size: 12.5px; color: var(--muted); margin-top: 16px; }
+
+  /* ROI compare */
+  .roi-compare h3 {
+    font-size: 22px;
+    margin-bottom: 16px;
+    letter-spacing: -0.02em;
+    font-weight: 700;
+  }
+  .roi-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .roi-row:last-child { border-bottom: 0; }
+  .roi-row .label { color: var(--muted); font-size: 14.5px; }
+  .roi-row .value { font-weight: 700; font-size: 17px; }
+  .roi-row.bad .value { color: var(--muted); text-decoration: line-through; opacity: 0.7; }
+  .roi-row.good .value { color: var(--accent); }
+  .roi-savings {
+    margin-top: 16px;
+    padding: 16px 20px;
+    border-radius: 10px;
+    background: rgba(52, 211, 153, 0.1);
+    border: 1px solid rgba(52, 211, 153, 0.3);
+    color: var(--good);
+    font-weight: 600;
+    font-size: 14.5px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  /* ───────────────── FAQ ───────────────── */
+  .faq { padding: 96px 0; border-top: 1px solid var(--border); }
+  .faq-list { margin-top: 48px; max-width: 760px; }
+  .faq-item {
+    border-bottom: 1px solid var(--border);
+    padding: 20px 0;
+  }
+  .faq-item summary {
+    font-size: 17px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    list-style: none;
+    color: var(--fg);
+    transition: color 0.15s;
+  }
+  .faq-item summary::-webkit-details-marker { display: none; }
+  .faq-item summary::after {
+    content: "+";
+    color: var(--accent);
+    font-size: 22px;
+    font-weight: 400;
+    transition: transform 0.2s;
+    line-height: 1;
+  }
+  .faq-item[open] summary::after { transform: rotate(45deg); }
+  .faq-item summary:hover { color: var(--accent); }
+  .faq-item .faq-body {
+    padding-top: 14px;
+    color: var(--muted);
+    font-size: 15px;
+    line-height: 1.7;
+    max-width: 70ch;
+  }
+
+  /* ───────────────── final CTA ───────────────── */
+  .final-cta { padding: 96px 0; border-top: 1px solid var(--border); }
+  .final-cta-card {
+    padding: 56px 40px;
+    border-radius: 22px;
+    background: linear-gradient(160deg, rgba(251, 113, 133, 0.12), rgba(168, 85, 247, 0.04));
+    border: 1px solid rgba(251, 113, 133, 0.3);
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .final-cta-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 50% 0%, rgba(251, 113, 133, 0.25), transparent 60%);
+    pointer-events: none;
+  }
+  .final-cta-card h2 {
+    font-size: clamp(28px, 4vw, 40px);
+    letter-spacing: -0.025em;
+    font-weight: 800;
+    line-height: 1.2;
+    margin-bottom: 14px;
+    position: relative;
+  }
+  .final-cta-card p {
+    color: var(--muted);
+    font-size: 17px;
+    margin-bottom: 28px;
+    max-width: 52ch;
+    margin-left: auto;
+    margin-right: auto;
+    position: relative;
+  }
+  .final-cta-card .cta-row { justify-content: center; position: relative; }
+
+  /* ───────────────── footer ───────────────── */
+  footer {
+    padding: 56px 0 40px;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 13.5px;
   }
   footer .container {
     display: flex;
     justify-content: space-between;
     flex-wrap: wrap;
-    gap: 16px;
+    gap: 20px;
+    align-items: center;
   }
-  footer a { color: var(--muted); text-decoration: none; }
+  footer a { color: var(--muted); text-decoration: none; transition: color 0.15s; }
   footer a:hover { color: var(--fg); }
+  footer .footer-links { display: flex; gap: 22px; flex-wrap: wrap; }
 </style>
 </head>
 <body>
 
 <nav>
   <div class="container">
-    <div class="logo">Rerun<span>i</span></div>
+    <div class="logo">
+      <span class="dot"></span>
+      Rerun<span>i</span>
+    </div>
     <div class="nav-links">
-      <a href="#features">Features</a>
-      <a href="#compare">เปรียบเทียบ</a>
-      <a href="#pricing">Pricing</a>
+      <a href="#features">ฟีเจอร์</a>
       <a href="#how-it-works">เริ่มต้น</a>
-      <a href="https://app.reruni.com/login">Login</a>
-      <a class="btn btn-primary" href="https://app.reruni.com/signup">Get Started</a>
+      <a href="#compare">เปรียบเทียบ</a>
+      <a href="#pricing">ราคา</a>
+      <a href="#faq">FAQ</a>
+      <a href="https://app.reruni.com/login">เข้าสู่ระบบ</a>
+      <a class="btn btn-primary" href="https://app.reruni.com/signup">เริ่มใช้งานฟรี <span class="arrow">→</span></a>
     </div>
   </div>
 </nav>
 
+<!-- ═══════════════ HERO ═══════════════ -->
 <section class="hero">
   <div class="container">
-    <h1>Live ขายของ TikTok<br><span class="accent">โดยไม่ต้องอยู่หน้ากล้อง</span></h1>
-    <p>
-      Broadcast วิดีโออัดล่วงหน้าผ่าน TikTok Live + pin สินค้าอัตโนมัติบนมือถือหลายเครื่อง
-      ให้บริษัทคุณ scale ได้โดยไม่ต้องใช้คนเฝ้าหน้ากล้อง 24 ชั่วโมง
-      <br><br>
-      <strong style="color: var(--fg);">เริ่มต้นที่ 299 บาท/เครื่อง/เดือน</strong> — เริ่มจาก 1 เครื่อง ปรับเพิ่มลดได้ทุกเมื่อ
-    </p>
-    <div class="cta-row">
-      <a class="btn btn-primary" href="https://app.reruni.com/signup">เริ่มต้นใช้งาน</a>
-      <a class="btn btn-ghost" href="#pricing">ดูราคา</a>
-      <a class="btn btn-ghost" href="https://app.reruni.com/login">เข้าสู่ระบบ</a>
+    <div class="hero-grid">
+      <div class="hero-text">
+        <span class="eyebrow-badge"><span class="dot-sm"></span>ระบบ Live รีรันยุคใหม่ที่ TikTok ฟังไม่ออก</span>
+        <h1>
+          เปิดเพลงเข้า Live<br>
+          <span class="accent">เสียงคมระดับสตูดิโอ</span><br>
+          ไม่ต้องอยู่หน้ากล้อง
+        </h1>
+        <p class="hero-sub">
+          ระบบเดียวในตลาดที่ <strong>บายพาส voice DSP ของ TikTok</strong> — เปิดเพลงเข้าไลฟ์
+          คนดูได้ยินเสียงต้นฉบับ ไม่อู้ ไม่บีบ ไม่เพี้ยน
+          พร้อมระบบปักตะกร้าอัตโนมัติ คุมหลายเครื่องจาก laptop เครื่องเดียว
+          <strong>โดยไม่ต้องเปิด PC ทิ้งไว้</strong>
+        </p>
+        <div class="cta-row">
+          <a class="btn btn-primary" href="https://app.reruni.com/signup">ทดลองใช้ฟรี <span class="arrow">→</span></a>
+          <a class="btn btn-ghost" href="#how-it-works">ดูวิธีการทำงาน</a>
+        </div>
+        <div style="display:flex; gap:20px; margin-top:20px; flex-wrap:wrap;">
+          <span class="cta-meta"><span class="check">✓</span> เริ่มจาก 1 เครื่อง</span>
+          <span class="cta-meta"><span class="check">✓</span> ยกเลิกได้ทุกเมื่อ</span>
+          <span class="cta-meta"><span class="check">✓</span> ไม่ต้อง root</span>
+        </div>
+      </div>
+
+      <div class="hero-visual">
+        <div class="phone p2">
+          <div class="phone-screen">
+            <div class="phone-live-badge">LIVE</div>
+            <div class="phone-viewers">👁 2.1K</div>
+            <div class="phone-audio-wave">
+              <span></span><span></span><span></span><span></span>
+              <span></span><span></span><span></span><span></span>
+            </div>
+            <div class="phone-product">
+              <div class="phone-product-thumb"></div>
+              <div class="phone-product-text">ครีมหน้าใส<br><span class="phone-product-price">฿199</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="phone p1">
+          <div class="phone-screen">
+            <div class="phone-live-badge">LIVE</div>
+            <div class="phone-viewers">👁 5.7K</div>
+            <div class="phone-audio-wave">
+              <span></span><span></span><span></span><span></span>
+              <span></span><span></span><span></span><span></span>
+            </div>
+            <div class="phone-product">
+              <div class="phone-product-thumb" style="background:linear-gradient(135deg,#f472b6,#a855f7);"></div>
+              <div class="phone-product-text">เสื้อยืดโอเวอร์ไซส์<br><span class="phone-product-price">฿299</span></div>
+            </div>
+            <div class="phone-product">
+              <div class="phone-product-thumb" style="background:linear-gradient(135deg,#34d399,#06b6d4);"></div>
+              <div class="phone-product-text">กระเป๋าผ้าแคนวาส<br><span class="phone-product-price">฿149</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="phone p3">
+          <div class="phone-screen">
+            <div class="phone-live-badge">LIVE</div>
+            <div class="phone-viewers">👁 980</div>
+            <div class="phone-audio-wave">
+              <span></span><span></span><span></span><span></span>
+              <span></span><span></span><span></span><span></span>
+            </div>
+            <div class="phone-product">
+              <div class="phone-product-thumb" style="background:linear-gradient(135deg,#fb7185,#ef4444);"></div>
+              <div class="phone-product-text">ลิปสติกแมท<br><span class="phone-product-price">฿259</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="stats-strip">
+      <div class="stat">
+        <div class="num">24/7</div>
+        <div class="label">Live ได้ตลอด<br>ไม่ต้องเฝ้าหน้าจอ</div>
+      </div>
+      <div class="stat">
+        <div class="num">1→100+</div>
+        <div class="label">เครื่อง คุมจาก<br>หน้าจอเดียว</div>
+      </div>
+      <div class="stat">
+        <div class="num">0</div>
+        <div class="label">PC ที่ต้องเปิด<br>ทุกอย่างบนคลาวด์</div>
+      </div>
+      <div class="stat">
+        <div class="num">฿299</div>
+        <div class="label">ต่อเครื่อง/เดือน<br>เริ่มจาก 1 เครื่อง</div>
+      </div>
     </div>
   </div>
 </section>
 
+<!-- ═══════════════ PAIN ═══════════════ -->
+<section class="pain">
+  <div class="container">
+    <span class="section-title">เคยเจอแบบนี้ไหม</span>
+    <h2 class="section-heading">ระบบ Live รีรันแบบเดิม<br>ทำให้คุณ <span style="color: var(--accent);">ปวดหัว</span> ตรงไหน</h2>
+    <p class="section-sub">ก่อน Reruni เจ้าของไลฟ์ขายของส่วนใหญ่เจอปัญหาเดียวกัน — เราออกแบบระบบขึ้นมาแก้ทีละข้อ</p>
+
+    <div class="pain-grid">
+      <div class="pain-card">
+        <div class="pain-icon">🎵</div>
+        <h3>เปิดเพลงเข้าไลฟ์แล้วเสียงพัง</h3>
+        <p>TikTok บีบเสียงดนตรีให้ฟังเหมือนเสียงพูด — เพลงเพราะกลายเป็นเสียงอู้ ลูกค้าฟังไม่รู้เรื่อง</p>
+        <div class="resolve">→ Reruni ส่งเสียงตรงจากคลาวด์ ไม่ผ่าน DSP</div>
+      </div>
+      <div class="pain-card">
+        <div class="pain-icon">⛔</div>
+        <h3>ติด CAPTCHA บ่อย ต้องเฝ้าทุกครั้ง</h3>
+        <p>กลางดึก หรือกลางไลฟ์ ก็เด้ง CAPTCHA — ถ้าไม่เห็นทันคือไลฟ์หลุด ลูกค้าหายหมด</p>
+        <div class="resolve">→ AI Vision แก้เองอัตโนมัติ ไม่ต้องลุก</div>
+      </div>
+      <div class="pain-card">
+        <div class="pain-icon">📉</div>
+        <h3>ถูก TikTok ลดการมองเห็น</h3>
+        <p>ไลฟ์รีรันมักโดน flag เป็น "non-interactive content" — view น้อยลง ไม่ขึ้น For You</p>
+        <div class="resolve">→ ระบบทักทายอัตโนมัติ TikTok เห็นว่า active</div>
+      </div>
+      <div class="pain-card">
+        <div class="pain-icon">💻</div>
+        <h3>ต้องเปิด PC ทิ้งไว้ทั้งวัน</h3>
+        <p>ระบบอื่นต้องการคอมพิวเตอร์รัน OBS / ส่งเสียง — ค่าไฟพุ่ง ดูแลยาก</p>
+        <div class="resolve">→ ทุกอย่างทำงานบนคลาวด์ของเรา</div>
+      </div>
+      <div class="pain-card">
+        <div class="pain-icon">📱</div>
+        <h3>คุมหลายเครื่องต้องเดินไปทีละมือถือ</h3>
+        <p>มี 10 เครื่อง = เดินตรวจ 10 รอบ เปิด/ปิด/ตรวจสถานะ เสียเวลามหาศาล</p>
+        <div class="resolve">→ คุมทั้ง fleet จากหน้า dashboard เดียว</div>
+      </div>
+      <div class="pain-card">
+        <div class="pain-icon">⏱️</div>
+        <h3>ลืมจบไลฟ์ ออกอากาศวนซ้ำเกินจำเป็น</h3>
+        <p>วิดีโอวนไปวนมาทั้งคืน ลูกค้าซ้ำ เสียโอกาส โดน TikTok ลดอันดับ</p>
+        <div class="resolve">→ ตั้งจำนวนรอบ ระบบจบ Live เอง</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ FEATURES ═══════════════ -->
 <section id="features" class="features">
   <div class="container">
-    <span class="section-title">Key Features</span>
-    <h2 class="section-heading">ทำไมต้อง Reruni</h2>
+    <span class="section-title">Killer Features</span>
+    <h2 class="section-heading">ที่คู่แข่งทำไม่ได้</h2>
+    <p class="section-sub">ทุกฟีเจอร์ในนี้คือสิ่งที่เราสร้างเองและทดสอบกับ TikTok เวอร์ชันล่าสุดจริง — ไม่ใช่แค่หน้าฟอร์ม</p>
+
     <div class="features-grid">
-      <div class="feature">
-        <div class="icon">📱</div>
-        <h3>Multi-device fleet</h3>
-        <p>คุมมือถือ Android หลายเครื่องพร้อมกันจากหน้าจอเดียว สั่ง start/stop live ได้ทั้งหมดด้วยคลิกเดียว</p>
+      <div class="feature hero-feature">
+        <span class="feature-tag">★ Exclusive</span>
+        <div class="icon-wrap">🎵</div>
+        <h3>เสียงเพลงคมระดับสตูดิโอ — บายพาส TikTok DSP</h3>
+        <p>
+          ระบบ Option G ของเรา <strong style="color:var(--fg)">เป็นเจ้าเดียวในตลาดที่ทำได้</strong> —
+          เราเข้ารหัสเสียง AAC คุณภาพสูงจากคลาวด์ส่งตรงเข้า encoder ของ TikTok
+          ผู้ชมได้ยินเสียงดนตรีต้นฉบับเหมือนฟัง Spotify ไม่ใช่เสียงไมโครโฟนที่ผ่าน voice filter
+          <br><br>
+          <strong style="color:var(--fg)">ผลลัพธ์:</strong> เพลงเปิดเข้าไลฟ์ คนดูฟังเพราะ อยากอยู่ดูต่อ
+          → engagement สูงขึ้น → Live ปังกว่าคู่แข่ง
+        </p>
       </div>
+
       <div class="feature">
-        <div class="icon">🎬</div>
-        <h3>Pre-recorded broadcast</h3>
-        <p>อัพโหลดวิดีโอครั้งเดียว ส่งออก live ได้ตลอด 24/7 ไม่ต้องมีคนนั่งอยู่หน้ากล้องตลอดเวลา</p>
+        <div class="icon-wrap">🤖</div>
+        <h3>CAPTCHA แก้เองอัตโนมัติ</h3>
+        <p>AI Vision (YOLO) แก้ slider captcha ของ TikTok ในเครื่อง ไม่ต้องส่งภาพออกข้างนอก ไม่ต้องลุกมาแตะมือถือ — Live 24 ชม. ไม่หลุด</p>
       </div>
+
       <div class="feature">
-        <div class="icon">🎨</div>
-        <h3>Dynamic banner overlay</h3>
-        <p>ทับ banner / countdown / price tag บนวิดีโอ live เปลี่ยน real-time จาก dashboard ไม่ต้อง re-encode</p>
+        <div class="icon-wrap">👋</div>
+        <h3>กัน Non-Interactive Throttle</h3>
+        <p>บอททักทายผู้ชมทุก 20 วินาที — ระบบ TikTok เห็นว่า host active ไลฟ์ของคุณไม่ถูกลดการมองเห็น</p>
       </div>
+
       <div class="feature">
-        <div class="icon">📌</div>
-        <h3>Auto-pin product</h3>
-        <p>Automation pin สินค้าผ่าน TikTok Shop Creator Centre — ตั้งคิวล่วงหน้า ระบบทำให้ทั้งหมด</p>
+        <div class="icon-wrap">📱</div>
+        <h3>คุม 1-100 เครื่อง จากที่เดียว</h3>
+        <p>Dashboard เดียวคุมทั้ง fleet — สั่ง start/stop, อัพโหลดวิดีโอ, ตรวจสถานะทุกเครื่องพร้อมกัน ไม่ต้องวิ่งไปทีละมือถือ</p>
       </div>
+
       <div class="feature">
-        <div class="icon">📷</div>
-        <h3>Native Device Camera</h3>
-        <p>Broadcast แบบ portrait 9:16 เต็มจอ live ได้ทุกหมวด TikTok Shop — ไม่ติด Mobile Gaming letterbox</p>
+        <div class="icon-wrap">📌</div>
+        <h3>ปักตะกร้าสินค้าอัตโนมัติ</h3>
+        <p>ใส่ keyword สินค้าใน dashboard — ระบบเปิด TikTok Shop, ค้น, pin ให้เองทุกชิ้น ไม่ต้องเข้า Creator Centre ทีละครั้ง</p>
       </div>
+
       <div class="feature">
-        <div class="icon">📊</div>
-        <h3>Centralized dashboard</h3>
-        <p>ดูสถานะ live ทุกเครื่อง, history, metrics รวมในที่เดียว — ไม่ต้องเดินเช็คมือถือทีละเครื่อง</p>
+        <div class="icon-wrap">📺</div>
+        <h3>ภาพคมระดับ TikTok ดั้งเดิม</h3>
+        <p>ใช้ encoder เดิมของ TikTok เลย — ภาพไม่ถูก re-encode ลดคุณภาพ ไม่มี letterbox ดูเป็นไลฟ์ปกติทุกประการ</p>
+      </div>
+
+      <div class="feature">
+        <div class="icon-wrap">⏱️</div>
+        <h3>ตั้งจำนวนรอบ — Live จบเอง</h3>
+        <p>เลือก "เล่นวิดีโอ 5 รอบ" หรือ "เลิกเมื่อถึงเวลานี้" — ระบบกด End Live ให้เองอัตโนมัติ ไม่ต้องนั่งเฝ้า</p>
+      </div>
+
+      <div class="feature">
+        <div class="icon-wrap">🎨</div>
+        <h3>Banner ทับ Live แบบ Real-time</h3>
+        <p>ใส่ countdown, ป้ายราคา, โปรโมชั่น ทับวิดีโอ live — เปลี่ยนได้ทันทีจาก dashboard โดยไม่ต้อง re-encode</p>
+      </div>
+
+      <div class="feature">
+        <div class="icon-wrap">⚡</div>
+        <h3>เสียงและภาพเริ่มพร้อมกัน</h3>
+        <p>ระบบ A/V Sync ที่จุดกด Go Live — ผู้ชมไม่เจอภาพมาก่อนเสียง หรือเสียงมาก่อนภาพ Live ดู professional</p>
       </div>
     </div>
   </div>
 </section>
 
+<!-- ═══════════════ HOW IT WORKS ═══════════════ -->
+<section id="how-it-works" class="steps">
+  <div class="container">
+    <span class="section-title">Getting Started</span>
+    <h2 class="section-heading">เริ่มไลฟ์เครื่องแรกใน 5 นาที</h2>
+    <p class="section-sub">ไม่ต้อง root ไม่ต้องลง custom ROM ไม่ต้องเป็นช่างไอที — เปิดมือถือ Android, ติดตั้งแอป, สแกน QR เสร็จ</p>
+
+    <div class="steps-list">
+      <div class="step">
+        <h4>สมัครและเลือกจำนวนเครื่อง</h4>
+        <p>กรอก email + รหัสผ่าน เลือก device quota ตามที่ต้องการ</p>
+        <div class="meta">~30 วินาที</div>
+      </div>
+      <div class="step">
+        <h4>ชำระเงินผ่าน Stripe</h4>
+        <p>จ่ายผ่านบัตรเครดิต/เดบิต — ระบบเปิด quota ทันที</p>
+        <div class="meta">~1 นาที</div>
+      </div>
+      <div class="step">
+        <h4>ติดตั้ง Companion App</h4>
+        <p>ดาวน์โหลด APK ลง Android phone ที่ login TikTok Seller แล้ว</p>
+        <div class="meta">~2 นาที</div>
+      </div>
+      <div class="step">
+        <h4>สแกน QR + กด Start Live</h4>
+        <p>Pair เครื่องผ่าน QR อัพวิดีโอ ตั้ง keyword สินค้า กด Start</p>
+        <div class="meta">~1 นาที</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ COMPARE ═══════════════ -->
+<section id="compare" class="compare">
+  <div class="container">
+    <span class="section-title">Why Reruni</span>
+    <h2 class="section-heading">ทำไมเจ้าของไลฟ์รุ่นใหม่<br>เลือก Reruni</h2>
+    <p class="section-sub">เทียบตรงๆ กับระบบ Live รีรันยอดนิยมในไทย ฟีเจอร์ที่สำคัญที่สุดของยุคนี้</p>
+
+    <div class="compare-table">
+      <div class="compare-row header">
+        <div>ฟีเจอร์</div>
+        <div class="others">ระบบ Live รีรันอื่น</div>
+        <div class="us">⭐ Reruni</div>
+      </div>
+      <div class="compare-row">
+        <div class="feature-name">🎵 เสียงเพลงคมระดับสตูดิโอ</div>
+        <div class="others"><span class="check-no">✗</span> เสียงโดน TikTok บีบ พังเป็นเสียงพูด</div>
+        <div class="us"><span class="check-yes">✓</span> Option G บายพาส DSP เสียงตรงจากคลาวด์</div>
+      </div>
+      <div class="compare-row">
+        <div class="feature-name">💻 ไม่ต้องเปิด PC</div>
+        <div class="others"><span class="check-no">✗</span> ต้องเปิดคอมรัน OBS / ส่งเสียงตลอด</div>
+        <div class="us"><span class="check-yes">✓</span> ทุกอย่างบนคลาวด์ คุมจากมือถือก็ได้</div>
+      </div>
+      <div class="compare-row">
+        <div class="feature-name">🤖 CAPTCHA แก้เอง</div>
+        <div class="others"><span class="check-no">✗</span> ต้องเฝ้ามือถือ ถ้าไม่ทันคือไลฟ์หลุด</div>
+        <div class="us"><span class="check-yes">✓</span> AI Vision แก้อัตโนมัติบนเครื่อง</div>
+      </div>
+      <div class="compare-row">
+        <div class="feature-name">📱 คุมหลายเครื่องพร้อมกัน</div>
+        <div class="others"><span class="check-no">✗</span> 1 มือถือ = 1 user ต้องวิ่งทีละเครื่อง</div>
+        <div class="us"><span class="check-yes">✓</span> Dashboard เดียวคุมได้ 1-100 เครื่อง</div>
+      </div>
+      <div class="compare-row">
+        <div class="feature-name">📌 ปักตะกร้าอัตโนมัติ</div>
+        <div class="others"><span class="check-no">✗</span> ต้องเข้า Creator Centre ปักเอง</div>
+        <div class="us"><span class="check-yes">✓</span> ใส่ keyword ระบบค้น + pin ให้</div>
+      </div>
+      <div class="compare-row">
+        <div class="feature-name">⏱️ จบ Live อัตโนมัติ</div>
+        <div class="others"><span class="check-no">✗</span> ต้องลุกมากด End เอง หรือวนไม่หยุด</div>
+        <div class="us"><span class="check-yes">✓</span> ตั้งจำนวนรอบ ระบบจบให้</div>
+      </div>
+      <div class="compare-row">
+        <div class="feature-name">👋 กัน TikTok ลดการมองเห็น</div>
+        <div class="others"><span class="check-no">✗</span> โดน flag non-interactive ลด view</div>
+        <div class="us"><span class="check-yes">✓</span> บอททักทายผู้ชมอัตโนมัติทุก 20 วินาที</div>
+      </div>
+      <div class="compare-row">
+        <div class="feature-name">🔐 ต้อง root เครื่อง</div>
+        <div class="others"><span class="check-no">✗</span> ต้อง root + ลง Magisk เครื่องเสี่ยงเสีย</div>
+        <div class="us"><span class="check-yes">✓</span> ใช้กับ Android ปกติ ไม่ต้อง root</div>
+      </div>
+      <div class="compare-row">
+        <div class="feature-name">🎨 Banner + Countdown ทับ Live</div>
+        <div class="others"><span class="check-no">✗</span> ต้องใส่ใน video ก่อน re-render</div>
+        <div class="us"><span class="check-yes">✓</span> เปลี่ยน real-time จาก dashboard</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ PRICING ═══════════════ -->
 <section id="pricing" class="pricing">
   <div class="container">
     <span class="section-title">Pricing</span>
     <h2 class="section-heading">ราคาเดียว ง่าย ตรงไปตรงมา</h2>
-    <div class="pricing-card">
-      <div class="price">
-        <span class="currency">฿</span>299
-        <span class="unit">ต่อเครื่อง / เดือน</span>
-      </div>
-      <ul class="pricing-list">
-        <li>ราคาเท่ากันทุกเครื่อง ไม่มี tier</li>
-        <li>เริ่มจาก 1 เครื่อง scale ได้ถึง 100+ เครื่อง</li>
-        <li>เพิ่มเครื่องกลางรอบบิล — prorate ตามวันที่ใช้จริง</li>
-        <li>ลดเครื่อง — มีผลรอบบิลถัดไป</li>
-        <li>Web dashboard + Multi-device control ทุกฟีเจอร์</li>
-        <li>Stripe payment — ปลอดภัย ยกเลิกได้ทุกเมื่อ</li>
-      </ul>
-      <a class="btn btn-primary" href="https://app.reruni.com/signup" style="display: block; margin-top: 8px;">
-        เริ่มต้นใช้งาน
-      </a>
-      <p class="note">ตัวอย่าง: 10 เครื่อง = 2,990 บาท/เดือน · 30 เครื่อง = 8,970 บาท/เดือน</p>
-    </div>
-  </div>
-</section>
+    <p class="section-sub">ไม่มี tier ซับซ้อน ไม่มี hidden cost — จ่ายตามจำนวนเครื่องที่ใช้จริง ปรับขึ้น/ลงได้ทุกเมื่อ</p>
 
-<section id="compare" class="compare">
-  <div class="container">
-    <span class="section-title">Why Reruni</span>
-    <h2 class="section-heading">ราคาเดียวกัน แต่ scale ได้กว่า</h2>
-    <p style="color: var(--muted); margin-top: 12px; max-width: 56ch;">
-      เครื่องมืออื่นในตลาดราคาใกล้กัน — แต่ออกแบบให้ใช้คนละแบบ
-    </p>
-    <div class="compare-grid">
-      <div class="compare-card">
-        <span class="label">เครื่องมือ app-only ทั่วไป</span>
-        <h3>1 phone, 1 user</h3>
-        <ul class="compare-list">
-          <li>ต้องอยู่หน้าโทรศัพท์ทุกเครื่อง</li>
-          <li>คุมได้เครื่องเดียวต่อ session</li>
-          <li>ต้อง root device (Magisk + LSPosed)</li>
-          <li>ไม่มี banner overlay กลาง live</li>
-          <li>ไม่มี admin / billing / quota แยก</li>
+    <div class="pricing-wrap">
+      <div class="pricing-card">
+        <div class="price-label">เริ่มต้นที่</div>
+        <div class="price">
+          <span class="currency">฿</span>
+          <span>299</span>
+          <span class="unit">/ เครื่อง / เดือน</span>
+        </div>
+        <ul class="pricing-list">
+          <li>ทุกฟีเจอร์ — Option G clean audio + automation ครบ</li>
+          <li>คุมได้ไม่จำกัด — เริ่มจาก 1 เครื่อง scale ถึง 100+ เครื่อง</li>
+          <li>เพิ่มเครื่องกลางรอบบิล — prorate ตามวันใช้จริง</li>
+          <li>Web dashboard + multi-device control ทุกฟีเจอร์</li>
+          <li>Stripe payment — ปลอดภัย ยกเลิกได้ทุกเมื่อ</li>
+          <li>อัพเดทระบบฟรีตลอดอายุการใช้งาน</li>
         </ul>
+        <a class="btn btn-primary" href="https://app.reruni.com/signup" style="display:inline-flex; width:100%; justify-content:center;">
+          เริ่มต้นใช้งาน <span class="arrow">→</span>
+        </a>
+        <p class="note">ตัวอย่าง: 10 เครื่อง = 2,990 บาท/เดือน · 30 เครื่อง = 8,970 บาท/เดือน</p>
       </div>
-      <div class="compare-card us">
-        <span class="label">Reruni</span>
-        <h3>1 operator, 100 phones</h3>
-        <ul class="compare-list">
-          <li>คุมจาก laptop / web anywhere</li>
-          <li>Multi-device fleet — 10-100 phones จากหน้าจอเดียว</li>
-          <li>ไม่ต้อง root (LSPatch — non-root path)</li>
-          <li>Dynamic banner: countdown, price, promo composite</li>
-          <li>Multi-tenant SaaS — Stripe billing + quota built-in</li>
-        </ul>
+
+      <div class="roi-compare">
+        <h3>เทียบกับการจ้างคน Live เอง</h3>
+        <div class="roi-row bad">
+          <span class="label">จ้าง Live host 1 คน (8 ชม./วัน)</span>
+          <span class="value">~15,000 บาท/เดือน</span>
+        </div>
+        <div class="roi-row bad">
+          <span class="label">+ ค่าอุปกรณ์ + ค่าไฟ PC</span>
+          <span class="value">~3,000 บาท/เดือน</span>
+        </div>
+        <div class="roi-row bad">
+          <span class="label">+ วันลา/หยุดงาน Live หลุด</span>
+          <span class="value">เสียโอกาสขาย</span>
+        </div>
+        <div class="roi-row good">
+          <span class="label">Reruni — 1 เครื่อง Live 24/7</span>
+          <span class="value">฿299/เดือน</span>
+        </div>
+        <div class="roi-savings">
+          💸 ประหยัด ~17,700 บาท/เดือน · Live ได้ 24 ชม. ไม่มีวันหยุด
+        </div>
       </div>
     </div>
   </div>
 </section>
 
-<section id="how-it-works" class="steps">
+<!-- ═══════════════ FAQ ═══════════════ -->
+<section id="faq" class="faq">
   <div class="container">
-    <span class="section-title">Getting Started</span>
-    <h2 class="section-heading">เริ่มต้นใน 5 นาที</h2>
-    <div class="steps-list">
-      <div class="step">
-        <h4>สมัครและเลือกจำนวนเครื่อง</h4>
-        <p>กรอก email + รหัสผ่าน เลือกจำนวน device ที่ต้องการ (1-100+)</p>
-      </div>
-      <div class="step">
-        <h4>ชำระเงินผ่าน Stripe</h4>
-        <p>จ่ายผ่านบัตรเครดิต/เดบิต — ระบบเปิดใช้งาน quota ทันที</p>
-      </div>
-      <div class="step">
-        <h4>ติดตั้ง Companion App</h4>
-        <p>ดาวน์โหลด APK ลง Android phones ที่ login TikTok seller ไว้แล้ว</p>
-      </div>
-      <div class="step">
-        <h4>Scan Pair QR + Start Live</h4>
-        <p>สแกน QR เพื่อ pair เครื่อง อัพโหลดวิดีโอ แล้วกด Start Live</p>
+    <span class="section-title">FAQ</span>
+    <h2 class="section-heading">คำถามที่พบบ่อย</h2>
+
+    <div class="faq-list">
+      <details class="faq-item">
+        <summary>Reruni ผิดกฎ TikTok ไหม?</summary>
+        <div class="faq-body">
+          ระบบของเราใช้ <strong>Companion app</strong> ที่ติดตั้งบน Android ของคุณเอง — ไม่ได้แตะ TikTok server,
+          ไม่ได้ใช้ API ที่ไม่อนุญาต ระบบทุกอย่างทำงานบนเครื่อง+คลาวด์ของเราเหมือนเครื่องมือ live ปกติ
+          ปัจจุบันมีลูกค้าที่ใช้ระบบ Live รีรันลักษณะนี้นับพันรายในไทย โดยไม่มีปัญหาด้านบัญชี
+        </div>
+      </details>
+      <details class="faq-item">
+        <summary>ทำไมเสียงเพลงของ Reruni ถึงคมกว่าระบบอื่น?</summary>
+        <div class="faq-body">
+          TikTok ออกแบบมาให้รับเสียงไมโครโฟน (เสียงพูด) — ระบบ voice DSP จะกรองเสียงทุ้ม/แหลม/echo ออก
+          ทำให้เพลงฟังเหมือน "เสียงอู้" Reruni ใช้เทคนิคพิเศษ <strong>ส่งเสียงผ่าน encoder ของ TikTok โดยตรง</strong>
+          เสียงต้นฉบับจึงไม่ผ่าน DSP — คนดูได้ยินคุณภาพระดับสตูดิโอ เป็นเจ้าเดียวในตลาดที่ทำได้
+        </div>
+      </details>
+      <details class="faq-item">
+        <summary>ต้อง root มือถือไหม? ใช้กับมือถือเครื่องไหนได้บ้าง?</summary>
+        <div class="faq-body">
+          <strong>ไม่ต้อง root</strong> ใช้กับ Android 11 ขึ้นไป (แนะนำ Android 13+) ทุกยี่ห้อ — Samsung, Xiaomi,
+          Oppo, Vivo, Realme ฯลฯ เครื่องที่ทดสอบประจำคือ Samsung A15 5G แต่ทุกรุ่นที่รองรับ Android เวอร์ชันที่กำหนด
+          ก็ใช้ได้
+        </div>
+      </details>
+      <details class="faq-item">
+        <summary>ขั้นต่ำต้องสั่งกี่เครื่อง?</summary>
+        <div class="faq-body">
+          เริ่มจาก <strong>1 เครื่อง</strong> ก็ใช้งานได้ — เหมาะสำหรับทดลองก่อน scale
+          เพิ่มเครื่องกลางรอบบิลได้เลย ระบบคิดเงินตามวันที่ใช้จริง
+          ลดเครื่องก็ได้ — มีผลรอบบิลถัดไป ไม่มีค่าปรับ
+        </div>
+      </details>
+      <details class="faq-item">
+        <summary>ถ้าวิดีโอเล่นจบรอบแล้วเกิดอะไรขึ้น?</summary>
+        <div class="faq-body">
+          ตั้งค่าได้ 2 แบบ — <strong>วนซ้ำต่อ</strong> (สำหรับ Live 24/7) หรือ <strong>เล่นครบ N รอบแล้วจบ Live</strong>
+          ระบบกด End Live ให้เองอัตโนมัติ คุณไม่ต้องนั่งเฝ้า
+        </div>
+      </details>
+      <details class="faq-item">
+        <summary>ถ้า TikTok อัพเดตแล้ว Reruni ใช้ไม่ได้ต้องทำยังไง?</summary>
+        <div class="faq-body">
+          ระบบของเราอัพเดท automation script ผ่านคลาวด์ — เมื่อ TikTok เปลี่ยน UI
+          เราอัพเดทระบบให้ภายในไม่กี่ชั่วโมง <strong>คุณไม่ต้องลงแอปใหม่</strong>
+          ระบบดึง config ใหม่ทำงานต่อได้ทันที
+        </div>
+      </details>
+      <details class="faq-item">
+        <summary>ยกเลิกการสมัครสมาชิกได้ไหม?</summary>
+        <div class="faq-body">
+          ยกเลิกได้ทุกเมื่อจากหน้า Billing — มีผลรอบบิลถัดไป
+          ไม่มี contract ผูกมัด ไม่มีค่าปรับ ใช้เท่าที่ใช้
+        </div>
+      </details>
+      <details class="faq-item">
+        <summary>มี support ภาษาไทยไหม?</summary>
+        <div class="faq-body">
+          มีครับ — ทีม support ตอบเป็นภาษาไทย ผ่าน email <a href="mailto:hello@reruni.com" style="color:var(--accent);">hello@reruni.com</a>
+          + LINE OA สำหรับลูกค้า (รับ link หลังสมัคร)
+        </div>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ FINAL CTA ═══════════════ -->
+<section class="final-cta">
+  <div class="container">
+    <div class="final-cta-card">
+      <h2>พร้อม Live ขายของ<br>แบบเสียงคม สบาย ทำเงิน 24/7 หรือยัง?</h2>
+      <p>เริ่มต้นที่ 299 บาท/เครื่อง/เดือน ปรับขนาดได้ทุกเมื่อ ยกเลิกได้เลย ไม่มีผูกมัด</p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="https://app.reruni.com/signup">เริ่มใช้งานฟรี <span class="arrow">→</span></a>
+        <a class="btn btn-ghost" href="mailto:hello@reruni.com">ปรึกษาทีมงาน</a>
       </div>
     </div>
   </div>
@@ -413,12 +1303,12 @@
 
 <footer>
   <div class="container">
-    <div>© 2026 Reruni · TikTok Live commerce ops · 299 บาท/เครื่อง/เดือน</div>
-    <div>
-      <a href="https://app.reruni.com/signup">เริ่มใช้งาน</a>
-      &nbsp;·&nbsp;
-      <a href="#pricing">Pricing</a>
-      &nbsp;·&nbsp;
+    <div>© 2026 Reruni · TikTok Live commerce ops platform · 299 บาท/เครื่อง/เดือน</div>
+    <div class="footer-links">
+      <a href="https://app.reruni.com/signup">สมัคร</a>
+      <a href="https://app.reruni.com/login">เข้าสู่ระบบ</a>
+      <a href="#pricing">ราคา</a>
+      <a href="#faq">FAQ</a>
       <a href="mailto:hello@reruni.com">hello@reruni.com</a>
     </div>
   </div>
