@@ -12,6 +12,19 @@ import android.content.Intent
  * live in JSON — and eventually be served by the backend — without the
  * runner reaching into Autopilot's privates.
  */
+/**
+ * Screen-relative region used by [ScriptContext.tapByText] to disambiguate
+ * matched nodes by position. All values are 0-100 (percentage of screen
+ * width/height). A node qualifies if its bounding-rect centerpoint is
+ * within the inclusive range on both axes.
+ */
+data class BoundsFilter(
+    val minXPct: Float,
+    val minYPct: Float,
+    val maxXPct: Float,
+    val maxYPct: Float,
+)
+
 interface ScriptContext {
     /** Android Context used for `launch_tiktok`, `deliver_broadcast`, etc. */
     val context: Context
@@ -28,6 +41,13 @@ interface ScriptContext {
         allowContentDesc: Boolean = true,
         retries: Int = 4,
         verifyDisappear: Boolean = false,
+        /** Optional screen-region filter (percentages 0-100). When set,
+         *  only nodes whose centerpoint falls within the region are
+         *  candidates — useful for icon buttons that share contentDescription
+         *  with elements elsewhere on the screen (e.g. multiple "Close"-
+         *  labelled elements where we want the top-right one).
+         *  Null = unrestricted (whole screen). */
+        boundsFilter: BoundsFilter? = null,
     ): Boolean
 
     suspend fun waitForAny(
@@ -106,6 +126,11 @@ interface ScriptContext {
      *  tap, so both producers re-align before TikTok's broadcast pipeline
      *  initialises. */
     fun broadcastAvResync()
+
+    /** Dispatches the system back action via accessibility. Used to dismiss
+     *  bottom sheets / sub-pages / overlays that don't expose an explicit
+     *  close button. */
+    suspend fun pressBack()
 
     /** Used by ops that want to log a warning but proceed (e.g. optional taps). */
     fun warn(message: String)

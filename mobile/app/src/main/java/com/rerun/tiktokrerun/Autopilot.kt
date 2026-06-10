@@ -555,11 +555,13 @@ object Autopilot {
                 allowContentDesc: Boolean,
                 retries: Int,
                 verifyDisappear: Boolean,
+                boundsFilter: com.rerun.tiktokrerun.script.BoundsFilter?,
             ): Boolean = this@Autopilot.tapByText(
                 labels = labels,
                 retries = retries,
                 allowContentDesc = allowContentDesc,
                 verifyDisappear = verifyDisappear,
+                boundsFilter = boundsFilter,
             )
 
             override suspend fun waitForAny(
@@ -624,6 +626,15 @@ object Autopilot {
             }
 
             override fun hasKeywords(): Boolean = effectiveKeywords(androidContext).isNotEmpty()
+
+            override suspend fun pressBack() {
+                val service = TikTokAutopilotService.instance ?: run {
+                    Log.w(TAG, "pressBack: accessibility service not active")
+                    return
+                }
+                service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
+                Log.i(TAG, "pressBack dispatched")
+            }
 
             override fun broadcastAvResync() {
                 for (pkg in TikTokAutopilotService.TIKTOK_PACKAGES) {
@@ -793,6 +804,7 @@ object Autopilot {
          */
         verifyDisappear: Boolean = false,
         verifyDelayMs: Long = 600,
+        boundsFilter: com.rerun.tiktokrerun.script.BoundsFilter? = null,
     ): Boolean {
         for (attempt in 0 until retries) {
             // Before each retry, see if TikTok has interrupted us with a
@@ -805,7 +817,7 @@ object Autopilot {
             }
             val root = TikTokAutopilotService.instance?.activeRoot()
             if (root != null) {
-                val match = findMatch(root, labels, allowContentDesc)
+                val match = findMatch(root, labels, allowContentDesc, boundsFilter)
                 if (match != null) {
                     // Strategy 1: matched node ITSELF clickable → ACTION_CLICK on it.
                     if (match.isClickable &&
@@ -1832,14 +1844,28 @@ object Autopilot {
         root: AccessibilityNodeInfo,
         labels: List<String>,
         allowContentDesc: Boolean,
+        boundsFilter: com.rerun.tiktokrerun.script.BoundsFilter? = null,
     ): AccessibilityNodeInfo? {
         val all = mutableListOf<AccessibilityNodeInfo>()
         collectNodes(root, all)
+        val candidates = if (boundsFilter == null) all else {
+            val (sw, sh) = screenSizePx()
+            if (sw <= 0 || sh <= 0) all
+            else all.filter { n ->
+                val r = Rect(); n.getBoundsInScreen(r)
+                val cx = r.centerX()
+                val cy = r.centerY()
+                val xPct = cx * 100f / sw
+                val yPct = cy * 100f / sh
+                xPct in boundsFilter.minXPct..boundsFilter.maxXPct &&
+                yPct in boundsFilter.minYPct..boundsFilter.maxYPct
+            }
+        }
         // Pass 1 — exact (trimmed, case-insensitive). Prevents "Create" matching "Create now",
         // "LIVE" matching "LIVE preview", etc.
         for (label in labels) {
             val needle = label.lowercase().trim()
-            val hit = all.firstOrNull { n ->
+            val hit = candidates.firstOrNull { n ->
                 val t = n.text?.toString()?.lowercase()?.trim()
                 val d = if (allowContentDesc) n.contentDescription?.toString()?.lowercase()?.trim() else null
                 t == needle || d == needle
@@ -1849,7 +1875,7 @@ object Autopilot {
         // Pass 2 — substring fallback for tabs/labels embedded in longer text (Thai descs etc.)
         for (label in labels) {
             val needle = label.lowercase()
-            val hit = all.firstOrNull { n ->
+            val hit = candidates.firstOrNull { n ->
                 val t = n.text?.toString()?.lowercase()
                 val d = if (allowContentDesc) n.contentDescription?.toString()?.lowercase() else null
                 (t != null && t.contains(needle)) || (d != null && d.contains(needle))
@@ -1857,6 +1883,15 @@ object Autopilot {
             if (hit != null) return hit
         }
         return null
+    }
+
+    /** Screen width/height in px from the active accessibility window's
+     *  outer bounds. Cached briefly per traversal. Falls back to (0,0) if
+     *  unavailable so callers can disable the filter cleanly. */
+    private fun screenSizePx(): Pair<Int, Int> {
+        val root = TikTokAutopilotService.instance?.activeRoot() ?: return 0 to 0
+        val r = Rect(); root.getBoundsInScreen(r)
+        return r.width() to r.height()
     }
 
     private fun collectNodes(node: AccessibilityNodeInfo, out: MutableList<AccessibilityNodeInfo>) {

@@ -132,7 +132,21 @@ class ScriptRunner(private val ctx: ScriptContext) {
                 val retries = step.optInt("retries", 4)
                 val allowContentDesc = step.optBoolean("allow_content_desc", true)
                 val verifyDisappear = step.optBoolean("verify_disappear", false)
-                val ok = ctx.tapByText(labels, allowContentDesc, retries, verifyDisappear)
+                // Optional region filter — `"bounds": {"min_x_pct": ..., ...}`
+                // restricts matches to nodes whose centerpoint is within the
+                // given screen-percentage rectangle. Used to disambiguate
+                // shared labels (e.g. the top-right "Close" icon vs other
+                // "Close" elements that may be on the same screen).
+                val boundsObj = step.optJSONObject("bounds")
+                val boundsFilter = boundsObj?.let {
+                    BoundsFilter(
+                        minXPct = it.optDouble("min_x_pct", 0.0).toFloat(),
+                        minYPct = it.optDouble("min_y_pct", 0.0).toFloat(),
+                        maxXPct = it.optDouble("max_x_pct", 100.0).toFloat(),
+                        maxYPct = it.optDouble("max_y_pct", 100.0).toFloat(),
+                    )
+                }
+                val ok = ctx.tapByText(labels, allowContentDesc, retries, verifyDisappear, boundsFilter)
                 if (!ok) {
                     val warnMsg = step.optString("warn_on_fail")
                     if (warnMsg.isNotEmpty()) ctx.warn(warnMsg)
@@ -226,6 +240,18 @@ class ScriptRunner(private val ctx: ScriptContext) {
                 // the Go LIVE button tap so both producers settle at t=0
                 // before broadcast pipeline initialises.
                 ctx.broadcastAvResync()
+                Result.Success
+            }
+            "press_back" -> {
+                // System BACK key via accessibility. Dismisses bottom
+                // sheets / sub-pages / overlays that don't expose an
+                // explicit close button.
+                val count = step.optInt("count", 1).coerceAtLeast(1)
+                val intervalMs = step.optLong("interval_ms", 500L)
+                for (i in 0 until count) {
+                    ctx.pressBack()
+                    if (i < count - 1) ctx.delayMs(intervalMs)
+                }
                 Result.Success
             }
             "skip_if_no_keywords" -> {
