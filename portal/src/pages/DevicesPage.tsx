@@ -83,20 +83,35 @@ export function DevicesPage() {
     });
   }, [realtime, reload]);
 
-  // Pair countdown
+  // Pair countdown. Auto-refresh the QR when there's less than 30 seconds left
+  // so an operator who got distracted comes back to a usable code instead of an
+  // expired one + manual button to click.
   useEffect(() => {
     if (!pairToken) return;
+    let refreshing = false;
     function update() {
       const remain = Math.max(
         0,
         Math.floor((new Date(pairToken!.expires_at).getTime() - Date.now()) / 1000),
       );
       setPairCountdown(remain);
+      if (remain > 0 && remain <= 30 && !refreshing && pairOpen) {
+        refreshing = true;
+        void handleCreatePairToken();
+      }
     }
     update();
     const id = window.setInterval(update, 1000);
     return () => window.clearInterval(id);
-  }, [pairToken]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pairToken, pairOpen]);
+
+  // Tick every 30s so "ออนไลน์ล่าสุด" stays roughly fresh.
+  const [, setNowTick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setNowTick((n) => n + 1), 30_000);
+    return () => clearInterval(t);
+  }, []);
 
   async function handleCreatePairToken() {
     setPairLoading(true);
@@ -215,7 +230,15 @@ export function DevicesPage() {
                 </tr>
               </thead>
               <tbody>
-                {mergedDevices.map((d) => (
+                {mergedDevices.map((d) => {
+                  const lastSeenMs = d.last_seen_at
+                    ? new Date(d.last_seen_at).getTime()
+                    : 0;
+                  const longOffline =
+                    d.status === 'offline' &&
+                    lastSeenMs > 0 &&
+                    Date.now() - lastSeenMs > 60 * 60 * 1000;
+                  return (
                   <tr key={d.id} className="border-t border-slate-100">
                     <Td>
                       <div className="font-medium text-slate-800">
@@ -230,8 +253,19 @@ export function DevicesPage() {
                       <DeviceReadiness caps={d.caps} reportedAt={d.caps_reported_at} />
                     </Td>
                     <Td>
-                      <span title={formatDateTime(d.last_seen_at)}>
+                      <span
+                        title={formatDateTime(d.last_seen_at)}
+                        className={longOffline ? 'text-rose-600' : ''}
+                      >
                         {relativeFromNow(d.last_seen_at)}
+                        {longOffline && (
+                          <span
+                            aria-label="offline เกิน 1 ชั่วโมง"
+                            className="ml-1"
+                          >
+                            ⚠
+                          </span>
+                        )}
                       </span>
                     </Td>
                     <Td className="text-right space-x-1 whitespace-nowrap">
@@ -255,7 +289,8 @@ export function DevicesPage() {
                       </Button>
                     </Td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -288,12 +323,17 @@ export function DevicesPage() {
               </p>
               <p className="font-mono text-xs text-slate-500">{pairToken.token}</p>
             </div>
-            <div className="text-xs text-slate-500">
+            <div className="text-xs text-slate-500 text-center">
               {pairCountdown > 0
                 ? `หมดอายุใน ${Math.floor(pairCountdown / 60)}:${String(
                     pairCountdown % 60,
                   ).padStart(2, '0')} นาที`
                 : 'QR หมดอายุแล้ว กรุณาสร้างใหม่'}
+              {pairCountdown > 0 && pairCountdown <= 30 && (
+                <div className="text-amber-700 mt-1">
+                  กำลังต่ออายุ QR ให้อัตโนมัติ…
+                </div>
+              )}
             </div>
             <Button
               variant="secondary"

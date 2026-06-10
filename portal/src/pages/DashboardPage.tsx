@@ -2,14 +2,17 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { PageHeader } from '../components/PageHeader';
 import { Card } from '../components/Card';
+import { Button } from '../components/Button';
 import { Spinner } from '../components/Spinner';
 import { ErrorBanner } from '../components/ErrorBanner';
+import { StatusBadge } from '../components/StatusBadge';
 import { listDevices } from '../api/devices';
 import { listVideos } from '../api/videos';
 import { listActiveLives } from '../api/lives';
 import { useAuth } from '../contexts/AuthContext';
 import { useRealtime } from '../contexts/RealtimeContext';
-import type { Device } from '../types/api';
+import type { Device, LiveSession } from '../types/api';
+import { relativeFromNow } from '../utils/format';
 
 interface Counts {
   devicesTotal: number;
@@ -23,6 +26,8 @@ export function DashboardPage() {
   const { state } = useAuth();
   const realtime = useRealtime();
   const [counts, setCounts] = useState<Counts | null>(null);
+  const [activeLives, setActiveLives] = useState<LiveSession[]>([]);
+  const [devices, setDevices] = useState<Device[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,11 +39,13 @@ export function DashboardPage() {
         listVideos(1, 0),
         listActiveLives(),
       ]);
-      const devices = devicesRes.items;
+      const items = devicesRes.items;
+      setDevices(items);
+      setActiveLives(activeRes.items);
       setCounts({
-        devicesTotal: devicesRes.total ?? devices.length,
-        devicesOnline: devices.filter((d) => d.status !== 'offline').length,
-        devicesLive: devices.filter((d) => d.status === 'live').length,
+        devicesTotal: devicesRes.total ?? items.length,
+        devicesOnline: items.filter((d) => d.status !== 'offline').length,
+        devicesLive: items.filter((d) => d.status === 'live').length,
         videos: videosRes.total ?? videosRes.items.length,
         activeLives: activeRes.items.length,
       });
@@ -72,6 +79,16 @@ export function DashboardPage() {
       <PageHeader
         title={`สวัสดี ${state.user?.email ?? ''}`}
         description="ภาพรวม fleet ของคุณ"
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Link to="/live">
+              <Button>+ เริ่ม Live ใหม่</Button>
+            </Link>
+            <Link to="/devices">
+              <Button variant="secondary">จัดการอุปกรณ์</Button>
+            </Link>
+          </div>
+        }
       />
 
       <ErrorBanner message={error} onDismiss={() => setError(null)} />
@@ -104,6 +121,52 @@ export function DashboardPage() {
           />
         </div>
       ) : null}
+
+      {!loading && activeLives.length > 0 && (
+        <Card className="mt-6 p-5">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-slate-700">
+              Live ที่กำลังออน ({activeLives.length})
+            </h2>
+            <Link
+              to="/live/active"
+              className="text-xs text-brand-600 hover:underline"
+            >
+              ดูทั้งหมด →
+            </Link>
+          </div>
+          <ul className="divide-y divide-slate-100">
+            {activeLives.slice(0, 5).map((l) => {
+              const baseDevice = devices.find((d) => d.id === l.device_id);
+              const patch = realtime.deviceStatuses.get(l.device_id);
+              const status = patch?.status ?? baseDevice?.status;
+              const deviceName =
+                baseDevice?.name || `อุปกรณ์ #${l.device_id}`;
+              return (
+                <li
+                  key={l.id}
+                  className="py-2 flex items-center justify-between gap-3 text-sm"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium text-slate-800 truncate">
+                      {deviceName}
+                    </div>
+                    <div className="text-xs text-slate-500 truncate">
+                      {l.title || 'ไม่มีชื่อ'} · {relativeFromNow(l.started_at)}
+                    </div>
+                  </div>
+                  {status && <StatusBadge status={status} />}
+                </li>
+              );
+            })}
+            {activeLives.length > 5 && (
+              <li className="py-2 text-xs text-slate-500">
+                + {activeLives.length - 5} live อื่น ๆ
+              </li>
+            )}
+          </ul>
+        </Card>
+      )}
 
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card className="p-5">
@@ -165,6 +228,3 @@ function StatCard({ label, value, href, tone = 'neutral' }: StatCardProps) {
   if (href) return <Link to={href}>{body}</Link>;
   return body;
 }
-
-// Re-export so AppLayout doesn't import unused.
-export type _DeviceUnused = Device;

@@ -9,7 +9,12 @@ import { Confirm } from '../components/Confirm';
 import { ErrorBanner } from '../components/ErrorBanner';
 import { ApiError } from '../api/client';
 import { useToast } from '../contexts/ToastContext';
-import { deleteVideo, listVideos, renameVideo, uploadVideo } from '../api/videos';
+import {
+  deleteVideo,
+  listVideos,
+  renameVideo,
+  uploadVideoWithProgress,
+} from '../api/videos';
 import { Modal } from '../components/Modal';
 import { TextField } from '../components/Field';
 import { VideoThumbnail } from '../components/VideoThumbnail';
@@ -25,6 +30,8 @@ export function VideosPage() {
 
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0); // 0..100
+  const [uploadFileName, setUploadFileName] = useState<string | null>(null);
+  const uploadHandle = useRef<{ abort: () => void } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Video | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [renameTarget, setRenameTarget] = useState<Video | null>(null);
@@ -68,27 +75,36 @@ export function VideosPage() {
 
     setUploading(true);
     setUploadProgress(0);
-    // simulate progress while waiting since fetch lacks upload progress
-    const progressTimer = window.setInterval(() => {
-      setUploadProgress((p) => Math.min(95, p + 5));
-    }, 400);
+    setUploadFileName(file.name);
+
+    const handle = uploadVideoWithProgress(file, setUploadProgress);
+    uploadHandle.current = handle;
 
     try {
-      const v = await uploadVideo(file);
+      const v = await handle.promise;
       setUploadProgress(100);
       setVideos((prev) => [v, ...prev]);
       toast.success('อัปโหลดวิดีโอสำเร็จ');
     } catch (err2) {
-      toast.error(
-        err2 instanceof ApiError ? err2.message : 'อัปโหลดไม่สำเร็จ',
-      );
+      if (err2 instanceof ApiError && err2.code === 'UPLOAD_ABORTED') {
+        toast.error('ยกเลิกการอัปโหลดแล้ว');
+      } else {
+        toast.error(
+          err2 instanceof ApiError ? err2.message : 'อัปโหลดไม่สำเร็จ',
+        );
+      }
     } finally {
-      window.clearInterval(progressTimer);
+      uploadHandle.current = null;
       setTimeout(() => {
         setUploading(false);
         setUploadProgress(0);
+        setUploadFileName(null);
       }, 500);
     }
+  }
+
+  function handleCancelUpload() {
+    uploadHandle.current?.abort();
   }
 
   async function handleRename(e: React.FormEvent) {
@@ -153,9 +169,20 @@ export function VideosPage() {
 
       {uploading && (
         <div className="mb-4 bg-white rounded border border-slate-200 p-3">
-          <div className="flex justify-between text-sm text-slate-600 mb-1">
-            <span>กำลังอัปโหลด…</span>
-            <span>{uploadProgress}%</span>
+          <div className="flex justify-between items-center text-sm text-slate-600 mb-1 gap-2">
+            <span className="truncate flex-1">
+              กำลังอัปโหลด{uploadFileName ? ` ${uploadFileName}` : '…'}
+            </span>
+            <span className="font-mono text-xs text-slate-500">
+              {uploadProgress}%
+            </span>
+            <button
+              type="button"
+              onClick={handleCancelUpload}
+              className="text-xs text-rose-600 hover:underline"
+            >
+              ยกเลิก
+            </button>
           </div>
           <div className="h-2 bg-slate-100 rounded overflow-hidden">
             <div
