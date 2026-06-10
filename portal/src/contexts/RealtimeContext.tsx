@@ -34,6 +34,7 @@ interface RealtimeContextValue {
   onDeviceStatus: (cb: (msg: WsDeviceStatusChanged) => void) => () => void;
   onLiveStarted: (cb: (msg: WsLiveStarted) => void) => () => void;
   onLiveEnded: (cb: (msg: WsLiveEnded) => void) => () => void;
+  onCommandCompleted: (cb: (msg: WsCommandCompleted) => void) => () => void;
 }
 
 const RealtimeContext = createContext<RealtimeContextValue | null>(null);
@@ -57,6 +58,9 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
   );
   const liveStartedListeners = useRef<Set<Listener<WsLiveStarted>>>(new Set());
   const liveEndedListeners = useRef<Set<Listener<WsLiveEnded>>>(new Set());
+  const commandCompletedListeners = useRef<Set<Listener<WsCommandCompleted>>>(
+    new Set(),
+  );
 
   const handleMessage = useCallback(
     (msg: WsMessage) => {
@@ -88,8 +92,15 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
         }
         case 'command_completed': {
           const p = msg.payload as WsCommandCompleted;
-          if (p.status === 'error' && p.error) {
-            toast.error(`คำสั่งล้มเหลว: ${p.error.message}`);
+          // Page-level subscribers (e.g. ActiveLivesPage) surface this inline;
+          // only fall back to a toast when no one is listening so generic errors
+          // don't go silent on pages that don't care.
+          if (commandCompletedListeners.current.size === 0) {
+            if (p.status === 'error' && p.error) {
+              toast.error(`คำสั่งล้มเหลว: ${p.error.message}`);
+            }
+          } else {
+            commandCompletedListeners.current.forEach((cb) => cb(p));
           }
           break;
         }
@@ -143,6 +154,16 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  const onCommandCompleted = useCallback(
+    (cb: Listener<WsCommandCompleted>) => {
+      commandCompletedListeners.current.add(cb);
+      return () => {
+        commandCompletedListeners.current.delete(cb);
+      };
+    },
+    [],
+  );
+
   const value = useMemo<RealtimeContextValue>(
     () => ({
       connected,
@@ -152,6 +173,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
       onDeviceStatus,
       onLiveStarted,
       onLiveEnded,
+      onCommandCompleted,
     }),
     [
       connected,
@@ -161,6 +183,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
       onDeviceStatus,
       onLiveStarted,
       onLiveEnded,
+      onCommandCompleted,
     ],
   );
 

@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom';
 import { PageHeader } from '../components/PageHeader';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
+import { Confirm } from '../components/Confirm';
 import { ErrorBanner } from '../components/ErrorBanner';
 import { Spinner } from '../components/Spinner';
 import { useToast } from '../contexts/ToastContext';
@@ -23,6 +24,7 @@ export function BillingPage() {
   const [invoices, setInvoices] = useState<Invoice[] | undefined>(undefined);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState<'portal' | 'cancel' | null>(null);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -53,8 +55,12 @@ export function BillingPage() {
     }
   }
 
-  async function handleCancel() {
-    if (!confirm('ยกเลิกการต่ออายุเมื่อสิ้นสุดรอบบิลปัจจุบัน?')) return;
+  function handleCancel() {
+    setShowCancelConfirm(true);
+  }
+
+  async function doCancel() {
+    setShowCancelConfirm(false);
     setBusy('cancel');
     try {
       const res = await billingApi.cancelSubscription();
@@ -98,6 +104,17 @@ export function BillingPage() {
           <InvoiceHistory invoices={invoices} />
         </div>
       )}
+
+      <Confirm
+        open={showCancelConfirm}
+        title="ยืนยันยกเลิกแพ็กเกจ"
+        message="ระบบจะหยุดต่ออายุอัตโนมัติเมื่อสิ้นรอบบิลปัจจุบัน คุณยังใช้งานได้ตามปกติจนถึงวันที่หมดอายุ"
+        confirmLabel="ยกเลิกการต่ออายุ"
+        danger
+        loading={busy === 'cancel'}
+        onConfirm={doCancel}
+        onCancel={() => setShowCancelConfirm(false)}
+      />
     </div>
   );
 }

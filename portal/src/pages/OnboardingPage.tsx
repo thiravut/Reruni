@@ -5,7 +5,7 @@
 // Steps `welcome`, `pick_quantity`, and `payment` are NOT skippable;
 // `install_apk`, `pair_device`, and `first_video` are.
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '../components/PageHeader';
 import { Card } from '../components/Card';
@@ -112,7 +112,7 @@ function StepBody({ state, onChange, onError }: StepProps) {
     case 'pick_quantity':
       return <PickQuantityStep onChange={onChange} onError={onError} />;
     case 'payment':
-      return <PaymentWaitingStep />;
+      return <PaymentWaitingStep onChange={onChange} />;
     case 'install_apk':
       return <InstallAPKStep state={state} onChange={onChange} onError={onError} />;
     case 'pair_device':
@@ -122,6 +122,26 @@ function StepBody({ state, onChange, onError }: StepProps) {
     case 'complete':
       return <Spinner label="กำลังพาไป Dashboard…" />;
   }
+}
+
+function useElapsedSeconds(): number {
+  const startedAt = useRef(Date.now());
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - startedAt.current) / 1000));
+    }, 1000);
+    return () => clearInterval(t);
+  }, []);
+  return elapsed;
+}
+
+function formatElapsed(sec: number): string {
+  if (sec < 60) return `${sec} วินาที`;
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  if (s === 0) return `${m} นาที`;
+  return `${m} นาที ${s} วินาที`;
 }
 
 // -----------------------------------------------------------------------------
@@ -229,15 +249,44 @@ function PickQuantityStep({ onChange, onError }: Omit<StepProps, 'state'>) {
 // Step 4-5: Payment in progress (polling for Stripe webhook to flip status)
 // -----------------------------------------------------------------------------
 
-function PaymentWaitingStep() {
+function PaymentWaitingStep({ onChange }: { onChange: () => Promise<void> }) {
+  const elapsed = useElapsedSeconds();
+  const [checking, setChecking] = useState(false);
+
+  async function checkNow() {
+    setChecking(true);
+    try {
+      await onChange();
+    } finally {
+      setChecking(false);
+    }
+  }
+
   return (
     <Card className="p-8 space-y-4 text-center">
       <Spinner label="กำลังรอผลการชำระเงินจาก Stripe…" />
       <p className="text-sm text-slate-600">
-        ถ้าจ่ายเงินสำเร็จแล้วแต่หน้านี้ยังไม่อัพเดท ลอง refresh หรือไปที่หน้า{' '}
-        <a href="/billing" className="text-indigo-600 underline">การชำระเงิน</a>{' '}
-        แล้วกด "ตรวจสอบสถานะ"
+        รอมาแล้ว {formatElapsed(elapsed)} — ปกติใช้เวลา 5–15 วินาที
       </p>
+
+      <div className="flex items-center justify-center gap-3">
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => void checkNow()}
+          loading={checking}
+        >
+          เช็คสถานะเดี๋ยวนี้
+        </Button>
+      </div>
+
+      {elapsed > 60 && (
+        <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 text-left">
+          💡 รอนานกว่าปกติ — ตรวจ email Stripe ว่าจ่ายสำเร็จไหม หรือไปที่หน้า{' '}
+          <a href="/billing" className="underline">การชำระเงิน</a>{' '}
+          เพื่อดูสถานะ
+        </div>
+      )}
     </Card>
   );
 }
@@ -318,6 +367,9 @@ function InstallAPKStep({ state, onChange, onError }: StepProps) {
 
 function PairDeviceStep({ state, onChange, onError }: StepProps) {
   const [busy, setBusy] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const elapsed = useElapsedSeconds();
+  const noneOnline = state.devices_paired === 0;
 
   async function skip() {
     onError(null);
@@ -328,6 +380,15 @@ function PairDeviceStep({ state, onChange, onError }: StepProps) {
     } catch (e) {
       onError(e instanceof ApiError ? e.message : 'ข้ามขั้นตอนไม่สำเร็จ');
       setBusy(false);
+    }
+  }
+
+  async function checkNow() {
+    setChecking(true);
+    try {
+      await onChange();
+    } finally {
+      setChecking(false);
     }
   }
 
@@ -346,21 +407,43 @@ function PairDeviceStep({ state, onChange, onError }: StepProps) {
           ✓ ตรวจพบเครื่องออนไลน์แล้ว — กำลังพาไปขั้นต่อไป…
         </div>
       ) : (
-        <Spinner label="กำลังรอเครื่องแรก online…" />
+        <>
+          <Spinner label="กำลังรอเครื่องแรก online…" />
+          <p className="text-center text-sm text-slate-600">
+            รอมาแล้ว {formatElapsed(elapsed)}
+          </p>
+        </>
       )}
 
-      <div className="flex gap-3 border-t pt-4">
+      {noneOnline && elapsed > 90 && (
+        <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          💡 ยังไม่เจออุปกรณ์ออนไลน์ — ตรวจสอบว่าติดตั้ง APK บน Android phone
+          เรียบร้อย และสแกน Pair QR จากแอป Companion แล้ว
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center gap-3 border-t pt-4">
         <a
           href="/devices"
           className="inline-flex items-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
         >
           ไปหน้า Devices →
         </a>
+        {noneOnline && (
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => void checkNow()}
+            loading={checking}
+          >
+            เช็คเดี๋ยวนี้
+          </Button>
+        )}
         <button
           type="button"
           disabled={busy}
           onClick={() => void skip()}
-          className="text-sm text-slate-500 hover:text-slate-700"
+          className="ml-auto text-sm text-slate-500 hover:text-slate-700"
         >
           ข้ามไปก่อน
         </button>

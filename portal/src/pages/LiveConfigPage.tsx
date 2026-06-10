@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '../components/PageHeader';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
+import { Modal } from '../components/Modal';
 import { TextField, TextArea, FieldWrapper } from '../components/Field';
 import { ErrorBanner } from '../components/ErrorBanner';
 import { Spinner } from '../components/Spinner';
@@ -50,6 +51,7 @@ export function LiveConfigPage() {
 
   const [submitting, setSubmitting] = useState(false);
   const [formErr, setFormErr] = useState<string | null>(null);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -105,7 +107,7 @@ export function LiveConfigPage() {
       .filter(Boolean);
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setFormErr(null);
 
@@ -127,8 +129,14 @@ export function LiveConfigPage() {
     setLoopErr(lErr);
     if (tErr || cErr || hErr || vErr || dErr || lErr) return;
 
+    setShowConfirm(true);
+  }
+
+  async function handleConfirmStart() {
+    setShowConfirm(false);
     setSubmitting(true);
     try {
+      const hashtags = parseHashtags(hashtagInput);
       const res = await startLive({
         device_ids: [...selectedDeviceIds],
         video_ids: selectedVideoIds,
@@ -149,6 +157,18 @@ export function LiveConfigPage() {
       setSubmitting(false);
     }
   }
+
+  const selectedDevicesForSummary = useMemo(
+    () => mergedDevices.filter((d) => selectedDeviceIds.has(d.id)),
+    [mergedDevices, selectedDeviceIds],
+  );
+  const selectedVideosForSummary = useMemo(
+    () =>
+      selectedVideoIds
+        .map((id) => videos.find((v) => v.id === id))
+        .filter((v): v is Video => !!v),
+    [selectedVideoIds, videos],
+  );
 
   if (loading) return <Spinner label="กำลังโหลด…" />;
 
@@ -387,6 +407,126 @@ export function LiveConfigPage() {
           </p>
         </Card>
       </form>
+
+      <Modal
+        open={showConfirm}
+        onClose={() => setShowConfirm(false)}
+        title="ยืนยันเริ่ม Live"
+        size="md"
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setShowConfirm(false)}
+            >
+              แก้กลับ
+            </Button>
+            <Button size="sm" onClick={handleConfirmStart} loading={submitting}>
+              เริ่ม Live →
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-4 text-sm">
+          <p className="text-slate-600">
+            จะส่งคำสั่งเริ่ม live ทันทีบน:
+          </p>
+
+          <div>
+            <p className="font-medium text-slate-800 mb-1.5">
+              {selectedDevicesForSummary.length} อุปกรณ์
+            </p>
+            <ul className="text-slate-600 space-y-0.5 pl-3">
+              {selectedDevicesForSummary.slice(0, 5).map((d) => (
+                <li key={d.id} className="flex items-center gap-2">
+                  <span>• {d.name || `อุปกรณ์ #${d.id}`}</span>
+                  {d.status === 'live' && (
+                    <span className="text-xs text-amber-600">
+                      (กำลัง live อยู่)
+                    </span>
+                  )}
+                </li>
+              ))}
+              {selectedDevicesForSummary.length > 5 && (
+                <li className="text-slate-500">
+                  + {selectedDevicesForSummary.length - 5} เครื่องอื่น ๆ
+                </li>
+              )}
+            </ul>
+          </div>
+
+          <div>
+            <p className="font-medium text-slate-800 mb-1.5">
+              {selectedVideosForSummary.length} วิดีโอ{' '}
+              {selectedVideosForSummary.length > 1 && (
+                <span className="text-xs font-normal text-slate-500">
+                  (round-robin ตามลำดับนี้)
+                </span>
+              )}
+            </p>
+            <ul className="text-slate-600 space-y-0.5 pl-3">
+              {selectedVideosForSummary.map((v, i) => (
+                <li key={v.id}>
+                  <span className="font-mono text-xs text-brand-600 mr-2">
+                    #{i + 1}
+                  </span>
+                  {v.name || v.filename}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 border-t border-slate-100 pt-3">
+            <SummaryRow label="ชื่อ Live">
+              <span className="text-slate-800">{title.trim()}</span>
+            </SummaryRow>
+            <SummaryRow label="วนลูป">
+              <span className="text-slate-800">
+                {loopForever ? 'ไม่จำกัด (จนกว่าจะหยุด)' : `${loopCount} รอบ`}
+              </span>
+            </SummaryRow>
+            {hashtagInput.trim() && (
+              <SummaryRow label="แฮชแท็ก">
+                <span className="text-slate-800">
+                  {parseHashtags(hashtagInput).map((h) => `#${h}`).join(' ')}
+                </span>
+              </SummaryRow>
+            )}
+            {pinnedSku.trim() && (
+              <SummaryRow label="SKU ที่ปัก">
+                <span className="font-mono text-xs text-slate-800">
+                  {pinnedSku.trim()}
+                </span>
+                <span className="ml-1 text-amber-600" title="ระบบยังไม่ validate SKU">
+                  ⚠
+                </span>
+              </SummaryRow>
+            )}
+          </div>
+
+          {pinnedSku.trim() && (
+            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
+              ⚠ ตรวจการสะกด SKU ให้แน่ใจ — ระบบยังไม่ validate กับ TikTok Shop
+            </p>
+          )}
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
+function SummaryRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <dt className="text-xs uppercase tracking-wider text-slate-500">{label}</dt>
+      <dd className="mt-0.5">{children}</dd>
     </div>
   );
 }
